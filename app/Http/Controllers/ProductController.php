@@ -1,0 +1,149 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Product;
+use App\Models\Unit;
+use Illuminate\Http\Request;
+
+class ProductController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = Product::with('unit');
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            });
+        }
+
+        $sortField = in_array($request->input('sort'), ['code', 'name', 'status'])
+                    ? $request->input('sort') : 'code';
+        $sortDirection = $request->input('direction') === 'asc' ? 'asc' : 'desc';
+
+        $products = $query->orderBy($sortField, $sortDirection)->paginate(10)->appends($request->all());
+
+        return view('products.index', compact('products'));
+    }
+
+    public function create()
+    {
+        $units = Unit::all();
+        return view('products.create', compact('units'));
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'code'          => 'required|string|max:50|unique:products,code',
+            'name'          => 'required|string|max:255|unique:products,name',
+            'unit_id'       => 'required|exists:units,id',
+            'initial_stock' => 'nullable|numeric|min:0',
+            'firing_process'=> 'required|in:standard,multistage',
+            'kiln_type'     => 'required|in:tonneli,shuttle,both',
+            'tonneli_feed_rate' => 'nullable|integer|min:0',
+            'cavities'      => 'nullable|integer|min:1',
+            'per_box'       => 'nullable|integer|min:0',
+            'per_pack'      => 'nullable|integer|min:0',
+            'per_pallet'    => 'nullable|integer|min:0',
+            'box_type'      => 'nullable|string|max:255',
+            'layers_per_box'=> 'nullable|integer|min:0',
+            'status'        => 'boolean',
+            'in_production' => 'boolean',
+            'description'   => 'nullable|string',
+        ]);
+
+        $validated['status'] = $request->has('status');
+        $validated['in_production'] = $request->has('in_production');
+        $validated['initial_stock'] = $validated['initial_stock'] ?? 0;
+        $validated['cavities'] = $validated['cavities'] ?? 1;
+        $validated['tonneli_feed_rate'] = $validated['tonneli_feed_rate'] ?? null;
+        $validated['per_box'] = $validated['per_box'] ?? null;
+        $validated['per_pack'] = $validated['per_pack'] ?? null;
+        $validated['per_pallet'] = $validated['per_pallet'] ?? null;
+        $validated['layers_per_box'] = $validated['layers_per_box'] ?? null;
+
+        Product::create($validated);
+
+        return redirect()->route('products.create')
+            ->with('success', 'کالا با موفقیت ایجاد شد.');
+    }
+
+    public function show(Product $product)
+    {
+        $product->load('unit', 'logs.user');
+        return view('products.show', compact('product'));
+    }
+
+    public function edit(Product $product)
+    {
+        $units = Unit::all();
+        return view('products.edit', compact('product', 'units'));
+    }
+
+    public function update(Request $request, Product $product)
+    {
+        $validated = $request->validate([
+            'name'          => 'required|string|max:255|unique:products,name,' . $product->id,
+            'unit_id'       => 'required|exists:units,id',
+            'initial_stock' => 'nullable|numeric|min:0',
+            'firing_process'=> 'required|in:standard,multistage',
+            'kiln_type'     => 'required|in:tonneli,shuttle,both',
+            'tonneli_feed_rate' => 'nullable|integer|min:0',
+            'cavities'      => 'nullable|integer|min:1',
+            'per_box'       => 'nullable|integer|min:0',
+            'per_pack'      => 'nullable|integer|min:0',
+            'per_pallet'    => 'nullable|integer|min:0',
+            'box_type'      => 'nullable|string|max:255',
+            'layers_per_box'=> 'nullable|integer|min:0',
+            'status'        => 'boolean',
+            'in_production' => 'boolean',
+            'description'   => 'nullable|string',
+        ]);
+
+        unset($validated['code']);
+        $validated['status'] = $request->has('status');
+        $validated['in_production'] = $request->has('in_production');
+        $validated['initial_stock'] = $validated['initial_stock'] ?? $product->initial_stock;
+        $validated['cavities'] = $validated['cavities'] ?? $product->cavities;
+
+        $product->update($validated);
+
+        return redirect()->route('products.index')
+            ->with('success', 'کالا با موفقیت ویرایش شد.');
+    }
+
+    public function toggleStatus(Product $product)
+    {
+        $product->status = !$product->status;
+        $product->save();
+
+        return response()->json([
+            'success' => true,
+            'status'  => $product->status,
+        ]);
+    }
+
+    public function toggleInProduction(Product $product)
+    {
+        $product->in_production = !$product->in_production;
+        $product->save();
+
+        return response()->json([
+            'success'        => true,
+            'in_production'  => $product->in_production,
+        ]);
+    }
+
+    public function destroy(Product $product)
+    {
+        try {
+            $product->delete();
+            return redirect()->route('products.index')->with('success', 'کالا حذف شد.');
+        } catch (\Exception $e) {
+            return redirect()->route('products.index')->with('error', $e->getMessage());
+        }
+    }
+}
