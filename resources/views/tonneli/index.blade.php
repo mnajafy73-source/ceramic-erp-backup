@@ -1,13 +1,14 @@
 @extends('layouts.app')
 
+@section('title', 'پخت‌های تونلی')
+
 @push('scripts')
 <script>
     $(function() {
-        // تغییر وضعیت بسته‌بندی با کلیک روی toggle
         $(document).on('change', '.packaged-toggle', function() {
             let checkbox = $(this);
             let url = checkbox.data('url');
-            let badge = checkbox.closest('td').find('.packaged-badge'); // پیدا کردن badge مرتبط
+            let badge = checkbox.closest('td').find('.packaged-badge');
 
             $.ajax({
                 url: url,
@@ -31,7 +32,7 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4 class="fw-bold mb-0">پخت‌های کوره تونلی</h4>
-    <a href="{{ url('/tonneli/create') }}" class="btn btn-primary"><i class="fas fa-plus me-1"></i> ثبت جدید</a>
+    <a href="{{ route('tonneli.create') }}" class="btn btn-primary"><i class="fas fa-plus me-1"></i> ثبت جدید</a>
 </div>
 
 @if(session('success'))
@@ -50,35 +51,33 @@
         </tr>
     </thead>
     <tbody>
-        @forelse($firings as $f)
+        @forelse($firings as $firing)
         <tr>
-            <td>{{ $f->jalali_date ?? '—' }}</td>
-            <td>{{ $f->product->name ?? '—' }}</td>
-            <td>{{ rtrim(rtrim(number_format($f->input_quantity, 2, '.', ''), '0'), '.') }}</td>
-            <td>{{ rtrim(rtrim(number_format($f->output_quantity, 2, '.', ''), '0'), '.') }}</td>
+            <td>{{ $firing->jalali_date ?? '—' }}</td>
+            <td>{{ $firing->product->name ?? '—' }}</td>
+            <td>{{ rtrim(rtrim(number_format($firing->input_quantity, 2, '.', ''), '0'), '.') }}</td>
+            <td>{{ rtrim(rtrim(number_format($firing->output_quantity, 2, '.', ''), '0'), '.') }}</td>
             <td>
                 <div class="form-check form-switch">
                     <input class="form-check-input packaged-toggle" type="checkbox" 
-                           data-url="{{ url('/tonneli/'.$f->id.'/toggle-packaged') }}"
-                           {{ $f->is_packaged ? 'checked' : '' }}>
-                    <span class="badge packaged-badge {{ $f->is_packaged ? 'bg-success' : 'bg-danger' }}">
-                        {{ $f->is_packaged ? 'بله' : 'خیر' }}
+                           data-url="{{ url('/tonneli/'.$firing->id.'/toggle-packaged') }}"
+                           {{ $firing->is_packaged ? 'checked' : '' }}>
+                    <span class="badge packaged-badge {{ $firing->is_packaged ? 'bg-success' : 'bg-danger' }}">
+                        {{ $firing->is_packaged ? 'بله' : 'خیر' }}
                     </span>
                 </div>
             </td>
             <td class="d-flex gap-1">
-                <a href="{{ url('/tonneli/'.$f->id) }}" class="btn btn-sm btn-outline-info" title="مشاهده"><i class="fas fa-eye"></i></a>
-                <a href="{{ url('/tonneli/'.$f->id.'/edit') }}" class="btn btn-sm btn-outline-warning" title="ویرایش"><i class="fas fa-edit"></i></a>
-                <form action="{{ url('/tonneli/'.$f->id) }}" method="POST" onsubmit="return confirm('مطمئن هستید؟')">
+                <a href="{{ url('/tonneli/'.$firing->id) }}" class="btn btn-sm btn-outline-info" title="مشاهده"><i class="fas fa-eye"></i></a>
+                <a href="{{ url('/tonneli/'.$firing->id.'/edit') }}" class="btn btn-sm btn-outline-warning" title="ویرایش"><i class="fas fa-edit"></i></a>
+                <form action="{{ route('tonneli.destroy', $firing->id) }}" method="POST" onsubmit="return confirm('مطمئن هستید؟')">
                     @csrf @method('DELETE')
                     <button class="btn btn-sm btn-outline-danger" title="حذف"><i class="fas fa-trash"></i></button>
                 </form>
             </td>
         </tr>
         @empty
-        <tr>
-            <td colspan="6" class="text-center">هیچ رکوردی یافت نشد.</td>
-        </tr>
+        <tr><td colspan="6" class="text-center">هیچ رکوردی یافت نشد.</td></tr>
         @endforelse
     </tbody>
 </table>

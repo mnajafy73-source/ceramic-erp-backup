@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Morilog\Jalali\Jalalian;
+use App\Traits\HasUndo;
 
 class TonneliFiring extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUndo;
 
     protected $fillable = [
         'date',
@@ -28,7 +29,7 @@ class TonneliFiring extends Model
         return $this->belongsTo(Product::class);
     }
 
-    // Accessor ایمن برای تاریخ شمسی
+    // Accessor for Jalali date
     public function getJalaliDateAttribute()
     {
         if (!$this->date) {

@@ -4,20 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasUndo;
 
 class Production extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUndo;
 
     protected $fillable = [
-        'date',
-        'operator_id',
-        'press_id',
-        'product_id',
-        'stage',
-        'quantity',
-        'time_hours',
-        'notes',
+        'date', 'operator_id', 'press_id', 'product_id',
+        'stage', 'quantity', 'time_hours', 'notes',
     ];
 
     protected $casts = [

@@ -202,6 +202,17 @@
             </div>
         </div>
         <div class="p-3 p-md-4">
+            {{-- نوار بازگرداندن (Undo) --}}
+            @if(session('undo_record'))
+            <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
+                <span>یک عملیات حذف انجام شد. می‌توانید آن را برگردانید.</span>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('undo.restore') }}" class="btn btn-sm btn-success">↩️ برگرداندن</a>
+                    <a href="{{ route('undo.discard') }}" class="btn btn-sm btn-secondary">✖️ انصراف</a>
+                </div>
+            </div>
+            @endif
+
             @yield('content')
         </div>
     </div>

@@ -4,21 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasUndo;
 
 class Press extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUndo;
 
     protected $fillable = ['name', 'status'];
-
-    protected $casts = [
-        'status' => 'boolean',
-    ];
-
-    protected static function booted()
-    {
-        static::deleting(function ($press) {
-            \App\Models\Production::where('press_id', $press->id)->update(['press_id' => null]);
-        });
-    }
+    protected $casts = ['status' => 'boolean'];
 }

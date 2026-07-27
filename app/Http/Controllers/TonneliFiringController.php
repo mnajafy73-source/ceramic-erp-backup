@@ -24,7 +24,7 @@ class TonneliFiringController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $validated = $request->validate([
             'date' => 'required|string',
             'product_id' => 'required|exists:products,id',
             'input_quantity' => 'nullable|numeric|min:0',
@@ -33,25 +33,25 @@ class TonneliFiringController extends Controller
         ]);
 
         try {
-            $data['date'] = Jalalian::fromFormat('Y/m/d', $data['date'])->toCarbon()->format('Y-m-d');
+            $validated['date'] = Jalalian::fromFormat('Y/m/d', $validated['date'])->toCarbon()->format('Y-m-d');
         } catch (\Exception $e) {
             return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
         }
 
-        $data['input_quantity'] = $data['input_quantity'] ?? 0;
-        $data['output_quantity'] = $data['output_quantity'] ?? 0;
-        $data['is_packaged'] = $request->has('is_packaged');
+        $validated['input_quantity'] = $validated['input_quantity'] ?? 0;
+        $validated['output_quantity'] = $validated['output_quantity'] ?? 0;
+        $validated['is_packaged'] = $request->has('is_packaged');
 
-        TonneliFiring::create($data);
-        return redirect()->to(url('/tonneli/create'))->with('success', 'ثبت شد.');
+        TonneliFiring::create($validated);
+        return redirect()->route('tonneli.create')->with('success', 'پخت تونلی با موفقیت ثبت شد.');
     }
 
+    // حذف با قابلیت Undo
     public function destroy(TonneliFiring $tonneli)
     {
         $tonneli->delete();
-        return redirect()->to(url('/tonneli'))->with('success', 'حذف شد.');
+        return redirect()->to('/tonneli')->with('success', 'حذف شد.');
     }
 
-    // سایر متدها بدون تغییر (show, edit, update, togglePackaged) طبق آخرین نسخه
-    // ...
+    // سایر متدها (show, edit, update) مستقیماً در web.php هندل می‌شوند
 }

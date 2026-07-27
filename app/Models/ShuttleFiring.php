@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasUndo;
+use Morilog\Jalali\Jalalian;
 
 class ShuttleFiring extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUndo;   // HasUndo اضافه شد
 
     protected $fillable = [
         'date',
@@ -27,5 +29,18 @@ class ShuttleFiring extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function getJalaliDateAttribute()
+    {
+        if (!$this->date) {
+            return null;
+        }
+
+        try {
+            return Jalalian::fromCarbon($this->date)->format('Y/m/d');
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }
