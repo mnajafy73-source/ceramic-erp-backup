@@ -6,8 +6,14 @@
     <a href="{{ route('shuttle.create') }}" class="btn btn-primary"><i class="fas fa-plus me-1"></i> ثبت جدید</a>
 </div>
 
+{{-- نمایش پیام موفقیت با دکمه برگرداندن --}}
 @if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
+    <div class="alert alert-success d-flex justify-content-between align-items-center">
+        <span>{{ session('success') }}</span>
+        @if(session('undo_record') || session('undo_records'))
+            <a href="{{ route('undo.restore') }}" class="btn btn-sm btn-warning">برگرداندن</a>
+        @endif
+    </div>
 @endif
 
 <div class="card border-0 shadow-sm">
@@ -37,10 +43,9 @@
                             <a href="{{ route('shuttle.show', ['firingNumber' => $batch->firing_number, 'date' => $batch->date->format('Y-m-d'), 'kiln_type' => $batch->kiln_type]) }}" class="btn btn-sm btn-outline-info" title="مشاهده"><i class="fas fa-eye"></i></a>
                             <a href="{{ route('shuttle.edit', ['firingNumber' => $batch->firing_number, 'date' => $batch->date->format('Y-m-d'), 'kiln_type' => $batch->kiln_type]) }}" class="btn btn-sm btn-outline-warning" title="ویرایش"><i class="fas fa-edit"></i></a>
 
-                            {{-- دکمه حذف کل پخت --}}
+                            {{-- حذف گروهی --}}
                             <form action="{{ route('shuttle.destroy-batch') }}" method="POST" onsubmit="return confirm('مطمئن هستید کل این پخت حذف شود؟')">
                                 @csrf
-                                @method('DELETE')
                                 <input type="hidden" name="firing_number" value="{{ $batch->firing_number }}">
                                 <input type="hidden" name="date" value="{{ $batch->date->format('Y-m-d') }}">
                                 <input type="hidden" name="kiln_type" value="{{ $batch->kiln_type }}">

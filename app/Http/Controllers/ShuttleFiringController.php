@@ -44,13 +44,12 @@ class ShuttleFiringController extends Controller
             return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
         }
 
-        // استخراج سال و ماه میلادی برای جستجوی دقیق در دیتابیس
         $year  = date('Y', strtotime($gregorianDate));
         $month = date('m', strtotime($gregorianDate));
 
         $maxNumber = ShuttleFiring::where('kiln_type', $validated['kiln_type'])
-            ->whereYear('date', $year)
-            ->whereMonth('date', $month)
+            ->where('year', $year)
+            ->where('month', $month)
             ->max('firing_number');
 
         $nextNumber = $maxNumber ? intval($maxNumber) + 1 : 1;
@@ -64,6 +63,8 @@ class ShuttleFiringController extends Controller
                 'output_quantity' => $product['output_quantity'] ?? null,
                 'firing_number'   => $nextNumber,
                 'is_packaged'     => !empty($product['is_packaged']),
+                'year'            => $year,
+                'month'           => $month,
             ]);
         }
 
@@ -114,10 +115,20 @@ class ShuttleFiringController extends Controller
         ]);
 
         try {
-            $gregorianDate = Jalalian::fromFormat('Y/m/d', $validated['date'])->toCarbon()->format('Y-m-d');
+            $newGregorianDate = Jalalian::fromFormat('Y/m/d', $validated['date'])->toCarbon()->format('Y-m-d');
         } catch (\Exception $e) {
             return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
         }
+
+        $newYear  = date('Y', strtotime($newGregorianDate));
+        $newMonth = date('m', strtotime($newGregorianDate));
+
+        $maxNumber = ShuttleFiring::where('kiln_type', $validated['kiln_type'])
+            ->where('year', $newYear)
+            ->where('month', $newMonth)
+            ->max('firing_number');
+
+        $newNumber = $maxNumber ? intval($maxNumber) + 1 : 1;
 
         ShuttleFiring::where('firing_number', $firingNumber)
             ->whereDate('date', $request->query('date'))
@@ -126,23 +137,32 @@ class ShuttleFiringController extends Controller
 
         foreach ($validated['products'] as $product) {
             ShuttleFiring::create([
-                'date'            => $gregorianDate,
+                'date'            => $newGregorianDate,
                 'kiln_type'       => $validated['kiln_type'],
                 'firing_subtype'  => $validated['firing_subtype'] ?? null,
                 'product_id'      => $product['product_id'],
                 'output_quantity' => $product['output_quantity'] ?? null,
-                'firing_number'   => $firingNumber,
+                'firing_number'   => $newNumber,
                 'is_packaged'     => !empty($product['is_packaged']),
+                'year'            => $newYear,
+                'month'           => $newMonth,
             ]);
         }
 
-        $redirectUrl = '/shuttle/batch/' . $firingNumber . '?date=' . $gregorianDate . '&kiln_type=' . $validated['kiln_type'];
-        return redirect()->to($redirectUrl)->with('success', "پخت شماره {$firingNumber} ویرایش شد.");
+        $redirectUrl = '/shuttle/batch/' . $newNumber . '?date=' . $newGregorianDate . '&kiln_type=' . $validated['kiln_type'];
+        return redirect()->to($redirectUrl)->with('success', "پخت شماره {$newNumber} ویرایش شد.");
     }
 
     public function destroy(ShuttleFiring $shuttle)
     {
+        // ذخیره اطلاعات در سشن برای بازگردانی
+        session(['undo_record' => [
+            'class' => get_class($shuttle),
+            'data'  => $shuttle->toArray(),
+        ]]);
+
         $shuttle->delete();
+
         return redirect()->to('/shuttle')->with('success', 'حذف شد.');
     }
 
@@ -154,6 +174,20 @@ class ShuttleFiringController extends Controller
             'kiln_type'     => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
         ]);
 
+        $records = ShuttleFiring::where('firing_number', $validated['firing_number'])
+            ->whereDate('date', $validated['date'])
+            ->where('kiln_type', $validated['kiln_type'])
+            ->get();
+
+        // ✅ ذخیره **همه** رکوردها (نه فقط اولین) برای بازگردانی
+        if ($records->isNotEmpty()) {
+            session(['undo_record' => [
+                'class' => get_class($records->first()),
+                'data'  => $records->toArray(), // کل مجموعه را به آرایه تبدیل می‌کنیم
+            ]]);
+        }
+
+        // حذف همه رکوردها
         ShuttleFiring::where('firing_number', $validated['firing_number'])
             ->whereDate('date', $validated['date'])
             ->where('kiln_type', $validated['kiln_type'])

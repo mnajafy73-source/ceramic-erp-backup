@@ -166,7 +166,7 @@ Route::get('/shuttle', [ShuttleFiringController::class, 'index'])->name('shuttle
 Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create')->middleware('auth');
 Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store')->middleware('auth');
 
-// مسیر دریافت شماره پخت بعدی (با تبدیل صحیح تاریخ)
+// مسیر دریافت شماره پخت بعدی
 Route::get('/shuttle/next-firing-number', function (Request $request) {
     $request->validate([
         'kiln_type' => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
@@ -174,7 +174,6 @@ Route::get('/shuttle/next-firing-number', function (Request $request) {
     ]);
 
     try {
-        // تبدیل تاریخ شمسی به میلادی
         $gregorianDate = Jalalian::fromFormat('Y/m/d', $request->date)->toCarbon()->format('Y-m-d');
         $year  = date('Y', strtotime($gregorianDate));
         $month = date('m', strtotime($gregorianDate));
@@ -183,8 +182,8 @@ Route::get('/shuttle/next-firing-number', function (Request $request) {
     }
 
     $maxNum = App\Models\ShuttleFiring::where('kiln_type', $request->kiln_type)
-        ->whereYear('date', $year)
-        ->whereMonth('date', $month)
+        ->where('year', $year)
+        ->where('month', $month)
         ->max('firing_number');
 
     $next = $maxNum ? intval($maxNum) + 1 : 1;
@@ -200,8 +199,8 @@ Route::put('/shuttle/batch/{firingNumber}', [ShuttleFiringController::class, 'up
 // حذف تکی (برای Undo)
 Route::delete('/shuttle/{shuttle}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy')->middleware('auth');
 
-// حذف گروهی یک پخت
-Route::delete('/shuttle/batch', [ShuttleFiringController::class, 'destroyBatch'])->name('shuttle.destroy-batch')->middleware('auth');
+// حذف گروهی با متد POST
+Route::post('/shuttle/batch/delete', [ShuttleFiringController::class, 'destroyBatch'])->name('shuttle.destroy-batch')->middleware('auth');
 
 // تغییر وضعیت بسته‌بندی شاتل (AJAX)
 Route::patch('/shuttle/{shuttle}/toggle-packaged', function (App\Models\ShuttleFiring $shuttle) {

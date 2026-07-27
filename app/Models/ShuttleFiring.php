@@ -9,7 +9,7 @@ use Morilog\Jalali\Jalalian;
 
 class ShuttleFiring extends Model
 {
-    use HasFactory, HasUndo;   // HasUndo اضافه شد
+    use HasFactory, HasUndo;
 
     protected $fillable = [
         'date',
@@ -19,6 +19,8 @@ class ShuttleFiring extends Model
         'product_id',
         'output_quantity',
         'is_packaged',
+        'year',
+        'month',
     ];
 
     protected $casts = [
