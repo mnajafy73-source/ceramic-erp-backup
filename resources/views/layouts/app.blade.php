@@ -149,7 +149,6 @@
                 <i class="fas fa-industry"></i> تولید
             </a>
 
-            {{-- منوی کوره‌ها --}}
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-kilns')">
                 <span><i class="fas fa-fire"></i> کوره‌ها</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -159,19 +158,25 @@
                 <a href="{{ route('shuttle.index') }}"><i class="fas fa-train"></i> پخت شاتل</a>
             </div>
 
+            <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-sales')">
+                <span><i class="fas fa-shopping-cart"></i> فروش</span>
+                <i class="fas fa-chevron-down menu-arrow"></i>
+            </button>
+            <div class="submenu" id="submenu-sales">
+                <a href="{{ route('invoices.index') }}"><i class="fas fa-file-invoice"></i> حواله‌ها</a>
+                <a href="{{ route('sales.index') }}"><i class="fas fa-file-invoice-dollar"></i> رسمی</a>
+            </div>
+
             <a href="#" class="nav-link">
                 <i class="fas fa-warehouse"></i> انبار
             </a>
-            <a href="#" class="nav-link">
-                <i class="fas fa-shopping-cart"></i> فروش
-            </a>
+
             <a href="#" class="nav-link">
                 <i class="fas fa-file-alt"></i> گزارش‌ها
             </a>
 
             <hr class="text-white-50 mx-3 my-2">
 
-            {{-- منوی تنظیمات --}}
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-settings')">
                 <span><i class="fas fa-cog"></i> تنظیمات</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -202,15 +207,29 @@
             </div>
         </div>
         <div class="p-3 p-md-4">
-            {{-- نوار بازگرداندن (Undo) --}}
-            @if(session('undo_record'))
-            <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
-                <span>یک عملیات حذف انجام شد. می‌توانید آن را برگردانید.</span>
-                <div class="d-flex gap-2">
-                    <a href="{{ route('undo.restore') }}" class="btn btn-sm btn-success">↩️ برگرداندن</a>
-                    <a href="{{ route('undo.discard') }}" class="btn btn-sm btn-secondary">✖️ انصراف</a>
+
+            @if(session('undo_record') && session()->has('success'))
+                <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
+                    <span>{{ session()->pull('success') }}</span>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('undo.restore') }}" class="btn btn-sm btn-success">↩️ برگرداندن</a>
+                        <a href="{{ route('undo.discard') }}" class="btn btn-sm btn-secondary">✖️ انصراف</a>
+                    </div>
                 </div>
-            </div>
+            @endif
+
+            @if(session('success') && !session('undo_record'))
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    {{ session()->pull('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ session()->pull('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             @endif
 
             @yield('content')

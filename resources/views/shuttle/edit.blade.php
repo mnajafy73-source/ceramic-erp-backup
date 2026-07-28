@@ -3,6 +3,7 @@
 @push('scripts')
 <script>
     let productIndex = {{ $items->count() }};
+
     function addProductRow(productId = '', qty = '', packaged = false) {
         const container = document.getElementById('products-container');
         if (!container) return;
@@ -42,13 +43,25 @@
         @foreach($items as $i => $item)
             addProductRow({{ $item->product_id }}, '{{ $item->output_quantity }}', {{ $item->is_packaged ? 'true' : 'false' }});
         @endforeach
+
+        try {
+            if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
+                $('#date').persianDatepicker({
+                    format: 'YYYY/MM/DD',
+                    autoClose: true,
+                    initialValue: false,
+                    observer: true,
+                    calendar: { persian: { locale: 'fa' } }
+                });
+            }
+        } catch (e) {}
     });
 </script>
 @endpush
 
 @section('content')
 <div class="mb-4">
-    <h4 class="fw-bold mb-1">ویرایش پخت شاتل شماره {{ $firingNumber }}</h4>
+    <h4 class="fw-bold mb-1">ویرایش پخت شاتل</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{{ route('shuttle.index') }}">پخت‌های شاتل</a></li>
@@ -62,24 +75,38 @@
         <form action="{{ route('shuttle.update', ['firingNumber' => $firingNumber, 'date' => $date, 'kiln_type' => $kilnType]) }}" method="POST">
             @csrf
             @method('PUT')
-            <input type="hidden" name="date" value="{{ old('date', $jalaliDate) }}">
-            <input type="hidden" name="kiln_type" value="{{ $kilnType }}">
-            @if($items->first()->firing_subtype)
-                <input type="hidden" name="firing_subtype" value="{{ $items->first()->firing_subtype }}">
-            @endif
 
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">تاریخ</label>
-                    <input type="text" class="form-control" value="{{ $jalaliDate }}" disabled>
+                    <label class="form-label">تاریخ <span class="text-danger">*</span></label>
+                    <input type="text" name="date" id="date" class="form-control @error('date') is-invalid @enderror" 
+                           value="{{ old('date', $jalaliDate) }}" required autocomplete="off">
+                    @error('date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">نوع کوره</label>
-                    @php
-                        $kilnLabels = ['kiln_1' => 'کوره ۱', 'kiln_2' => 'کوره ۲', 'kiln_3' => 'کوره ۳', 'packaging' => 'بسته‌بندی'];
-                    @endphp
-                    <input type="text" class="form-control" value="{{ $kilnLabels[$kilnType] ?? $kilnType }}" disabled>
+                    <label class="form-label">نوع کوره <span class="text-danger">*</span></label>
+                    <select name="kiln_type" id="kiln_type" class="form-select @error('kiln_type') is-invalid @enderror" required>
+                        <option value="">انتخاب کنید...</option>
+                        <option value="kiln_1" {{ old('kiln_type', $kilnType) == 'kiln_1' ? 'selected' : '' }}>کوره ۱</option>
+                        <option value="kiln_2" {{ old('kiln_type', $kilnType) == 'kiln_2' ? 'selected' : '' }}>کوره ۲</option>
+                        <option value="kiln_3" {{ old('kiln_type', $kilnType) == 'kiln_3' ? 'selected' : '' }}>کوره ۳</option>
+                        <option value="packaging" {{ old('kiln_type', $kilnType) == 'packaging' ? 'selected' : '' }}>بسته‌بندی</option>
+                    </select>
+                    @error('kiln_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3" id="subtype-group" style="{{ $items->first()->firing_subtype ? 'display:block;' : 'display:none;' }}">
+                    <label class="form-label">نوع پخت <span class="text-danger">*</span></label>
+                    <select name="firing_subtype" id="firing_subtype" class="form-select @error('firing_subtype') is-invalid @enderror">
+                        <option value="">انتخاب کنید...</option>
+                        <option value="mum" {{ old('firing_subtype', $items->first()->firing_subtype) == 'mum' ? 'selected' : '' }}>موم (۹۰۰°)</option>
+                        <option value="glaze" {{ old('firing_subtype', $items->first()->firing_subtype) == 'glaze' ? 'selected' : '' }}>لعابدار</option>
+                    </select>
+                    @error('firing_subtype')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                {{-- حذف فیلد شماره پخت --}}
             </div>
 
             <div class="card bg-light mb-3">

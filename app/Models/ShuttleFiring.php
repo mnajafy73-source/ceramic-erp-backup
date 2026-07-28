@@ -21,6 +21,7 @@ class ShuttleFiring extends Model
         'is_packaged',
         'year',
         'month',
+        'day',
     ];
 
     protected $casts = [

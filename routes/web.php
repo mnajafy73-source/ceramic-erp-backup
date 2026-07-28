@@ -12,6 +12,8 @@ use App\Http\Controllers\ProductLogController;
 use App\Http\Controllers\TonneliFiringController;
 use App\Http\Controllers\ShuttleFiringController;
 use App\Http\Controllers\UndoController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\SaleController;
 
 Route::get('/', function () { return view('welcome'); });
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
@@ -27,7 +29,6 @@ Route::get('/tonneli/create', [TonneliFiringController::class, 'create'])->name(
 Route::post('/tonneli', [TonneliFiringController::class, 'store'])->name('tonneli.store')->middleware('auth');
 Route::delete('/tonneli/{tonneli}', [TonneliFiringController::class, 'destroy'])->name('tonneli.destroy')->middleware('auth');
 
-// مشاهده تونلی (مستقیم)
 Route::get('/tonneli/{tonneli}', function (App\Models\TonneliFiring $tonneli) {
     $tonneli->load('product');
     $date = $tonneli->jalali_date ?? 'ندارد';
@@ -58,7 +59,6 @@ Route::get('/tonneli/{tonneli}', function (App\Models\TonneliFiring $tonneli) {
     </body></html>';
 })->name('tonneli.show')->middleware('auth');
 
-// ویرایش تونلی (مستقیم)
 Route::get('/tonneli/{tonneli}/edit', function (App\Models\TonneliFiring $tonneli) {
     $tonneli->load('product');
     $products = App\Models\Product::where('status', true)->whereIn('kiln_type', ['tonneli', 'both'])->get();
@@ -128,7 +128,6 @@ Route::get('/tonneli/{tonneli}/edit', function (App\Models\TonneliFiring $tonnel
     </body></html>';
 })->name('tonneli.edit')->middleware('auth');
 
-// به‌روزرسانی تونلی
 Route::put('/tonneli/{tonneli}', function (App\Models\TonneliFiring $tonneli, Request $request) {
     $data = $request->validate([
         'date' => 'required|string',
@@ -150,7 +149,6 @@ Route::put('/tonneli/{tonneli}', function (App\Models\TonneliFiring $tonneli, Re
     return redirect()->to('/tonneli')->with('success', 'ویرایش شد.');
 })->name('tonneli.update')->middleware('auth');
 
-// تغییر وضعیت بسته‌بندی تونلی (AJAX)
 Route::patch('/tonneli/{tonneli}/toggle-packaged', function (App\Models\TonneliFiring $tonneli) {
     $tonneli->is_packaged = !$tonneli->is_packaged;
     $tonneli->save();
@@ -166,48 +164,28 @@ Route::get('/shuttle', [ShuttleFiringController::class, 'index'])->name('shuttle
 Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create')->middleware('auth');
 Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store')->middleware('auth');
 
-// مسیر دریافت شماره پخت بعدی
-Route::get('/shuttle/next-firing-number', function (Request $request) {
-    $request->validate([
-        'kiln_type' => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
-        'date'      => 'required|string',
-    ]);
-
-    try {
-        $gregorianDate = Jalalian::fromFormat('Y/m/d', $request->date)->toCarbon()->format('Y-m-d');
-        $year  = date('Y', strtotime($gregorianDate));
-        $month = date('m', strtotime($gregorianDate));
-    } catch (\Exception $e) {
-        return response()->json(['number' => '—'], 422);
-    }
-
-    $maxNum = App\Models\ShuttleFiring::where('kiln_type', $request->kiln_type)
-        ->where('year', $year)
-        ->where('month', $month)
-        ->max('firing_number');
-
-    $next = $maxNum ? intval($maxNum) + 1 : 1;
-
-    return response()->json(['number' => $next]);
-})->name('shuttle.next-firing-number')->middleware('auth');
-
-// مشاهده و ویرایش گروهی شاتل
 Route::get('/shuttle/batch/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show')->middleware('auth');
 Route::get('/shuttle/batch/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit')->middleware('auth');
 Route::put('/shuttle/batch/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update')->middleware('auth');
 
-// حذف تکی (برای Undo)
 Route::delete('/shuttle/{shuttle}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy')->middleware('auth');
-
-// حذف گروهی با متد POST
 Route::post('/shuttle/batch/delete', [ShuttleFiringController::class, 'destroyBatch'])->name('shuttle.destroy-batch')->middleware('auth');
 
-// تغییر وضعیت بسته‌بندی شاتل (AJAX)
 Route::patch('/shuttle/{shuttle}/toggle-packaged', function (App\Models\ShuttleFiring $shuttle) {
     $shuttle->is_packaged = !$shuttle->is_packaged;
     $shuttle->save();
     return response()->json(['success' => true, 'is_packaged' => $shuttle->is_packaged]);
 })->name('shuttle.toggle-packaged')->middleware('auth');
+
+// ==================== حواله ====================
+Route::resource('invoices', InvoiceController::class)->middleware('auth');
+Route::post('/invoices/{invoice}/close', [InvoiceController::class, 'close'])->name('invoices.close')->middleware('auth');
+
+// ==================== فروش رسمی ====================
+Route::resource('sales', SaleController::class)->middleware('auth');
+Route::post('/sales/{sale}/mark-paid', [SaleController::class, 'markAsPaid'])->name('sales.paid')->middleware('auth');
+Route::post('/sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sales.cancel')->middleware('auth');
+Route::get('/sales/invoice-products/{invoice}', [SaleController::class, 'getInvoiceProducts'])->name('sales.invoice-products')->middleware('auth');
 
 // ==================== Undo ====================
 Route::get('/undo/restore', [UndoController::class, 'restore'])->name('undo.restore')->middleware('auth');

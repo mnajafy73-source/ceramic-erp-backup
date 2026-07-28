@@ -2,27 +2,6 @@
 
 @push('scripts')
 <script>
-    async function loadFiringNumber() {
-        const kiln = document.getElementById('kiln_type')?.value;
-        const date = document.getElementById('date')?.value;
-        const display = document.getElementById('firing-number-display');
-        if (!display) return;
-
-        if (!kiln || !date) {
-            display.innerText = '—';
-            return;
-        }
-
-        try {
-            const response = await fetch(`/shuttle/next-firing-number?kiln_type=${encodeURIComponent(kiln)}&date=${encodeURIComponent(date)}`);
-            if (!response.ok) throw new Error('Network error');
-            const data = await response.json();
-            display.innerText = data.number ?? '—';
-        } catch (error) {
-            display.innerText = '—';
-        }
-    }
-
     function toggleSubtype() {
         const kilnType = document.getElementById('kiln_type')?.value;
         const subtypeGroup = document.getElementById('subtype-group');
@@ -84,17 +63,8 @@
         } catch (e) {}
 
         const kilnSelect = document.getElementById('kiln_type');
-        const dateInput = document.getElementById('date');
-
-        kilnSelect?.addEventListener('change', function() {
-            toggleSubtype();
-            loadFiringNumber();
-        });
-        dateInput?.addEventListener('change', loadFiringNumber);
-        dateInput?.addEventListener('input', loadFiringNumber);
-
+        kilnSelect?.addEventListener('change', toggleSubtype);
         toggleSubtype();
-        loadFiringNumber();
         addProductRow();
     });
 </script>
@@ -145,11 +115,6 @@
                     </select>
                     @error('firing_subtype')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
-
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">شماره پخت</label>
-                    <div class="form-control bg-light fw-bold" id="firing-number-display">—</div>
-                </div>
             </div>
 
             <div class="card bg-light mb-3">
@@ -163,7 +128,7 @@
             </div>
 
             <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> ثبت</button>
-            <a href="{{ route('shuttle.index') }}" class="btn btn-secondary ms-2">انصراف</a>
+            <a href="{{ route('shuttle.index') }}" class="btn btn-secondary ms-2">بازگشت</a>
         </form>
     </div>
 </div>
