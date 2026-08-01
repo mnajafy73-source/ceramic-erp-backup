@@ -163,8 +163,8 @@
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-sales">
-                <a href="{{ route('invoices.index') }}"><i class="fas fa-file-invoice"></i> حواله‌ها</a>
                 <a href="{{ route('sales.index') }}"><i class="fas fa-file-invoice-dollar"></i> رسمی</a>
+                <a href="{{ route('informal-sales.index') }}"><i class="fas fa-file-invoice"></i> غیررسمی</a>
             </div>
 
             <a href="#" class="nav-link">

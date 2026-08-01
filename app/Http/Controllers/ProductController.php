@@ -40,9 +40,6 @@ class ProductController extends Controller
             'code'          => 'required|string|max:50|unique:products,code',
             'name'          => 'required|string|max:255|unique:products,name',
             'unit_id'       => 'required|exists:units,id',
-            'initial_stock' => 'nullable|numeric|min:0',
-            'firing_process'=> 'required|in:standard,multistage',
-            'kiln_type'     => 'required|in:tonneli,shuttle,both',
             'tonneli_feed_rate' => 'nullable|integer|min:0',
             'cavities'      => 'nullable|integer|min:1',
             'per_box'       => 'nullable|integer|min:0',
@@ -52,12 +49,11 @@ class ProductController extends Controller
             'layers_per_box'=> 'nullable|integer|min:0',
             'status'        => 'boolean',
             'in_production' => 'boolean',
-            'description'   => 'nullable|string',
+            // is_raw_material حذف شد
         ]);
 
         $validated['status'] = $request->has('status');
         $validated['in_production'] = $request->has('in_production');
-        $validated['initial_stock'] = $validated['initial_stock'] ?? 0;
         $validated['cavities'] = $validated['cavities'] ?? 1;
         $validated['tonneli_feed_rate'] = $validated['tonneli_feed_rate'] ?? null;
         $validated['per_box'] = $validated['per_box'] ?? null;
@@ -73,7 +69,7 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        $product->load('unit', 'logs.user');
+        $product->load('unit', 'logs.user', 'inventory');
         return view('products.show', compact('product'));
     }
 
@@ -88,9 +84,6 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name'          => 'required|string|max:255|unique:products,name,' . $product->id,
             'unit_id'       => 'required|exists:units,id',
-            'initial_stock' => 'nullable|numeric|min:0',
-            'firing_process'=> 'required|in:standard,multistage',
-            'kiln_type'     => 'required|in:tonneli,shuttle,both',
             'tonneli_feed_rate' => 'nullable|integer|min:0',
             'cavities'      => 'nullable|integer|min:1',
             'per_box'       => 'nullable|integer|min:0',
@@ -100,13 +93,11 @@ class ProductController extends Controller
             'layers_per_box'=> 'nullable|integer|min:0',
             'status'        => 'boolean',
             'in_production' => 'boolean',
-            'description'   => 'nullable|string',
         ]);
 
         unset($validated['code']);
         $validated['status'] = $request->has('status');
         $validated['in_production'] = $request->has('in_production');
-        $validated['initial_stock'] = $validated['initial_stock'] ?? $product->initial_stock;
         $validated['cavities'] = $validated['cavities'] ?? $product->cavities;
 
         $product->update($validated);

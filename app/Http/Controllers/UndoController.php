@@ -6,8 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\Product;
-use App\Models\Invoice;
 use App\Models\Sale;
+use App\Models\InformalSale;
 
 class UndoController extends Controller
 {
@@ -38,34 +38,21 @@ class UndoController extends Controller
             $newId = DB::table((new $class())->getTable())->insertGetId($data);
 
             if (!empty($products) && is_array($products)) {
-                $isInvoice = ($class === Invoice::class);
                 $isSale = ($class === Sale::class);
+                $isInformalSale = ($class === InformalSale::class);
 
                 foreach ($products as $product) {
                     unset($product['id']);
-                    unset($product['invoice_id']);
                     unset($product['sale_id']);
-
-                    if ($isInvoice) {
-                        $product['invoice_id'] = $newId;
-                    } elseif ($isSale) {
-                        $product['sale_id'] = $newId;
-                    }
-
-                    $product['created_at'] = now();
-                    $product['updated_at'] = now();
-
-                    if ($isInvoice) {
-                        DB::table('invoice_products')->insert($product);
-                    } elseif ($isSale) {
-                        DB::table('sale_products')->insert($product);
-                    }
+                    unset($product['informal_sale_id']);
 
                     if ($isSale) {
-                        if (empty($data['invoice_id'])) {
-                            $this->decreaseStock($product['product_id'], $product['quantity']);
-                        }
-                    } elseif ($isInvoice) {
+                        $product['sale_id'] = $newId;
+                        DB::table('sale_products')->insert($product);
+                        $this->decreaseStock($product['product_id'], $product['quantity']);
+                    } elseif ($isInformalSale) {
+                        $product['informal_sale_id'] = $newId;
+                        DB::table('informal_sale_products')->insert($product);
                         $this->decreaseStock($product['product_id'], $product['quantity']);
                     }
                 }

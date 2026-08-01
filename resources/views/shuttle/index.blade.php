@@ -6,33 +6,34 @@
     <a href="{{ route('shuttle.create') }}" class="btn btn-primary"><i class="fas fa-plus me-1"></i> ثبت جدید</a>
 </div>
 
-{{-- فیلتر سال، ماه و کوره (بدون گزینه‌های «همه») --}}
+{{-- فیلتر سال، ماه و کوره --}}
 <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-        <form action="{{ route('shuttle.index') }}" method="GET" id="filter-form" class="row g-3 align-items-end">
+    <div class="card-body py-2">
+        <form action="{{ route('shuttle.index') }}" method="GET" id="filter-form" class="row g-2 align-items-end">
             <div class="col-md-3">
-                <label class="form-label">سال</label>
-                <select name="year" class="form-select" id="year-select">
+                <label class="form-label small">سال</label>
+                <select name="year" class="form-select form-select-sm" id="year-select">
                     @foreach($availableYears as $year)
                         <option value="{{ $year }}" {{ $year == $defaultYear ? 'selected' : '' }}>{{ $year }}</option>
                     @endforeach
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label">ماه</label>
-                <select name="month" class="form-select" id="month-select">
+                <label class="form-label small">ماه</label>
+                <select name="month" class="form-select form-select-sm" id="month-select">
                     @for($m=1; $m<=12; $m++)
                         <option value="{{ $m }}" {{ $m == $defaultMonth ? 'selected' : '' }}>ماه {{ $m }}</option>
                     @endfor
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label">کوره</label>
-                <select name="kiln_type" class="form-select" id="kiln-select">
-                    <option value="kiln_1" {{ $defaultKiln == 'kiln_1' ? 'selected' : '' }}>کوره ۱</option>
-                    <option value="kiln_2" {{ $defaultKiln == 'kiln_2' ? 'selected' : '' }}>کوره ۲</option>
-                    <option value="kiln_3" {{ $defaultKiln == 'kiln_3' ? 'selected' : '' }}>کوره ۳</option>
-                    <option value="packaging" {{ $defaultKiln == 'packaging' ? 'selected' : '' }}>بسته‌بندی</option>
+                <label class="form-label small">کوره</label>
+                <select name="kiln_type" class="form-select form-select-sm" id="kiln-select">
+                    <option value="">همه</option>
+                    <option value="kiln_1" {{ old('kiln_type', $defaultKiln) == 'kiln_1' ? 'selected' : '' }}>کوره ۱</option>
+                    <option value="kiln_2" {{ old('kiln_type', $defaultKiln) == 'kiln_2' ? 'selected' : '' }}>کوره ۲</option>
+                    <option value="kiln_3" {{ old('kiln_type', $defaultKiln) == 'kiln_3' ? 'selected' : '' }}>کوره ۳</option>
+                    <option value="packaging" {{ old('kiln_type', $defaultKiln) == 'packaging' ? 'selected' : '' }}>بسته‌بندی</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -44,28 +45,26 @@
 
 {{-- جدول خلاصه --}}
 <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-        <h6 class="fw-bold mb-3">
-            خلاصه پخت‌ها در ماه {{ $defaultMonth }} سال {{ $defaultYear }} - {{ $kilnLabels[$defaultKiln] ?? $defaultKiln }}
-        </h6>
+    <div class="card-body py-2">
+        <h6 class="fw-bold mb-2 small">خلاصه پخت‌ها در ماه {{ $defaultMonth }} سال {{ $defaultYear }}</h6>
         <div class="table-responsive">
-            <table class="table table-bordered table-striped">
-                <thead>
+            <table class="table table-sm table-bordered table-striped mb-0">
+                <thead class="table-light">
                     <tr>
-                        <th>نوع کوره</th>
-                        <th>تعداد پخت (شماره‌های متمایز)</th>
+                        <th class="small">نوع کوره</th>
+                        <th class="small">تعداد پخت (شماره‌های متمایز)</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($summaryData as $key => $data)
                         <tr>
-                            <td>{{ $data['label'] }}</td>
-                            <td>{{ $data['count'] }}</td>
+                            <td class="small">{{ $data['label'] }}</td>
+                            <td class="small">{{ $data['count'] }}</td>
                         </tr>
                     @endforeach
                     <tr class="table-primary">
-                        <td><strong>مجموع</strong></td>
-                        <td><strong>{{ array_sum(array_column($summaryData, 'count')) }}</strong></td>
+                        <td class="small"><strong>مجموع</strong></td>
+                        <td class="small"><strong>{{ array_sum(array_column($summaryData, 'count')) }}</strong></td>
                     </tr>
                 </tbody>
             </table>
@@ -103,7 +102,7 @@
                     @endphp
                     @forelse($batches as $batch)
                     <tr>
-                        <td>{{ $batch->jalali_date ?? '—' }}</td>
+                        <td>{{ \Morilog\Jalali\Jalalian::fromCarbon($batch->date)->format('Y/m/d') }}</td>
                         <td>{{ $kilnLabels[$batch->kiln_type] ?? $batch->kiln_type }}</td>
                         <td><span class="badge bg-primary">{{ $batch->firing_number }}</span></td>
                         <td>{{ \App\Models\ShuttleFiring::where('firing_number', $batch->firing_number)->whereDate('date', $batch->date)->where('kiln_type', $batch->kiln_type)->count() }}</td>
@@ -121,7 +120,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="5" class="text-center">هیچ پختی با این فیلترها یافت نشد.</td></tr>
+                    <tr><td colspan="5" class="text-center">هیچ پختی در این ماه یافت نشد.</td></tr>
                     @endforelse
                 </tbody>
             </table>

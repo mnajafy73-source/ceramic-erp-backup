@@ -8,7 +8,7 @@
         const container = document.getElementById('products-container');
         if (!container) return;
         const html = `
-            <div class="row g-2 mb-2 product-row" id="product-row-${productIndex}">
+            <div class="row g-2 mb-2 product-row">
                 <div class="col-md-4">
                     <select name="products[${productIndex}][product_id]" class="form-select" required>
                         <option value="">انتخاب محصول...</option>
@@ -47,26 +47,10 @@
         document.getElementById('total_with_tax').textContent = totalWithTax.toLocaleString();
     }
 
-    // AJAX برای دریافت محصولات حواله (در ویرایش هم کار می‌کند)
     document.addEventListener('DOMContentLoaded', function() {
-        const invoiceSelect = document.getElementById('invoice_id');
-        invoiceSelect.addEventListener('change', function() {
-            const invoiceId = this.value;
-            if (!invoiceId) return;
-
-            fetch(`/sales/invoice-products/${invoiceId}`)
-                .then(response => response.json())
-                .then(data => {
-                    // حذف ردیف‌های قبلی
-                    document.querySelectorAll('.product-row').forEach(row => row.remove());
-                    productIndex = 0;
-                    data.forEach(item => {
-                        addProductRow(item.product_id, item.quantity, 0);
-                    });
-                    calculateTotal();
-                })
-                .catch(error => console.error('خطا در دریافت محصولات:', error));
-        });
+        @foreach($sale->products as $item)
+            addProductRow({{ $item->product_id }}, '{{ $item->quantity }}', '{{ $item->unit_price }}');
+        @endforeach
 
         try {
             if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
@@ -79,10 +63,6 @@
                 });
             }
         } catch (e) {}
-
-        @foreach($sale->products as $item)
-            addProductRow({{ $item->product_id }}, '{{ $item->quantity }}', '{{ $item->unit_price }}');
-        @endforeach
 
         document.addEventListener('change', calculateTotal);
         document.addEventListener('input', calculateTotal);
@@ -135,20 +115,7 @@
                 </div>
             </div>
 
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">حواله (اختیاری)</label>
-                    <select name="invoice_id" id="invoice_id" class="form-select">
-                        <option value="">بدون حواله</option>
-                        @foreach($invoices as $invoice)
-                            <option value="{{ $invoice->id }}" {{ old('invoice_id', $sale->invoice_id) == $invoice->id ? 'selected' : '' }}>
-                                {{ $invoice->display_number }} - {{ \Morilog\Jalali\Jalalian::fromCarbon($invoice->date)->format('Y/m/d') }} - {{ $invoice->customer_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <small class="text-muted">اگر حواله انتخاب شود، موجودی انبار کم نمی‌شود و محصولات آن به‌طور خودکار وارد می‌شوند.</small>
-                </div>
-            </div>
+            {{-- حذف بخش حواله --}}
 
             <div class="card bg-light mb-3">
                 <div class="card-body">

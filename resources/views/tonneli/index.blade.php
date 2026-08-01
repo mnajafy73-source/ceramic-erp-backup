@@ -43,10 +43,7 @@
     <thead class="table-light">
         <tr>
             <th>تاریخ</th>
-            <th>محصول</th>
-            <th>ورودی</th>
-            <th>خروجی</th>
-            <th>بسته‌بندی</th>
+            <th>محصولات</th>
             <th>عملیات</th>
         </tr>
     </thead>
@@ -54,18 +51,10 @@
         @forelse($firings as $firing)
         <tr>
             <td>{{ $firing->jalali_date ?? '—' }}</td>
-            <td>{{ $firing->product->name ?? '—' }}</td>
-            <td>{{ rtrim(rtrim(number_format($firing->input_quantity, 2, '.', ''), '0'), '.') }}</td>
-            <td>{{ rtrim(rtrim(number_format($firing->output_quantity, 2, '.', ''), '0'), '.') }}</td>
             <td>
-                <div class="form-check form-switch">
-                    <input class="form-check-input packaged-toggle" type="checkbox" 
-                           data-url="{{ url('/tonneli/'.$firing->id.'/toggle-packaged') }}"
-                           {{ $firing->is_packaged ? 'checked' : '' }}>
-                    <span class="badge packaged-badge {{ $firing->is_packaged ? 'bg-success' : 'bg-danger' }}">
-                        {{ $firing->is_packaged ? 'بله' : 'خیر' }}
-                    </span>
-                </div>
+                @foreach($firing->items as $item)
+                    <span class="badge bg-secondary">{{ $item->product->name ?? '—' }}</span>
+                @endforeach
             </td>
             <td class="d-flex gap-1">
                 <a href="{{ url('/tonneli/'.$firing->id) }}" class="btn btn-sm btn-outline-info" title="مشاهده"><i class="fas fa-eye"></i></a>

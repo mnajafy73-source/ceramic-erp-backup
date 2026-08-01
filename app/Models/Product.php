@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Auth;
 use App\Traits\HasUndo;
 
 class Product extends Model
@@ -12,9 +11,10 @@ class Product extends Model
     use HasFactory, HasUndo;
 
     protected $fillable = [
-        'code', 'name', 'unit_id', 'initial_stock', 'firing_process',
-        'kiln_type', 'tonneli_feed_rate', 'cavities', 'per_box', 'per_pack',
-        'per_pallet', 'box_type', 'layers_per_box', 'status', 'in_production', 'description',
+        'code', 'name', 'unit_id',
+        'tonneli_feed_rate', 'cavities', 'per_box', 'per_pack',
+        'per_pallet', 'box_type', 'layers_per_box', 'status', 'in_production',
+        // 'is_raw_material' حذف شد
     ];
 
     protected $casts = [
@@ -22,8 +22,20 @@ class Product extends Model
         'in_production' => 'boolean',
     ];
 
-    public function unit() { return $this->belongsTo(Unit::class); }
-    public function logs() { return $this->hasMany(ProductLog::class); }
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class);
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(ProductLog::class);
+    }
+
+    public function inventory()
+    {
+        return $this->hasOne(Inventory::class);
+    }
 
     public function delete()
     {

@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Sale;
-use App\Models\SaleProduct;
+use App\Models\InformalSale;
+use App\Models\InformalSaleProduct;
 use App\Models\Product;
 use App\Models\Inventory;
 use Illuminate\Http\Request;
 use Morilog\Jalali\Jalalian;
 use Illuminate\Support\Facades\DB;
 
-class SaleController extends Controller
+class InformalSaleController extends Controller
 {
     // ==================== متدهای کمکی موجودی ====================
 
@@ -63,32 +63,36 @@ class SaleController extends Controller
 
     public function index()
     {
-        $sales = Sale::orderBy('date', 'desc')->orderBy('id', 'desc')->paginate(15);
-        return view('sales.index', compact('sales'));
+        $sales = InformalSale::orderBy('date', 'desc')->orderBy('id', 'desc')->paginate(15);
+        return view('informal-sales.index', compact('sales'));
     }
 
     public function create()
     {
         $products = Product::where('status', true)->get();
         $today = Jalalian::now()->format('Y/m/d');
-        $lastSale = Sale::orderBy('id', 'desc')->first();
-        $defaultTax = $lastSale ? $lastSale->tax_percent : 9;
+        $year = Jalalian::now()->getYear();
+        $maxNumber = InformalSale::where('year', $year)->max('number');
+        $nextNumber = $maxNumber ? $maxNumber + 1 : 1;
+        $displayNumber = $year . '-' . $nextNumber;
 
-        return view('sales.create', compact('products', 'today', 'defaultTax'));
+        return view('informal-sales.create', compact('products', 'today', 'year', 'nextNumber', 'displayNumber'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'date' => 'required|string',
-            'invoice_number' => 'required|integer|unique:sales,invoice_number',
             'customer_name' => 'required|string|max:255',
-            'tax_percent' => 'required|numeric|min:0|max:100',
             'products' => 'required|array|min:1',
             'products.*.product_id' => 'required|exists:products,id',
             'products.*.quantity' => 'required|numeric|min:0.01',
             'products.*.unit_price' => 'required|numeric|min:0',
         ]);
+
+        $year = Jalalian::fromFormat('Y/m/d', $validated['date'])->getYear();
+        $maxNumber = InformalSale::where('year', $year)->max('number');
+        $number = $maxNumber ? $maxNumber + 1 : 1;
 
         DB::beginTransaction();
 
@@ -97,21 +101,19 @@ class SaleController extends Controller
             foreach ($validated['products'] as $item) {
                 $totalPrice += $item['quantity'] * $item['unit_price'];
             }
-            $totalWithTax = $totalPrice + ($totalPrice * $validated['tax_percent'] / 100);
 
-            $sale = Sale::create([
-                'invoice_number' => $validated['invoice_number'],
+            $sale = InformalSale::create([
+                'year' => $year,
+                'number' => $number,
                 'date' => Jalalian::fromFormat('Y/m/d', $validated['date'])->toCarbon()->format('Y-m-d'),
                 'customer_name' => $validated['customer_name'],
-                'tax_percent' => $validated['tax_percent'],
                 'total_price' => $totalPrice,
-                'total_with_tax' => $totalWithTax,
                 'status' => 'pending',
             ]);
 
             foreach ($validated['products'] as $item) {
-                SaleProduct::create([
-                    'sale_id' => $sale->id,
+                InformalSaleProduct::create([
+                    'informal_sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
@@ -122,7 +124,7 @@ class SaleController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('sales.index')->with('success', "فاکتور شماره {$validated['invoice_number']} با موفقیت ثبت شد.");
+            return redirect()->route('informal-sales.index')->with('success', "فاکتور غیررسمی شماره {$year}-{$number} با موفقیت ثبت شد.");
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -130,36 +132,34 @@ class SaleController extends Controller
         }
     }
 
-    public function show(Sale $sale)
+    public function show(InformalSale $informal_sale)
     {
-        $sale->load('products.product');
-        return view('sales.show', compact('sale'));
+        $informal_sale->load('products.product');
+        return view('informal-sales.show', compact('informal_sale'));
     }
 
-    public function edit(Sale $sale)
+    public function edit(InformalSale $informal_sale)
     {
-        if ($sale->status !== 'pending') {
-            return redirect()->route('sales.index')->with('error', 'فاکتورهای پرداخت شده یا باطل شده قابل ویرایش نیستند.');
+        if ($informal_sale->status !== 'pending') {
+            return redirect()->route('informal-sales.index')->with('error', 'فاکتورهای پرداخت شده یا باطل شده قابل ویرایش نیستند.');
         }
 
         $products = Product::where('status', true)->get();
-        $sale->load('products');
-        $sale->jalali_date = Jalalian::fromCarbon($sale->date)->format('Y/m/d');
+        $informal_sale->load('products');
+        $informal_sale->jalali_date = Jalalian::fromCarbon($informal_sale->date)->format('Y/m/d');
 
-        return view('sales.edit', compact('sale', 'products'));
+        return view('informal-sales.edit', compact('informal_sale', 'products'));
     }
 
-    public function update(Request $request, Sale $sale)
+    public function update(Request $request, InformalSale $informal_sale)
     {
-        if ($sale->status !== 'pending') {
+        if ($informal_sale->status !== 'pending') {
             return back()->with('error', 'فاکتورهای پرداخت شده یا باطل شده قابل ویرایش نیستند.');
         }
 
         $validated = $request->validate([
             'date' => 'required|string',
-            'invoice_number' => 'required|integer|unique:sales,invoice_number,' . $sale->id,
             'customer_name' => 'required|string|max:255',
-            'tax_percent' => 'required|numeric|min:0|max:100',
             'products' => 'required|array|min:1',
             'products.*.product_id' => 'required|exists:products,id',
             'products.*.quantity' => 'required|numeric|min:0.01',
@@ -170,31 +170,27 @@ class SaleController extends Controller
 
         try {
             // برگرداندن موجودی قبلی
-            foreach ($sale->products as $oldProduct) {
+            foreach ($informal_sale->products as $oldProduct) {
                 $calc = $this->calculateBoxAndLayer($oldProduct->product_id, $oldProduct->quantity);
                 $this->increaseStock($oldProduct->product_id, $oldProduct->quantity, $calc['box'], $calc['layer'], $calc['pallet']);
             }
 
-            $sale->products()->delete();
+            $informal_sale->products()->delete();
 
             $totalPrice = 0;
             foreach ($validated['products'] as $item) {
                 $totalPrice += $item['quantity'] * $item['unit_price'];
             }
-            $totalWithTax = $totalPrice + ($totalPrice * $validated['tax_percent'] / 100);
 
-            $sale->update([
-                'invoice_number' => $validated['invoice_number'],
+            $informal_sale->update([
                 'date' => Jalalian::fromFormat('Y/m/d', $validated['date'])->toCarbon()->format('Y-m-d'),
                 'customer_name' => $validated['customer_name'],
-                'tax_percent' => $validated['tax_percent'],
                 'total_price' => $totalPrice,
-                'total_with_tax' => $totalWithTax,
             ]);
 
             foreach ($validated['products'] as $item) {
-                SaleProduct::create([
-                    'sale_id' => $sale->id,
+                InformalSaleProduct::create([
+                    'informal_sale_id' => $informal_sale->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
@@ -205,7 +201,7 @@ class SaleController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('sales.index')->with('success', 'فاکتور با موفقیت ویرایش شد.');
+            return redirect()->route('informal-sales.index')->with('success', 'فاکتور با موفقیت ویرایش شد.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -213,20 +209,20 @@ class SaleController extends Controller
         }
     }
 
-    public function destroy(Sale $sale)
+    public function destroy(InformalSale $informal_sale)
     {
-        if ($sale->status === 'paid') {
+        if ($informal_sale->status === 'paid') {
             return back()->with('error', 'فاکتورهای پرداخت شده قابل حذف نیستند.');
         }
 
-        if ($sale->status === 'pending') {
-            $saleData = $sale->toArray();
-            $productsData = $sale->products->map(function ($product) {
+        if ($informal_sale->status === 'pending') {
+            $saleData = $informal_sale->toArray();
+            $productsData = $informal_sale->products->map(function ($product) {
                 return $product->toArray();
             })->toArray();
 
             session(['undo_record' => [
-                'class' => get_class($sale),
+                'class' => get_class($informal_sale),
                 'data'  => $saleData,
                 'products' => $productsData,
             ]]);
@@ -235,17 +231,17 @@ class SaleController extends Controller
         DB::beginTransaction();
 
         try {
-            if ($sale->status === 'pending') {
-                foreach ($sale->products as $product) {
+            if ($informal_sale->status === 'pending') {
+                foreach ($informal_sale->products as $product) {
                     $calc = $this->calculateBoxAndLayer($product->product_id, $product->quantity);
                     $this->increaseStock($product->product_id, $product->quantity, $calc['box'], $calc['layer'], $calc['pallet']);
                 }
             }
 
-            $sale->delete();
+            $informal_sale->delete();
             DB::commit();
 
-            return redirect()->route('sales.index')->with('success', 'فاکتور با موفقیت حذف شد.');
+            return redirect()->route('informal-sales.index')->with('success', 'فاکتور با موفقیت حذف شد.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -253,36 +249,36 @@ class SaleController extends Controller
         }
     }
 
-    public function markAsPaid(Sale $sale)
+    public function markAsPaid(InformalSale $informal_sale)
     {
-        if ($sale->status === 'cancelled') {
+        if ($informal_sale->status === 'cancelled') {
             return back()->with('error', 'فاکتور باطل شده قابل تغییر نیست.');
         }
 
-        $sale->status = 'paid';
-        $sale->save();
+        $informal_sale->status = 'paid';
+        $informal_sale->save();
 
         return back()->with('success', 'وضعیت فاکتور به "پرداخت شده" تغییر کرد.');
     }
 
-    public function cancel(Sale $sale)
+    public function cancel(InformalSale $informal_sale)
     {
-        if ($sale->status === 'cancelled') {
+        if ($informal_sale->status === 'cancelled') {
             return back()->with('error', 'فاکتور قبلاً باطل شده است.');
         }
 
         DB::beginTransaction();
 
         try {
-            if ($sale->status === 'pending') {
-                foreach ($sale->products as $product) {
+            if ($informal_sale->status === 'pending') {
+                foreach ($informal_sale->products as $product) {
                     $calc = $this->calculateBoxAndLayer($product->product_id, $product->quantity);
                     $this->increaseStock($product->product_id, $product->quantity, $calc['box'], $calc['layer'], $calc['pallet']);
                 }
             }
 
-            $sale->status = 'cancelled';
-            $sale->save();
+            $informal_sale->status = 'cancelled';
+            $informal_sale->save();
 
             DB::commit();
             return back()->with('success', 'فاکتور با موفقیت باطل شد و موجودی برگردانده شد.');

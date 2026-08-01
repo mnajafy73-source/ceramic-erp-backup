@@ -13,23 +13,17 @@ class TonneliFiring extends Model
 
     protected $fillable = [
         'date',
-        'product_id',
-        'input_quantity',
-        'output_quantity',
-        'is_packaged',
     ];
 
     protected $casts = [
         'date' => 'date',
-        'is_packaged' => 'boolean',
     ];
 
-    public function product()
+    public function items()
     {
-        return $this->belongsTo(Product::class);
+        return $this->hasMany(TonneliFiringItem::class);
     }
 
-    // Accessor for Jalali date
     public function getJalaliDateAttribute()
     {
         if (!$this->date) {
