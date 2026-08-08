@@ -106,6 +106,40 @@
                 </div>
             </div>
 
+            <!-- ===== فیلدهای جدید: کارتن و لایه مصرفی ===== -->
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">کارتن مصرفی</label>
+                    <select name="carton_packaging_id" class="form-select @error('carton_packaging_id') is-invalid @enderror">
+                        <option value="">انتخاب کارتن...</option>
+                        @foreach($packagings as $packaging)
+                            @if($packaging->type == 'carton')
+                                <option value="{{ $packaging->id }}" {{ old('carton_packaging_id') == $packaging->id ? 'selected' : '' }}>
+                                    {{ $packaging->name }}
+                                </option>
+                            @endif
+                        @endforeach
+                    </select>
+                    @error('carton_packaging_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <small class="text-muted">کارتن مصرفی برای بسته‌بندی این محصول</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">لایه مصرفی</label>
+                    <select name="layer_packaging_id" class="form-select @error('layer_packaging_id') is-invalid @enderror">
+                        <option value="">انتخاب لایه...</option>
+                        @foreach($packagings as $packaging)
+                            @if($packaging->type == 'layer')
+                                <option value="{{ $packaging->id }}" {{ old('layer_packaging_id') == $packaging->id ? 'selected' : '' }}>
+                                    {{ $packaging->name }}
+                                </option>
+                            @endif
+                        @endforeach
+                    </select>
+                    @error('layer_packaging_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <small class="text-muted">لایه مصرفی برای بسته‌بندی این محصول</small>
+                </div>
+            </div>
+
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <div class="form-check form-switch mt-4">

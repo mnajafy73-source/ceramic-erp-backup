@@ -26,4 +26,19 @@ class PackagingPurchaseItem extends Model
     {
         return $this->belongsTo(Packaging::class);
     }
+
+    protected static function booted()
+    {
+        static::saving(function ($item) {
+            if ($item->quantity > 0 && $item->purchase) {
+                // ===== فرمول صحیح (تقسیم مساوی هزینه حمل بین آیتم‌ها) =====
+                $transportCost = $item->purchase->total_transport_cost ?? 0;
+                $totalItems = $item->purchase->items()->count();
+                $transportShare = ($totalItems > 0) ? ($transportCost / $totalItems) : 0;
+                
+                // قیمت هر واحد = (قیمت کل آیتم + سهم حمل) / تعداد
+                $item->price_per_unit = ($item->total_price + $transportShare) / $item->quantity;
+            }
+        });
+    }
 }

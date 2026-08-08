@@ -26,4 +26,19 @@ class RawMaterialPurchaseItem extends Model
     {
         return $this->belongsTo(RawMaterial::class);
     }
+
+    protected static function booted()
+    {
+        static::saving(function ($item) {
+            if ($item->quantity > 0 && $item->purchase) {
+                // ===== فرمول صحیح (تقسیم مساوی هزینه حمل بین آیتم‌ها) =====
+                $transportCost = $item->purchase->total_transport_cost ?? 0;
+                $totalItems = $item->purchase->items()->count();
+                $transportShare = ($totalItems > 0) ? ($transportCost / $totalItems) : 0;
+                
+                // قیمت هر گرم = (قیمت کل آیتم + سهم حمل) / (مقدار به کیلوگرم * 1000)
+                $item->price_per_gram = ($item->total_price + $transportShare) / ($item->quantity * 1000);
+            }
+        });
+    }
 }

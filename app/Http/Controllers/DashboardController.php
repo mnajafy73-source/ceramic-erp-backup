@@ -2,95 +2,114 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Production;
-use App\Models\TonneliFiringItem;
-use App\Models\ShuttleFiring;
-use App\Models\UserDashboardItem;
-use Illuminate\Support\Facades\Auth;
+use App\Models\DashboardProduct;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        $user = Auth::user();
+        $userId = auth()->id();
 
         // دریافت محصولات انتخابی کاربر
-        $selectedProducts = UserDashboardItem::where('user_id', $user->id)
-            ->with('product')
-            ->get()
-            ->pluck('product');
+        $selectedProductIds = DashboardProduct::where('user_id', $userId)
+            ->orderBy('order')
+            ->pluck('product_id')
+            ->toArray();
 
-        $feedRateData = [];
+        $allProducts = Product::whereIn('id', $selectedProductIds)
+            ->where('status', 1)
+            ->orderBy('name', 'asc')
+            ->get();
 
-        foreach ($selectedProducts as $product) {
-            // فقط محصولاتی که خوراک پخت دارند
-            if (!$product->tonneli_feed_rate || $product->tonneli_feed_rate <= 0) {
-                continue;
-            }
-
-            // محاسبه موجودی خام
-            $totalProduction = Production::where('product_id', $product->id)
+        foreach ($allProducts as $product) {
+            // جمع تولیدات
+            $productionSum = Production::where('product_id', $product->id)
                 ->where('stage', 'production')
                 ->sum('quantity');
 
-            $tonneliConsumption = TonneliFiringItem::where('product_id', $product->id)->sum('input_quantity');
-            $shuttleConsumption = ShuttleFiring::where('product_id', $product->id)->sum('output_quantity');
-            $rawStock = max(0, $totalProduction - $tonneliConsumption - $shuttleConsumption);
+            // جمع تونلی
+            $tonneliSum = 0;
+            if (Schema::hasTable('tonneli_firing_items')) {
+                $tonneliSum = DB::table('tonneli_firing_items')
+                    ->where('product_id', $product->id)
+                    ->sum('input_quantity') ?? 0;
+            }
 
-            // محاسبه ساعت موجودی
-            $feedRate = $product->tonneli_feed_rate;
-            $hours = ($feedRate > 0 && $rawStock > 0) ? round($rawStock / $feedRate, 2) : 0;
+            // جمع شاتل
+            $shuttleSum = 0;
+            if (Schema::hasTable('shuttle_firings')) {
+                $shuttleSum = DB::table('shuttle_firings')
+                    ->where('product_id', $product->id)
+                    ->sum('output_quantity') ?? 0;
+            }
 
-            $feedRateData[] = [
-                'id' => $product->id,
-                'name' => $product->name,
-                'raw_stock' => $rawStock,
-                'hours' => $hours,
-            ];
+            // موجودی فعلی
+            $stock = $productionSum - $tonneliSum - $shuttleSum;
+
+            // محاسبه زمان پخت تونلی بر اساس موجودی و خوراک
+            $tonneliTime = null;
+            if ($product->tonneli_feed_rate && $product->tonneli_feed_rate > 0 && $stock > 0) {
+                $tonneliTime = round($stock / $product->tonneli_feed_rate, 1);
+            }
+
+            // اختصاص به آبجکت محصول
+            $product->production_sum = $productionSum;
+            $product->tonneli_sum = $tonneliSum;
+            $product->shuttle_sum = $shuttleSum;
+            $product->stock = $stock;
+            $product->tonneli_time = $tonneliTime; // زمان پخت به ساعت
         }
 
-        // لیست همه محصولات برای Select2
-        $allProducts = Product::where('status', true)->orderBy('name')->get();
+        // لیست کامل محصولات برای کشوی انتخاب
+        $allProductsList = Product::where('status', 1)->orderBy('name')->get();
 
-        return view('dashboard', compact('feedRateData', 'allProducts'));
+        return view('dashboard', compact('allProducts', 'allProductsList'));
     }
 
     public function addProduct(Request $request)
     {
         $request->validate([
-            'product_id' => 'required|exists:products,id',
+            'product_id' => 'required|exists:products,id'
         ]);
 
-        $user = Auth::user();
+        $userId = auth()->id();
 
-        $exists = UserDashboardItem::where('user_id', $user->id)
+        $exists = DashboardProduct::where('user_id', $userId)
             ->where('product_id', $request->product_id)
             ->exists();
 
         if (!$exists) {
-            UserDashboardItem::create([
-                'user_id' => $user->id,
+            $lastOrder = DashboardProduct::where('user_id', $userId)->max('order') ?? 0;
+
+            DashboardProduct::create([
+                'user_id' => $userId,
                 'product_id' => $request->product_id,
+                'order' => $lastOrder + 1,
             ]);
+
+            return redirect()->route('dashboard')->with('success', 'محصول با موفقیت به داشبورد اضافه شد.');
         }
 
-        return redirect()->route('dashboard')->with('success', 'محصول به داشبورد اضافه شد.');
+        return redirect()->route('dashboard')->with('info', 'این محصول قبلاً به داشبورد شما اضافه شده است.');
     }
 
     public function removeProduct(Request $request)
     {
         $request->validate([
-            'product_id' => 'required|exists:products,id',
+            'product_id' => 'required|exists:products,id'
         ]);
 
-        $user = Auth::user();
+        $userId = auth()->id();
 
-        UserDashboardItem::where('user_id', $user->id)
+        DashboardProduct::where('user_id', $userId)
             ->where('product_id', $request->product_id)
             ->delete();
 
-        return redirect()->route('dashboard')->with('success', 'محصول از داشبورد حذف شد.');
+        return redirect()->route('dashboard')->with('success', 'محصول با موفقیت از داشبورد حذف شد.');
     }
 }

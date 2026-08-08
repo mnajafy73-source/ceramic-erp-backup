@@ -15,11 +15,10 @@ class CostPriceController extends Controller
         $lastRawMaterialPurchases = [];
 
         foreach ($rawMaterials as $material) {
-            // گرفتن آخرین آیتم خرید برای این ماده
             $lastItem = $material->purchaseItems()
                 ->with('purchase')
                 ->whereHas('purchase')
-                ->orderBy('created_at', 'desc')
+                ->orderBy('purchase_date', 'desc')
                 ->first();
 
             if ($lastItem) {
@@ -27,7 +26,7 @@ class CostPriceController extends Controller
                     'raw_material' => $material,
                     'price_per_gram' => $lastItem->price_per_gram,
                     'quantity' => $lastItem->quantity,
-                    'purchase_date' => $lastItem->purchase->purchase_date ?? $lastItem->created_at,
+                    'purchase_date' => $lastItem->purchase->purchase_date,
                 ];
             }
         }
@@ -37,11 +36,10 @@ class CostPriceController extends Controller
         $lastPackagingPurchases = [];
 
         foreach ($packagings as $packaging) {
-            // گرفتن آخرین آیتم خرید برای این کارتن/لایه
             $lastItem = $packaging->purchaseItems()
                 ->with('purchase')
                 ->whereHas('purchase')
-                ->orderBy('created_at', 'desc')
+                ->orderBy('purchase_date', 'desc')
                 ->first();
 
             if ($lastItem) {
@@ -49,7 +47,7 @@ class CostPriceController extends Controller
                     'packaging' => $packaging,
                     'price_per_unit' => $lastItem->price_per_unit,
                     'quantity' => $lastItem->quantity,
-                    'purchase_date' => $lastItem->purchase->purchase_date ?? $lastItem->created_at,
+                    'purchase_date' => $lastItem->purchase->purchase_date,
                 ];
             }
         }
