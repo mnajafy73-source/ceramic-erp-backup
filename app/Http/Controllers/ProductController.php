@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Unit;
+use App\Models\Formula;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -31,7 +32,8 @@ class ProductController extends Controller
     public function create()
     {
         $units = Unit::all();
-        return view('products.create', compact('units'));
+        $formulas = Formula::all();
+        return view('products.create', compact('units', 'formulas'));
     }
 
     public function store(Request $request)
@@ -49,8 +51,16 @@ class ProductController extends Controller
             'layers_per_box'=> 'nullable|integer|min:0',
             'status'        => 'boolean',
             'in_production' => 'boolean',
-            // is_raw_material حذف شد
+            // فیلدهای جدید
+            'weight'        => 'nullable|numeric|min:0',
+            'formula_id'    => 'nullable|exists:formulas,id',
         ]);
+
+        // اگر firing_process در فرم نباشد، مقدار پیش‌فرض بدهیم تا خطای NOT NULL رخ ندهد
+        // (فرض می‌کنیم این فیلد در فرم وجود ندارد و باید مقدار پیش‌فرض تعیین شود)
+        if (!isset($validated['firing_process'])) {
+            $validated['firing_process'] = 'تونلی';
+        }
 
         $validated['status'] = $request->has('status');
         $validated['in_production'] = $request->has('in_production');
@@ -60,6 +70,9 @@ class ProductController extends Controller
         $validated['per_pack'] = $validated['per_pack'] ?? null;
         $validated['per_pallet'] = $validated['per_pallet'] ?? null;
         $validated['layers_per_box'] = $validated['layers_per_box'] ?? null;
+        // فیلدهای جدید
+        $validated['weight'] = $validated['weight'] ?? null;
+        $validated['formula_id'] = $validated['formula_id'] ?? null;
 
         Product::create($validated);
 
@@ -76,7 +89,8 @@ class ProductController extends Controller
     public function edit(Product $product)
     {
         $units = Unit::all();
-        return view('products.edit', compact('product', 'units'));
+        $formulas = Formula::all();
+        return view('products.edit', compact('product', 'units', 'formulas'));
     }
 
     public function update(Request $request, Product $product)
@@ -93,12 +107,23 @@ class ProductController extends Controller
             'layers_per_box'=> 'nullable|integer|min:0',
             'status'        => 'boolean',
             'in_production' => 'boolean',
+            // فیلدهای جدید
+            'weight'        => 'nullable|numeric|min:0',
+            'formula_id'    => 'nullable|exists:formulas,id',
         ]);
 
         unset($validated['code']);
         $validated['status'] = $request->has('status');
         $validated['in_production'] = $request->has('in_production');
         $validated['cavities'] = $validated['cavities'] ?? $product->cavities;
+        // فیلدهای جدید
+        $validated['weight'] = $validated['weight'] ?? null;
+        $validated['formula_id'] = $validated['formula_id'] ?? null;
+
+        // اگر firing_process در فرم نباشد، مقدار قبلی را حفظ کن
+        if (isset($validated['firing_process'])) {
+            $product->firing_process = $validated['firing_process'];
+        }
 
         $product->update($validated);
 

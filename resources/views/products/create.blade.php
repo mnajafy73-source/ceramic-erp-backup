@@ -84,6 +84,29 @@
                     <label class="form-label">تعداد لایه در کارتن</label>
                     <input type="number" name="layers_per_box" class="form-control" value="{{ old('layers_per_box') }}" min="0">
                 </div>
+                
+                <!-- فیلدهای جدید: وزن و فرمول -->
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">وزن (گرم)</label>
+                    <input type="number" name="weight" class="form-control @error('weight') is-invalid @enderror" 
+                           value="{{ old('weight') }}" step="0.01" min="0">
+                    @error('weight')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <small class="text-muted">وزن هر عدد محصول به گرم</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">فرمول</label>
+                    <select name="formula_id" class="form-select @error('formula_id') is-invalid @enderror">
+                        <option value="">انتخاب فرمول...</option>
+                        @foreach($formulas as $formula)
+                            <option value="{{ $formula->id }}" {{ old('formula_id') == $formula->id ? 'selected' : '' }}>{{ $formula->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('formula_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <small class="text-muted">فرمول مواد مصرفی این کالا</small>
+                </div>
+            </div>
+
+            <div class="row">
                 <div class="col-md-4 mb-3">
                     <div class="form-check form-switch mt-4">
                         <input class="form-check-input" type="checkbox" name="status" id="status" value="1" {{ old('status', true) ? 'checked' : '' }}>

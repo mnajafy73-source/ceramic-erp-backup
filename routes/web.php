@@ -15,6 +15,18 @@ use App\Http\Controllers\UndoController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\InformalSaleController;
 
+// ========== بخش انبار ==========
+use App\Http\Controllers\RawMaterialController;
+use App\Http\Controllers\FormulaController;
+use App\Http\Controllers\PackagingController;
+use App\Http\Controllers\RawMaterialPurchaseController;
+use App\Http\Controllers\PackagingPurchaseController;
+use App\Http\Controllers\OpeningInventoryController;
+use App\Http\Controllers\InventoryController;
+
+// ========== قیمت تمام شده ==========
+use App\Http\Controllers\CostPriceController;
+
 Route::get('/', function () { return view('welcome'); });
 
 // ==================== داشبورد ====================
@@ -82,5 +94,29 @@ Route::patch('/products/{product}/toggle-status', [ProductController::class, 'to
 Route::patch('/products/{product}/toggle-in-production', [ProductController::class, 'toggleInProduction'])->name('products.toggle-in-production')->middleware('auth');
 Route::patch('/operators/{operator}/toggle-status', [OperatorController::class, 'toggleStatus'])->name('operators.toggle-status')->middleware('auth');
 Route::patch('/presses/{press}/toggle-status', [PressController::class, 'toggleStatus'])->name('presses.toggle-status')->middleware('auth');
+
+// ==================== مواد اولیه (تنظیمات) ====================
+Route::resource('raw-materials', RawMaterialController::class)->middleware('auth');
+
+// ==================== فرمول‌ها (تنظیمات) ====================
+Route::resource('formulas', FormulaController::class)->middleware('auth');
+
+// ==================== کارتن و لایه (تنظیمات) ====================
+Route::resource('packagings', PackagingController::class)->middleware('auth');
+
+// ==================== خرید مواد اولیه ====================
+Route::resource('raw-material-purchases', RawMaterialPurchaseController::class)->middleware('auth');
+
+// ==================== خرید کارتن و لایه ====================
+Route::resource('packaging-purchases', PackagingPurchaseController::class)->middleware('auth');
+
+// ==================== موجودی اول دوره ====================
+Route::resource('opening-inventories', OpeningInventoryController::class)->middleware('auth');
+
+// ==================== موجودی لحظه‌ای ====================
+Route::get('inventory', [InventoryController::class, 'index'])->name('inventory.index')->middleware('auth');
+
+// ==================== قیمت تمام شده ====================
+Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-price.index')->middleware('auth');
 
 require __DIR__.'/auth.php';

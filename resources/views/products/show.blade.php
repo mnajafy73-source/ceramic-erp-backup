@@ -28,8 +28,7 @@
                     @endif
                 </td>
             </tr>
-            <tr><th>فرآیند پخت:</th><td>{{ $product->firing_process == 'standard' ? 'معمولی' : 'چندمرحله‌ای' }}</td></tr>
-            <tr><th>خوراک تونلی:</th><td>{{ $product->tonneli_feed_rate ?? '—' }} عدد/ساعت</td></tr>
+{{-- <tr><th>فرآیند پخت:</th><td>{{ $product->firing_process }}</td></tr> --}}            <tr><th>خوراک تونلی:</th><td>{{ $product->tonneli_feed_rate ?? '—' }} عدد/ساعت</td></tr>
             <tr><th>حفره:</th><td>{{ $product->cavities }}</td></tr>
             <tr><th>کارتن:</th><td>{{ $product->per_box ?? '—' }}</td></tr>
             <tr><th>بسته:</th><td>{{ $product->per_pack ?? '—' }}</td></tr>

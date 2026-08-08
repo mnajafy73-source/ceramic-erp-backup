@@ -14,7 +14,9 @@ class Product extends Model
         'code', 'name', 'unit_id',
         'tonneli_feed_rate', 'cavities', 'per_box', 'per_pack',
         'per_pallet', 'box_type', 'layers_per_box', 'status', 'in_production',
-        // 'is_raw_material' حذف شد
+        'firing_process', // این فیلد در دیتابیس وجود دارد و باید fillable باشد
+        // فیلدهای جدید
+        'weight', 'formula_id',
     ];
 
     protected $casts = [
@@ -35,6 +37,12 @@ class Product extends Model
     public function inventory()
     {
         return $this->hasOne(Inventory::class);
+    }
+
+    // رابطه جدید: هر محصول به یک فرمول مربوط است
+    public function formula()
+    {
+        return $this->belongsTo(Formula::class);
     }
 
     public function delete()
