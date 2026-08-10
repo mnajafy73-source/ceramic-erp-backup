@@ -6,18 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up(): void
+    public function up()
     {
         Schema::table('shuttle_firings', function (Blueprint $table) {
-            // فقط ایندکس یکتا را اضافه می‌کنیم (ستون‌های year و month از قبل وجود دارند)
-            $table->unique(['kiln_type', 'year', 'month', 'firing_number'], 'shuttle_unique_firing');
+            $table->integer('day')->nullable()->after('month');
         });
     }
 
-    public function down(): void
+    public function down()
     {
         Schema::table('shuttle_firings', function (Blueprint $table) {
-            $table->dropUnique('shuttle_unique_firing');
+            $table->dropColumn('day');
         });
     }
 };

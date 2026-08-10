@@ -3,22 +3,19 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
-    public function up(): void
+    public function up()
     {
-        Schema::table('shuttle_firings', function (Blueprint $table) {
-            // حذف ایندکس یکتا (اگر وجود داشته باشد)
-            $table->dropUnique('shuttle_unique_firing');
-        });
+        DB::statement("DROP INDEX IF EXISTS shuttle_unique_firing");
     }
 
-    public function down(): void
+    public function down()
     {
         Schema::table('shuttle_firings', function (Blueprint $table) {
-            // در صورت بازگشت، ایندکس را برمی‌گردانیم
-            $table->unique(['kiln_type', 'year', 'month', 'firing_number'], 'shuttle_unique_firing');
+            $table->unique(['kiln_type', 'year', 'month', 'day', 'firing_number'], 'shuttle_unique_firing');
         });
     }
 };

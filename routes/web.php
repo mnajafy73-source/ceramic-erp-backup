@@ -27,6 +27,9 @@ use App\Http\Controllers\InventoryController;
 // ========== قیمت تمام شده ==========
 use App\Http\Controllers\CostPriceController;
 
+// ========== گزارشات ==========
+use App\Http\Controllers\ReportController;
+
 Route::get('/', function () { return view('welcome'); });
 
 // ==================== داشبورد ====================
@@ -113,10 +116,19 @@ Route::resource('packaging-purchases', PackagingPurchaseController::class)->midd
 // ==================== موجودی اول دوره ====================
 Route::resource('opening-inventories', OpeningInventoryController::class)->middleware('auth');
 
-// ==================== موجودی لحظه‌ای ====================
-Route::get('inventory', [InventoryController::class, 'index'])->name('inventory.index')->middleware('auth');
-
 // ==================== قیمت تمام شده ====================
 Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-price.index')->middleware('auth');
+
+// ==================== گزارشات ====================
+Route::get('/reports/production', [ReportController::class, 'production'])->name('reports.production')->middleware('auth');
+Route::get('/reports/firing', [ReportController::class, 'firing'])->name('reports.firing')->middleware('auth');
+Route::get('/reports/annual', [ReportController::class, 'annual'])->name('reports.annual')->middleware('auth');
+
+// ==================== موجودی‌ها ====================
+Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index')->middleware('auth');
+Route::get('/inventory/raw', [InventoryController::class, 'raw'])->name('inventory.raw')->middleware('auth');
+Route::get('/inventory/mum', [InventoryController::class, 'mum'])->name('inventory.mum')->middleware('auth');
+Route::get('/inventory/glaze1300', [InventoryController::class, 'glaze1300'])->name('inventory.glaze1300')->middleware('auth');
+Route::get('/inventory/warehouse', [InventoryController::class, 'warehouse'])->name('inventory.warehouse')->middleware('auth');
 
 require __DIR__.'/auth.php';

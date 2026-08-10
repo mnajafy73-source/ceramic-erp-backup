@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Formula;
-use App\Models\Packaging; // اضافه شده
+use App\Models\Packaging;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -34,7 +34,7 @@ class ProductController extends Controller
     {
         $units = Unit::all();
         $formulas = Formula::all();
-        $packagings = Packaging::all(); // اضافه شده
+        $packagings = Packaging::all();
         return view('products.create', compact('units', 'formulas', 'packagings'));
     }
 
@@ -49,18 +49,15 @@ class ProductController extends Controller
             'per_box'       => 'nullable|integer|min:0',
             'per_pack'      => 'nullable|integer|min:0',
             'per_pallet'    => 'nullable|integer|min:0',
-            'box_type'      => 'nullable|string|max:255',
             'layers_per_box'=> 'nullable|integer|min:0',
             'status'        => 'boolean',
             'in_production' => 'boolean',
             'weight'        => 'nullable|numeric|min:0',
             'formula_id'    => 'nullable|exists:formulas,id',
-            // فیلدهای جدید برای کارتن و لایه مصرفی
             'carton_packaging_id' => 'nullable|exists:packagings,id',
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
         ]);
 
-        // اگر firing_process در فرم نباشد، مقدار پیش‌فرض بدهیم
         if (!isset($validated['firing_process'])) {
             $validated['firing_process'] = 'تونلی';
         }
@@ -92,7 +89,7 @@ class ProductController extends Controller
     {
         $units = Unit::all();
         $formulas = Formula::all();
-        $packagings = Packaging::all(); // اضافه شده
+        $packagings = Packaging::all();
         return view('products.edit', compact('product', 'units', 'formulas', 'packagings'));
     }
 
@@ -106,13 +103,11 @@ class ProductController extends Controller
             'per_box'       => 'nullable|integer|min:0',
             'per_pack'      => 'nullable|integer|min:0',
             'per_pallet'    => 'nullable|integer|min:0',
-            'box_type'      => 'nullable|string|max:255',
             'layers_per_box'=> 'nullable|integer|min:0',
             'status'        => 'boolean',
             'in_production' => 'boolean',
             'weight'        => 'nullable|numeric|min:0',
             'formula_id'    => 'nullable|exists:formulas,id',
-            // فیلدهای جدید برای کارتن و لایه مصرفی
             'carton_packaging_id' => 'nullable|exists:packagings,id',
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
         ]);
@@ -124,7 +119,6 @@ class ProductController extends Controller
         $validated['weight'] = $validated['weight'] ?? null;
         $validated['formula_id'] = $validated['formula_id'] ?? null;
 
-        // اگر firing_process در فرم نباشد، مقدار قبلی را حفظ کن
         if (isset($validated['firing_process'])) {
             $product->firing_process = $validated['firing_process'];
         }

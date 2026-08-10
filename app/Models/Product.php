@@ -13,10 +13,10 @@ class Product extends Model
     protected $fillable = [
         'code', 'name', 'unit_id',
         'tonneli_feed_rate', 'cavities', 'per_box', 'per_pack',
-        'per_pallet', 'box_type', 'layers_per_box', 'status', 'in_production',
-        'firing_process', // این فیلد در دیتابیس وجود دارد و باید fillable باشد
-        // فیلدهای جدید
+        'per_pallet', 'layers_per_box', 'status', 'in_production',
+        'firing_process',
         'weight', 'formula_id',
+        'carton_packaging_id', 'layer_packaging_id',
     ];
 
     protected $casts = [
@@ -39,10 +39,19 @@ class Product extends Model
         return $this->hasOne(Inventory::class);
     }
 
-    // رابطه جدید: هر محصول به یک فرمول مربوط است
     public function formula()
     {
         return $this->belongsTo(Formula::class);
+    }
+
+    public function cartonPackaging()
+    {
+        return $this->belongsTo(Packaging::class, 'carton_packaging_id');
+    }
+
+    public function layerPackaging()
+    {
+        return $this->belongsTo(Packaging::class, 'layer_packaging_id');
     }
 
     public function delete()

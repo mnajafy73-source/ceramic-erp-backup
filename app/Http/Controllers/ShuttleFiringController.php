@@ -7,11 +7,36 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Morilog\Jalali\Jalalian;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ShuttleFiringController extends Controller
 {
+    /**
+     * بررسی وجود جدول shuttle_firings
+     */
+    private function checkTableExists()
+    {
+        if (!Schema::hasTable('shuttle_firings')) {
+            return false;
+        }
+        return true;
+    }
+
     public function index(Request $request)
     {
+        // اگر جدول وجود ندارد، صفحه خالی با پیام برگردان
+        if (!$this->checkTableExists()) {
+            return view('shuttle.index', [
+                'batches' => collect(),
+                'defaultYear' => null,
+                'defaultMonth' => null,
+                'defaultKiln' => null,
+                'summaryData' => [],
+                'availableYears' => [],
+                'kilnLabels' => []
+            ])->with('error', 'بخش شاتل در حال حاضر فعال نیست. لطفاً ابتدا Migration‌های مربوطه را اجرا کنید.');
+        }
+
         $currentJalali = Jalalian::now();
         $defaultYear = $request->input('year', $currentJalali->getYear());
         $defaultMonth = $request->input('month', $currentJalali->getMonth());
@@ -88,6 +113,11 @@ class ShuttleFiringController extends Controller
 
     public function create()
     {
+        if (!$this->checkTableExists()) {
+            return redirect()->route('shuttle.index')
+                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        }
+
         $products = Product::where('status', true)->get();
         $yesterday = Jalalian::fromCarbon(now()->subDay())->format('Y/m/d');
         return view('shuttle.create', compact('products', 'yesterday'));
@@ -95,6 +125,11 @@ class ShuttleFiringController extends Controller
 
     public function store(Request $request)
     {
+        if (!$this->checkTableExists()) {
+            return redirect()->route('shuttle.index')
+                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        }
+
         $validated = $request->validate([
             'date'            => 'required|string',
             'kiln_type'       => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
@@ -142,6 +177,11 @@ class ShuttleFiringController extends Controller
 
     public function show($firingNumber, Request $request)
     {
+        if (!$this->checkTableExists()) {
+            return redirect()->route('shuttle.index')
+                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        }
+
         $date = $request->query('date');
         $kilnType = $request->query('kiln_type');
         $items = ShuttleFiring::with('product')
@@ -156,6 +196,11 @@ class ShuttleFiringController extends Controller
 
     public function edit($firingNumber, Request $request)
     {
+        if (!$this->checkTableExists()) {
+            return redirect()->route('shuttle.index')
+                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        }
+
         $date = $request->query('date');
         $kilnType = $request->query('kiln_type');
         $items = ShuttleFiring::with('product')
@@ -173,6 +218,11 @@ class ShuttleFiringController extends Controller
 
     public function update($firingNumber, Request $request)
     {
+        if (!$this->checkTableExists()) {
+            return redirect()->route('shuttle.index')
+                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        }
+
         $validated = $request->validate([
             'date'            => 'required|string',
             'kiln_type'       => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
@@ -219,12 +269,22 @@ class ShuttleFiringController extends Controller
 
     public function destroy(ShuttleFiring $shuttle)
     {
+        if (!$this->checkTableExists()) {
+            return redirect()->route('shuttle.index')
+                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        }
+
         $shuttle->delete();
         return redirect()->to('/shuttle')->with('success', 'حذف شد.');
     }
 
     public function destroyBatch(Request $request)
     {
+        if (!$this->checkTableExists()) {
+            return redirect()->route('shuttle.index')
+                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        }
+
         $validated = $request->validate([
             'firing_number' => 'required|integer',
             'date'          => 'required|date',

@@ -9,10 +9,11 @@ return new class extends Migration
 {
     public function up()
     {
-        DB::statement("DROP INDEX IF EXISTS shuttle_unique_firing");
+        // حذف ایندکس قدیمی (اگر وجود داشت)
+        DB::statement("DROP INDEX IF EXISTS shuttle_firings_kiln_type_year_month_firing_number_unique");
         
         Schema::table('shuttle_firings', function (Blueprint $table) {
-            $table->unique(['kiln_type', 'year', 'month', 'day', 'firing_number'], 'shuttle_unique_firing');
+            $table->unique(['kiln_type', 'year', 'month', 'firing_number'], 'shuttle_unique_firing');
         });
     }
 

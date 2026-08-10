@@ -158,6 +158,7 @@
                 <a href="{{ route('shuttle.index') }}"><i class="fas fa-train"></i> پخت شاتل</a>
             </div>
 
+            <!-- ===== منوی فروش (با قیمت تمام شده) ===== -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-sales')">
                 <span><i class="fas fa-shopping-cart"></i> فروش</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -165,33 +166,34 @@
             <div class="submenu" id="submenu-sales">
                 <a href="{{ route('sales.index') }}"><i class="fas fa-file-invoice-dollar"></i> رسمی</a>
                 <a href="{{ route('informal-sales.index') }}"><i class="fas fa-file-invoice"></i> غیررسمی</a>
-            </div>
-
-            <!-- ===== منوی انبار (فقط موجودی‌ها) ===== -->
-            <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-warehouse')">
-                <span><i class="fas fa-warehouse"></i> انبار</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
-            </button>
-            <div class="submenu" id="submenu-warehouse">
-                <div style="padding: 5px 40px 5px 20px; color: rgba(255,255,255,0.4); font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">موجودی</div>
-                <a href="{{ route('opening-inventories.index') }}"><i class="fas fa-database"></i> موجودی اول دوره</a>
-                <a href="{{ route('inventory.index') }}"><i class="fas fa-chart-line"></i> موجودی لحظه‌ای</a>
-            </div>
-
-            <!-- ===== منوی خرید (جدید) ===== -->
-            <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-purchases')">
-                <span><i class="fas fa-shopping-cart"></i> خرید</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
-            </button>
-            <div class="submenu" id="submenu-purchases">
-                <a href="{{ route('raw-material-purchases.index') }}"><i class="fas fa-shopping-basket"></i> خرید مواد</a>
-                <a href="{{ route('packaging-purchases.index') }}"><i class="fas fa-shopping-basket"></i> خرید کارتن و لایه</a>
                 <a href="{{ route('cost-price.index') }}"><i class="fas fa-calculator"></i> قیمت تمام شده</a>
             </div>
 
-            <a href="#" class="nav-link">
-                <i class="fas fa-file-alt"></i> گزارش‌ها
-            </a>
+            <!-- ===== منوی موجودی (با مواد و کارتن/لایه) ===== -->
+            <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-inventory')">
+                <span><i class="fas fa-cubes"></i> موجودی</span>
+                <i class="fas fa-chevron-down menu-arrow"></i>
+            </button>
+            <div class="submenu" id="submenu-inventory">
+                <a href="{{ route('opening-inventories.index') }}"><i class="fas fa-database"></i> موجودی اول دوره</a>
+                <a href="{{ route('raw-material-purchases.index') }}"><i class="fas fa-cube"></i> مواد</a>
+                <a href="{{ route('packaging-purchases.index') }}"><i class="fas fa-box"></i> کارتن و لایه</a>
+                <a href="{{ route('inventory.raw') }}"><i class="fas fa-cube"></i> موجودی خام</a>
+                <a href="{{ route('inventory.mum') }}"><i class="fas fa-fire"></i> موجودی موم (۹۰۰°)</a>
+                <a href="{{ route('inventory.glaze1300') }}"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a>
+                <a href="{{ route('inventory.warehouse') }}"><i class="fas fa-warehouse"></i> موجودی انبار</a>
+            </div>
+
+            <!-- ===== منوی گزارشات ===== -->
+            <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
+                <span><i class="fas fa-chart-bar"></i> گزارشات</span>
+                <i class="fas fa-chevron-down menu-arrow"></i>
+            </button>
+            <div class="submenu" id="submenu-reports">
+                <a href="{{ route('reports.production') }}"><i class="fas fa-industry"></i> گزارش تولید</a>
+                <a href="{{ route('reports.firing') }}"><i class="fas fa-fire"></i> گزارش پخت</a>
+                <a href="{{ route('reports.annual') }}"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
+            </div>
 
             <hr class="text-white-50 mx-3 my-2">
 

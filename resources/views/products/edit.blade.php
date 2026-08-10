@@ -73,10 +73,7 @@
                     <label class="form-label">تعداد در پالت</label>
                     <input type="number" name="per_pallet" class="form-control" value="{{ old('per_pallet', $product->per_pallet) }}" min="0">
                 </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">نوع کارتن</label>
-                    <input type="text" name="box_type" class="form-control" value="{{ old('box_type', $product->box_type) }}">
-                </div>
+                <!-- فیلد "نوع کارتن" حذف شد -->
             </div>
 
             <div class="row">

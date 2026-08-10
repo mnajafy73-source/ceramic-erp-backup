@@ -8,17 +8,9 @@ use Illuminate\Http\Request;
 
 class OpeningInventoryController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $query = OpeningInventory::with('product');
-
-        // جستجو بر اساس محصول
-        if ($request->filled('search')) {
-            $query->where('product_id', $request->search);
-        }
-
-        $inventories = $query->get();
-
+        $inventories = OpeningInventory::with('product')->get();
         return view('opening-inventories.index', compact('inventories'));
     }
 
