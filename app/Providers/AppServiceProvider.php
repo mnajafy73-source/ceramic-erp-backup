@@ -3,8 +3,14 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use App\Models\Production;
-use App\Observers\ProductionObserver;
+use App\Models\ShuttleFiring;
+use App\Models\TonneliFiring;
+use App\Models\RawMaterialPurchase;
+use App\Models\PackagingPurchase;
+use App\Observers\ShuttleFiringObserver;
+use App\Observers\TonneliFiringObserver;
+use App\Observers\RawMaterialPurchaseObserver;
+use App\Observers\PackagingPurchaseObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -15,6 +21,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Production::observe(ProductionObserver::class);
+        ShuttleFiring::observe(ShuttleFiringObserver::class);
+        TonneliFiring::observe(TonneliFiringObserver::class);
+        RawMaterialPurchase::observe(RawMaterialPurchaseObserver::class);
+        PackagingPurchase::observe(PackagingPurchaseObserver::class);
     }
 }

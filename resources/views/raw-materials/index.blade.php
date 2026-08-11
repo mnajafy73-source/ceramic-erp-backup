@@ -28,7 +28,6 @@
                     <th>#</th>
                     <th>نام ماده</th>
                     <th>واحد</th>
-                    <th>موجودی (کیلوگرم)</th>
                     <th>عملیات</th>
                 </tr>
             </thead>
@@ -38,7 +37,6 @@
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ $material->name }}</td>
                     <td>{{ $material->unit == 'kg' ? 'کیلوگرم' : 'تن' }}</td>
-                    <td>{{ number_format($material->stock, 2) }}</td>
                     <td>
                         <a href="{{ route('raw-materials.edit', $material) }}" class="btn btn-sm btn-warning">
                             <i class="fas fa-edit"></i>
@@ -54,7 +52,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="text-center">هیچ ماده اولیه‌ای ثبت نشده است.</td>
+                    <td colspan="4" class="text-center">هیچ ماده اولیه‌ای ثبت نشده است.</td>
                 </tr>
                 @endforelse
             </tbody>

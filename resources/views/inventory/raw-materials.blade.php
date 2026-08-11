@@ -10,14 +10,14 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() {
-        $('.product-search-select').select2({
-            placeholder: 'جستجو و انتخاب محصول...',
+        $('.material-search-select').select2({
+            placeholder: 'جستجو...',
             allowClear: true,
             width: '100%',
             minimumInputLength: 0,
             language: {
                 searching: function() { return 'در حال جستجو...'; },
-                noResults: function() { return 'محصولی یافت نشد'; }
+                noResults: function() { return 'موردی یافت نشد'; }
             }
         });
     });
@@ -26,26 +26,26 @@
 
 @section('content')
 <div class="mb-4">
-    <h4 class="fw-bold mb-1">موجودی خام</h4>
+    <h4 class="fw-bold mb-1">موجودی مواد اولیه</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{{ route('inventory.index') }}">موجودی</a></li>
-            <li class="breadcrumb-item active">موجودی خام</li>
+            <li class="breadcrumb-item active">مواد اولیه</li>
         </ol>
     </nav>
 </div>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <form action="{{ route('inventory.raw') }}" method="GET" class="row g-3 mb-3">
+        <form action="{{ route('inventory.raw-materials') }}" method="GET" class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-search"></i></span>
-                    <select name="search" class="form-select product-search-select" style="width: 100%;">
-                        <option value="">همه محصولات...</option>
-                        @foreach(\App\Models\Product::where('status', 1)->orderBy('name')->get() as $product)
-                            <option value="{{ $product->id }}" {{ request('search') == $product->id ? 'selected' : '' }}>
-                                {{ $product->name }} ({{ $product->code }})
+                    <select name="search" class="form-select material-search-select" style="width: 100%;">
+                        <option value="">همه مواد...</option>
+                        @foreach(\App\Models\RawMaterial::orderBy('name')->get() as $material)
+                            <option value="{{ $material->id }}" {{ request('search') == $material->id ? 'selected' : '' }}>
+                                {{ $material->name }}
                             </option>
                         @endforeach
                     </select>
@@ -53,7 +53,7 @@
                         <i class="fas fa-search"></i> جستجو
                     </button>
                     @if(request('search'))
-                        <a href="{{ route('inventory.raw') }}" class="btn btn-secondary">
+                        <a href="{{ route('inventory.raw-materials') }}" class="btn btn-secondary">
                             <i class="fas fa-times"></i> پاک کردن
                         </a>
                     @endif
@@ -65,23 +65,27 @@
             <table class="table table-bordered table-hover">
                 <thead>
                     <tr>
-                        <th>نام محصول</th>
-                        <th>موجودی خام (عدد)</th>
+                        <th>نام ماده</th>
+                        <th>واحد</th>
+                        <th>موجودی (کیلوگرم)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($inventories as $item)
-                    <tr>
-                        <td>{{ $item['product']->name }}</td>
-                        <td>{{ number_format($item['stock']) }}</td>
-                    </tr>
+                    @forelse($materials as $material)
+                        @if(!request('search') || request('search') == $material->id)
+                        <tr>
+                            <td>{{ $material->name }}</td>
+                            <td>{{ $material->unit == 'kg' ? 'کیلوگرم' : 'تن' }}</td>
+                            <td>{{ number_format($material->stock, 2) }}</td>
+                        </tr>
+                        @endif
                     @empty
                     <tr>
-                        <td colspan="2" class="text-center">
+                        <td colspan="3" class="text-center">
                             @if(request('search'))
-                                محصولی با این شناسه یافت نشد.
+                                ماده‌ای با این شناسه یافت نشد.
                             @else
-                                هیچ محصولی یافت نشد.
+                                هیچ ماده اولیه‌ای ثبت نشده است.
                             @endif
                         </td>
                     </tr>

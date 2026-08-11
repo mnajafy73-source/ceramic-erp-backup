@@ -112,7 +112,6 @@
         container.appendChild(newRow);
         itemCount++;
 
-        // اعمال فرمت‌بندی به ورودی‌های جدید
         if (typeof window.applyFormatToNewInputs === 'function') {
             window.applyFormatToNewInputs(container);
         }

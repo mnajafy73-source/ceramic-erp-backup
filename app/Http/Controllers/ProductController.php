@@ -81,7 +81,8 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        $product->load('unit', 'logs.user', 'inventory');
+        // حذف 'inventory' از بارگذاری
+        $product->load('unit', 'logs.user');
         return view('products.show', compact('product'));
     }
 

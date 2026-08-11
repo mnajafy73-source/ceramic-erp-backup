@@ -7,62 +7,31 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Morilog\Jalali\Jalalian;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class ShuttleFiringController extends Controller
 {
     /**
-     * بررسی وجود جدول shuttle_firings
+     * حذف کاما از اعداد ورودی
      */
-    private function checkTableExists()
+    protected function cleanNumber($value)
     {
-        if (!Schema::hasTable('shuttle_firings')) {
-            return false;
+        if (is_null($value) || $value === '') {
+            return null;
         }
-        return true;
+        return str_replace(',', '', $value);
     }
 
     public function index(Request $request)
     {
-        // اگر جدول وجود ندارد، صفحه خالی با پیام برگردان
-        if (!$this->checkTableExists()) {
-            return view('shuttle.index', [
-                'batches' => collect(),
-                'defaultYear' => null,
-                'defaultMonth' => null,
-                'defaultKiln' => null,
-                'summaryData' => [],
-                'availableYears' => [],
-                'kilnLabels' => []
-            ])->with('error', 'بخش شاتل در حال حاضر فعال نیست. لطفاً ابتدا Migration‌های مربوطه را اجرا کنید.');
-        }
-
-        $currentJalali = Jalalian::now();
-        $defaultYear = $request->input('year', $currentJalali->getYear());
-        $defaultMonth = $request->input('month', $currentJalali->getMonth());
-        $defaultKiln = $request->input('kiln_type', '');
-
         $query = ShuttleFiring::query();
 
-        if (!empty($defaultYear) && !empty($defaultMonth)) {
-            try {
-                $monthPadded = str_pad($defaultMonth, 2, '0', STR_PAD_LEFT);
-                $dateString = $defaultYear . '/' . $monthPadded . '/01';
-                $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateString);
-                $startDate = $jalaliDate->toCarbon()->startOfMonth()->format('Y-m-d');
-                $endDate = $jalaliDate->toCarbon()->endOfMonth()->format('Y-m-d');
-                $query->whereBetween('date', [$startDate, $endDate]);
-            } catch (\Exception $e) {
-                // ignore
-            }
-        }
+        $batches = $query->select('kiln_type', 'firing_number', 'date')
+            ->distinct()
+            ->orderBy('date', 'desc')
+            ->paginate(15)
+            ->appends($request->all());
 
-        if ($request->filled('kiln_type')) {
-            $query->where('kiln_type', $defaultKiln);
-        }
-
-        $summaryQuery = clone $query;
-        $summary = $summaryQuery->select('kiln_type', DB::raw('COUNT(DISTINCT firing_number) as total_batches'))
+        $summary = ShuttleFiring::select('kiln_type', DB::raw('COUNT(DISTINCT firing_number) as total_batches'))
             ->groupBy('kiln_type')
             ->pluck('total_batches', 'kiln_type')
             ->toArray();
@@ -76,48 +45,11 @@ class ShuttleFiringController extends Controller
             ];
         }
 
-        $batches = $query->select('kiln_type', 'firing_number', 'date')
-            ->distinct()
-            ->orderBy('date', 'desc')
-            ->paginate(15)
-            ->appends($request->all());
-
-        $allDates = ShuttleFiring::select('date')->distinct()->orderBy('date', 'desc')->get();
-        $availableYears = [];
-        foreach ($allDates as $item) {
-            try {
-                $jalali = Jalalian::fromCarbon($item->date);
-                $year = $jalali->getYear();
-                if (!in_array($year, $availableYears)) {
-                    $availableYears[] = $year;
-                }
-            } catch (\Exception $e) {
-                continue;
-            }
-        }
-        if (empty($availableYears)) {
-            $availableYears = [$defaultYear];
-        }
-        rsort($availableYears);
-
-        return view('shuttle.index', compact(
-            'batches',
-            'defaultYear',
-            'defaultMonth',
-            'defaultKiln',
-            'summaryData',
-            'availableYears',
-            'kilnLabels'
-        ));
+        return view('shuttle.index', compact('batches', 'summaryData', 'kilnLabels'));
     }
 
     public function create()
     {
-        if (!$this->checkTableExists()) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
-        }
-
         $products = Product::where('status', true)->get();
         $yesterday = Jalalian::fromCarbon(now()->subDay())->format('Y/m/d');
         return view('shuttle.create', compact('products', 'yesterday'));
@@ -125,19 +57,22 @@ class ShuttleFiringController extends Controller
 
     public function store(Request $request)
     {
-        if (!$this->checkTableExists()) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        $cleanedData = $request->all();
+        if (isset($cleanedData['products']) && is_array($cleanedData['products'])) {
+            foreach ($cleanedData['products'] as $key => $item) {
+                $cleanedData['products'][$key]['output_quantity'] = $this->cleanNumber($item['output_quantity'] ?? 0);
+            }
         }
+        $request->merge($cleanedData);
 
         $validated = $request->validate([
             'date'            => 'required|string',
             'kiln_type'       => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
             'firing_subtype'  => 'nullable|required_if:kiln_type,kiln_3|in:mum,glaze',
-            'products'                  => 'required|array|min:1',
+            'products'        => 'required|array|min:1',
             'products.*.product_id'     => 'required|exists:products,id',
             'products.*.output_quantity'=> 'nullable|numeric|min:0',
-            'products.*.is_packaged'    => 'boolean',
+            'products.*.is_packaged'    => 'nullable|boolean',
         ]);
 
         try {
@@ -157,31 +92,30 @@ class ShuttleFiringController extends Controller
 
         $nextNumber = $maxNumber ? intval($maxNumber) + 1 : 1;
 
-        foreach ($validated['products'] as $product) {
-            ShuttleFiring::create([
-                'date'            => $gregorianDate,
-                'kiln_type'       => $validated['kiln_type'],
-                'firing_subtype'  => $validated['firing_subtype'] ?? null,
-                'product_id'      => $product['product_id'],
-                'output_quantity' => $product['output_quantity'] ?? null,
-                'firing_number'   => $nextNumber,
-                'is_packaged'     => !empty($product['is_packaged']),
-                'year'            => $year,
-                'month'           => $month,
-                'day'             => $day,
-            ]);
-        }
+        try {
+            foreach ($validated['products'] as $product) {
+                ShuttleFiring::create([
+                    'date'            => $gregorianDate,
+                    'kiln_type'       => $validated['kiln_type'],
+                    'firing_subtype'  => $validated['firing_subtype'] ?? null,
+                    'product_id'      => $product['product_id'],
+                    'output_quantity' => $product['output_quantity'] ?? 0,
+                    'firing_number'   => $nextNumber,
+                    'is_packaged'     => !empty($product['is_packaged']),
+                    'year'            => $year,
+                    'month'           => $month,
+                    'day'             => $day,
+                ]);
+            }
 
-        return redirect()->route('shuttle.create')->with('success', "پخت شماره {$nextNumber} با موفقیت ثبت شد.");
+            return redirect()->route('shuttle.create')->with('success', "پخت شماره {$nextNumber} با موفقیت ثبت شد.");
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'خطا در ثبت پخت: ' . $e->getMessage()])->withInput();
+        }
     }
 
     public function show($firingNumber, Request $request)
     {
-        if (!$this->checkTableExists()) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
-        }
-
         $date = $request->query('date');
         $kilnType = $request->query('kiln_type');
         $items = ShuttleFiring::with('product')
@@ -196,11 +130,6 @@ class ShuttleFiringController extends Controller
 
     public function edit($firingNumber, Request $request)
     {
-        if (!$this->checkTableExists()) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
-        }
-
         $date = $request->query('date');
         $kilnType = $request->query('kiln_type');
         $items = ShuttleFiring::with('product')
@@ -218,19 +147,22 @@ class ShuttleFiringController extends Controller
 
     public function update($firingNumber, Request $request)
     {
-        if (!$this->checkTableExists()) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
+        $cleanedData = $request->all();
+        if (isset($cleanedData['products']) && is_array($cleanedData['products'])) {
+            foreach ($cleanedData['products'] as $key => $item) {
+                $cleanedData['products'][$key]['output_quantity'] = $this->cleanNumber($item['output_quantity'] ?? 0);
+            }
         }
+        $request->merge($cleanedData);
 
         $validated = $request->validate([
             'date'            => 'required|string',
             'kiln_type'       => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
             'firing_subtype'  => 'nullable|required_if:kiln_type,kiln_3|in:mum,glaze',
-            'products'                  => 'required|array|min:1',
+            'products'        => 'required|array|min:1',
             'products.*.product_id'     => 'required|exists:products,id',
             'products.*.output_quantity'=> 'nullable|numeric|min:0',
-            'products.*.is_packaged'    => 'boolean',
+            'products.*.is_packaged'    => 'nullable|boolean',
         ]);
 
         try {
@@ -254,7 +186,7 @@ class ShuttleFiringController extends Controller
                 'kiln_type'       => $validated['kiln_type'],
                 'firing_subtype'  => $validated['firing_subtype'] ?? null,
                 'product_id'      => $product['product_id'],
-                'output_quantity' => $product['output_quantity'] ?? null,
+                'output_quantity' => $product['output_quantity'] ?? 0,
                 'firing_number'   => $firingNumber,
                 'is_packaged'     => !empty($product['is_packaged']),
                 'year'            => $year,
@@ -269,32 +201,28 @@ class ShuttleFiringController extends Controller
 
     public function destroy(ShuttleFiring $shuttle)
     {
-        if (!$this->checkTableExists()) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
-        }
-
         $shuttle->delete();
         return redirect()->to('/shuttle')->with('success', 'حذف شد.');
     }
 
     public function destroyBatch(Request $request)
     {
-        if (!$this->checkTableExists()) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'بخش شاتل در حال حاضر فعال نیست.');
-        }
-
         $validated = $request->validate([
             'firing_number' => 'required|integer',
             'date'          => 'required|date',
             'kiln_type'     => 'required|in:kiln_1,kiln_2,kiln_3,packaging',
         ]);
 
-        ShuttleFiring::where('firing_number', $validated['firing_number'])
+        // پیدا کردن رکوردها
+        $records = ShuttleFiring::where('firing_number', $validated['firing_number'])
             ->whereDate('date', $validated['date'])
             ->where('kiln_type', $validated['kiln_type'])
-            ->delete();
+            ->get();
+
+        // حذف هر رکورد به صورت جداگانه تا Observer اجرا شود
+        foreach ($records as $record) {
+            $record->delete();
+        }
 
         return redirect()->route('shuttle.index')->with('success', 'کل پخت با موفقیت حذف شد.');
     }

@@ -18,8 +18,6 @@ class TonneliFiringItem extends Model
     ];
 
     protected $casts = [
-        'input_quantity' => 'decimal:2',
-        'output_quantity' => 'decimal:2',
         'is_packaged' => 'boolean',
     ];
 

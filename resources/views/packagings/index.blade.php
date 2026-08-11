@@ -28,7 +28,6 @@
                     <th>#</th>
                     <th>نوع</th>
                     <th>نام</th>
-                    <th>موجودی (عدد)</th>
                     <th>عملیات</th>
                 </tr>
             </thead>
@@ -38,7 +37,6 @@
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ $packaging->type == 'carton' ? 'کارتن' : 'لایه' }}</td>
                     <td>{{ $packaging->name }}</td>
-                    <td>{{ number_format($packaging->stock) }}</td>
                     <td>
                         <a href="{{ route('packagings.edit', $packaging) }}" class="btn btn-sm btn-warning">
                             <i class="fas fa-edit"></i>
@@ -54,7 +52,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="text-center">هیچ کارتن یا لایه‌ای ثبت نشده است.</td>
+                    <td colspan="4" class="text-center">هیچ کارتن یا لایه‌ای ثبت نشده است.</td>
                 </tr>
                 @endforelse
             </tbody>

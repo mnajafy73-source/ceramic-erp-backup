@@ -10,6 +10,17 @@ use Morilog\Jalali\Jalalian;
 
 class PackagingPurchaseController extends Controller
 {
+    /**
+     * حذف کاما از اعداد ورودی (سطح دسترسی protected)
+     */
+    protected function cleanNumber($value)
+    {
+        if (is_null($value) || $value === '') {
+            return null;
+        }
+        return str_replace(',', '', $value);
+    }
+
     public function index()
     {
         $purchases = PackagingPurchase::with('items.packaging')
@@ -26,19 +37,18 @@ class PackagingPurchaseController extends Controller
 
     public function store(Request $request)
     {
-        // پاکسازی کاماها از ورودی‌های عددی
-        $request->merge([
-            'total_transport_cost' => $this->cleanNumber($request->total_transport_cost),
-        ]);
+        $cleanedData = $request->all();
+        $cleanedData['total_transport_cost'] = $this->cleanNumber($request->total_transport_cost);
 
-        $items = $request->items;
-        foreach ($items as $key => $item) {
-            $items[$key]['quantity'] = $this->cleanNumber($item['quantity']);
-            $items[$key]['total_price'] = $this->cleanNumber($item['total_price']);
+        if (isset($cleanedData['items']) && is_array($cleanedData['items'])) {
+            foreach ($cleanedData['items'] as $key => $item) {
+                $cleanedData['items'][$key]['quantity'] = $this->cleanNumber($item['quantity'] ?? 0);
+                $cleanedData['items'][$key]['total_price'] = $this->cleanNumber($item['total_price'] ?? 0);
+            }
         }
-        $request->merge(['items' => $items]);
+        $request->merge($cleanedData);
 
-        $request->validate([
+        $validated = $request->validate([
             'purchase_date' => 'required|string',
             'supplier' => 'nullable|string|max:255',
             'total_transport_cost' => 'nullable|numeric|min:0',
@@ -48,27 +58,20 @@ class PackagingPurchaseController extends Controller
             'items.*.total_price' => 'required|numeric|min:0',
         ]);
 
-        $jalaliDate = Jalalian::fromFormat('Y/m/d', $request->purchase_date);
-        $gregorianDate = $jalaliDate->toCarbon();
-
-        $totalItemsCount = count($request->items);
+        try {
+            $gregorianDate = Jalalian::fromFormat('Y/m/d', $validated['purchase_date'])->toCarbon()->format('Y-m-d');
+        } catch (\Exception $e) {
+            return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
+        }
 
         $purchase = PackagingPurchase::create([
-            'purchase_date' => $gregorianDate->format('Y-m-d'),
+            'purchase_date' => $gregorianDate,
             'supplier' => $request->supplier,
             'total_transport_cost' => $request->total_transport_cost ?? 0,
         ]);
 
         foreach ($request->items as $item) {
-            $transportShare = ($totalItemsCount > 0) ? ($request->total_transport_cost / $totalItemsCount) : 0;
-            $pricePerUnit = ($item['total_price'] + $transportShare) / $item['quantity'];
-
-            $purchase->items()->create([
-                'packaging_id' => $item['packaging_id'],
-                'quantity' => $item['quantity'],
-                'total_price' => $item['total_price'],
-                'price_per_unit' => $pricePerUnit,
-            ]);
+            $purchase->items()->create($item);
 
             $packaging = Packaging::find($item['packaging_id']);
             if ($packaging) {
@@ -96,18 +99,18 @@ class PackagingPurchaseController extends Controller
 
     public function update(Request $request, PackagingPurchase $packagingPurchase)
     {
-        $request->merge([
-            'total_transport_cost' => $this->cleanNumber($request->total_transport_cost),
-        ]);
+        $cleanedData = $request->all();
+        $cleanedData['total_transport_cost'] = $this->cleanNumber($request->total_transport_cost);
 
-        $items = $request->items;
-        foreach ($items as $key => $item) {
-            $items[$key]['quantity'] = $this->cleanNumber($item['quantity']);
-            $items[$key]['total_price'] = $this->cleanNumber($item['total_price']);
+        if (isset($cleanedData['items']) && is_array($cleanedData['items'])) {
+            foreach ($cleanedData['items'] as $key => $item) {
+                $cleanedData['items'][$key]['quantity'] = $this->cleanNumber($item['quantity'] ?? 0);
+                $cleanedData['items'][$key]['total_price'] = $this->cleanNumber($item['total_price'] ?? 0);
+            }
         }
-        $request->merge(['items' => $items]);
+        $request->merge($cleanedData);
 
-        $request->validate([
+        $validated = $request->validate([
             'purchase_date' => 'required|string',
             'supplier' => 'nullable|string|max:255',
             'total_transport_cost' => 'nullable|numeric|min:0',
@@ -117,6 +120,13 @@ class PackagingPurchaseController extends Controller
             'items.*.total_price' => 'required|numeric|min:0',
         ]);
 
+        try {
+            $gregorianDate = Jalalian::fromFormat('Y/m/d', $validated['purchase_date'])->toCarbon()->format('Y-m-d');
+        } catch (\Exception $e) {
+            return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
+        }
+
+        // برگرداندن موجودی قبلی
         foreach ($packagingPurchase->items as $item) {
             $packaging = Packaging::find($item->packaging_id);
             if ($packaging) {
@@ -127,27 +137,14 @@ class PackagingPurchaseController extends Controller
 
         $packagingPurchase->items()->delete();
 
-        $jalaliDate = Jalalian::fromFormat('Y/m/d', $request->purchase_date);
-        $gregorianDate = $jalaliDate->toCarbon();
-
-        $totalItemsCount = count($request->items);
-
         $packagingPurchase->update([
-            'purchase_date' => $gregorianDate->format('Y-m-d'),
+            'purchase_date' => $gregorianDate,
             'supplier' => $request->supplier,
             'total_transport_cost' => $request->total_transport_cost ?? 0,
         ]);
 
         foreach ($request->items as $item) {
-            $transportShare = ($totalItemsCount > 0) ? ($request->total_transport_cost / $totalItemsCount) : 0;
-            $pricePerUnit = ($item['total_price'] + $transportShare) / $item['quantity'];
-
-            $packagingPurchase->items()->create([
-                'packaging_id' => $item['packaging_id'],
-                'quantity' => $item['quantity'],
-                'total_price' => $item['total_price'],
-                'price_per_unit' => $pricePerUnit,
-            ]);
+            $packagingPurchase->items()->create($item);
 
             $packaging = Packaging::find($item['packaging_id']);
             if ($packaging) {
@@ -162,16 +159,7 @@ class PackagingPurchaseController extends Controller
 
     public function destroy(PackagingPurchase $packagingPurchase)
     {
-        foreach ($packagingPurchase->items as $item) {
-            $packaging = Packaging::find($item->packaging_id);
-            if ($packaging) {
-                $packaging->stock -= $item->quantity;
-                $packaging->save();
-            }
-        }
-
         $packagingPurchase->delete();
-
         return redirect()->route('packaging-purchases.index')
             ->with('success', 'خرید کارتن/لایه با موفقیت حذف شد.');
     }

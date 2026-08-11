@@ -10,6 +10,17 @@ use Morilog\Jalali\Jalalian;
 
 class RawMaterialPurchaseController extends Controller
 {
+    /**
+     * حذف کاما از اعداد ورودی (سطح دسترسی protected)
+     */
+    protected function cleanNumber($value)
+    {
+        if (is_null($value) || $value === '') {
+            return null;
+        }
+        return str_replace(',', '', $value);
+    }
+
     public function index()
     {
         $purchases = RawMaterialPurchase::with('items.rawMaterial')
@@ -26,18 +37,20 @@ class RawMaterialPurchaseController extends Controller
 
     public function store(Request $request)
     {
-        $request->merge([
-            'total_transport_cost' => $this->cleanNumber($request->total_transport_cost),
-        ]);
+        // پاکسازی کاماها
+        $cleanedData = $request->all();
+        $cleanedData['total_transport_cost'] = $this->cleanNumber($request->total_transport_cost);
 
-        $items = $request->items;
-        foreach ($items as $key => $item) {
-            $items[$key]['quantity'] = $this->cleanNumber($item['quantity']);
-            $items[$key]['total_price'] = $this->cleanNumber($item['total_price']);
+        if (isset($cleanedData['items']) && is_array($cleanedData['items'])) {
+            foreach ($cleanedData['items'] as $key => $item) {
+                $cleanedData['items'][$key]['quantity'] = $this->cleanNumber($item['quantity'] ?? 0);
+                $cleanedData['items'][$key]['total_price'] = $this->cleanNumber($item['total_price'] ?? 0);
+            }
         }
-        $request->merge(['items' => $items]);
+        $request->merge($cleanedData);
 
-        $request->validate([
+        // اعتبارسنجی
+        $validated = $request->validate([
             'purchase_date' => 'required|string',
             'supplier' => 'nullable|string|max:255',
             'total_transport_cost' => 'nullable|numeric|min:0',
@@ -47,27 +60,20 @@ class RawMaterialPurchaseController extends Controller
             'items.*.total_price' => 'required|numeric|min:0',
         ]);
 
-        $jalaliDate = Jalalian::fromFormat('Y/m/d', $request->purchase_date);
-        $gregorianDate = $jalaliDate->toCarbon();
-
-        $totalItemsCount = count($request->items);
+        try {
+            $gregorianDate = Jalalian::fromFormat('Y/m/d', $validated['purchase_date'])->toCarbon()->format('Y-m-d');
+        } catch (\Exception $e) {
+            return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
+        }
 
         $purchase = RawMaterialPurchase::create([
-            'purchase_date' => $gregorianDate->format('Y-m-d'),
+            'purchase_date' => $gregorianDate,
             'supplier' => $request->supplier,
             'total_transport_cost' => $request->total_transport_cost ?? 0,
         ]);
 
         foreach ($request->items as $item) {
-            $transportShare = ($totalItemsCount > 0) ? ($request->total_transport_cost / $totalItemsCount) : 0;
-            $pricePerGram = ($item['total_price'] + $transportShare) / ($item['quantity'] * 1000);
-
-            $purchase->items()->create([
-                'raw_material_id' => $item['raw_material_id'],
-                'quantity' => $item['quantity'],
-                'total_price' => $item['total_price'],
-                'price_per_gram' => $pricePerGram,
-            ]);
+            $purchase->items()->create($item);
 
             $rawMaterial = RawMaterial::find($item['raw_material_id']);
             if ($rawMaterial) {
@@ -95,18 +101,19 @@ class RawMaterialPurchaseController extends Controller
 
     public function update(Request $request, RawMaterialPurchase $rawMaterialPurchase)
     {
-        $request->merge([
-            'total_transport_cost' => $this->cleanNumber($request->total_transport_cost),
-        ]);
+        // پاکسازی کاماها
+        $cleanedData = $request->all();
+        $cleanedData['total_transport_cost'] = $this->cleanNumber($request->total_transport_cost);
 
-        $items = $request->items;
-        foreach ($items as $key => $item) {
-            $items[$key]['quantity'] = $this->cleanNumber($item['quantity']);
-            $items[$key]['total_price'] = $this->cleanNumber($item['total_price']);
+        if (isset($cleanedData['items']) && is_array($cleanedData['items'])) {
+            foreach ($cleanedData['items'] as $key => $item) {
+                $cleanedData['items'][$key]['quantity'] = $this->cleanNumber($item['quantity'] ?? 0);
+                $cleanedData['items'][$key]['total_price'] = $this->cleanNumber($item['total_price'] ?? 0);
+            }
         }
-        $request->merge(['items' => $items]);
+        $request->merge($cleanedData);
 
-        $request->validate([
+        $validated = $request->validate([
             'purchase_date' => 'required|string',
             'supplier' => 'nullable|string|max:255',
             'total_transport_cost' => 'nullable|numeric|min:0',
@@ -116,6 +123,13 @@ class RawMaterialPurchaseController extends Controller
             'items.*.total_price' => 'required|numeric|min:0',
         ]);
 
+        try {
+            $gregorianDate = Jalalian::fromFormat('Y/m/d', $validated['purchase_date'])->toCarbon()->format('Y-m-d');
+        } catch (\Exception $e) {
+            return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
+        }
+
+        // برگرداندن موجودی قبلی
         foreach ($rawMaterialPurchase->items as $item) {
             $rawMaterial = RawMaterial::find($item->raw_material_id);
             if ($rawMaterial) {
@@ -126,27 +140,14 @@ class RawMaterialPurchaseController extends Controller
 
         $rawMaterialPurchase->items()->delete();
 
-        $jalaliDate = Jalalian::fromFormat('Y/m/d', $request->purchase_date);
-        $gregorianDate = $jalaliDate->toCarbon();
-
-        $totalItemsCount = count($request->items);
-
         $rawMaterialPurchase->update([
-            'purchase_date' => $gregorianDate->format('Y-m-d'),
+            'purchase_date' => $gregorianDate,
             'supplier' => $request->supplier,
             'total_transport_cost' => $request->total_transport_cost ?? 0,
         ]);
 
         foreach ($request->items as $item) {
-            $transportShare = ($totalItemsCount > 0) ? ($request->total_transport_cost / $totalItemsCount) : 0;
-            $pricePerGram = ($item['total_price'] + $transportShare) / ($item['quantity'] * 1000);
-
-            $rawMaterialPurchase->items()->create([
-                'raw_material_id' => $item['raw_material_id'],
-                'quantity' => $item['quantity'],
-                'total_price' => $item['total_price'],
-                'price_per_gram' => $pricePerGram,
-            ]);
+            $rawMaterialPurchase->items()->create($item);
 
             $rawMaterial = RawMaterial::find($item['raw_material_id']);
             if ($rawMaterial) {
@@ -161,16 +162,7 @@ class RawMaterialPurchaseController extends Controller
 
     public function destroy(RawMaterialPurchase $rawMaterialPurchase)
     {
-        foreach ($rawMaterialPurchase->items as $item) {
-            $rawMaterial = RawMaterial::find($item->raw_material_id);
-            if ($rawMaterial) {
-                $rawMaterial->stock -= $item->quantity;
-                $rawMaterial->save();
-            }
-        }
-
         $rawMaterialPurchase->delete();
-
         return redirect()->route('raw-material-purchases.index')
             ->with('success', 'خرید مواد با موفقیت حذف شد.');
     }

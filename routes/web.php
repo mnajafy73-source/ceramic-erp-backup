@@ -63,8 +63,8 @@ Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttl
 Route::get('/shuttle/batch/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show')->middleware('auth');
 Route::get('/shuttle/batch/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit')->middleware('auth');
 Route::put('/shuttle/batch/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update')->middleware('auth');
+Route::delete('/shuttle/batch/delete', [ShuttleFiringController::class, 'destroyBatch'])->name('shuttle.destroy-batch')->middleware('auth');
 Route::delete('/shuttle/{shuttle}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy')->middleware('auth');
-Route::post('/shuttle/batch/delete', [ShuttleFiringController::class, 'destroyBatch'])->name('shuttle.destroy-batch')->middleware('auth');
 
 // ==================== فروش رسمی ====================
 Route::resource('sales', SaleController::class)->middleware('auth');
@@ -126,9 +126,11 @@ Route::get('/reports/annual', [ReportController::class, 'annual'])->name('report
 
 // ==================== موجودی‌ها ====================
 Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index')->middleware('auth');
+Route::get('/inventory/raw-materials', [InventoryController::class, 'rawMaterialsStock'])->name('inventory.raw-materials')->middleware('auth');
 Route::get('/inventory/raw', [InventoryController::class, 'raw'])->name('inventory.raw')->middleware('auth');
 Route::get('/inventory/mum', [InventoryController::class, 'mum'])->name('inventory.mum')->middleware('auth');
 Route::get('/inventory/glaze1300', [InventoryController::class, 'glaze1300'])->name('inventory.glaze1300')->middleware('auth');
+Route::get('/inventory/packaging-stock', [InventoryController::class, 'packagingStock'])->name('inventory.packaging-stock')->middleware('auth');
 Route::get('/inventory/warehouse', [InventoryController::class, 'warehouse'])->name('inventory.warehouse')->middleware('auth');
 
 require __DIR__.'/auth.php';

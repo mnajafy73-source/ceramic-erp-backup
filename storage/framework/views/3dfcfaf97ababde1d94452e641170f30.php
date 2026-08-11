@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'پنل مدیریت کارخانه سرامیک')</title>
+    <title><?php echo $__env->yieldContent('title', 'پنل مدیریت کارخانه سرامیک'); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/app.css', 'resources/js/app.js']); ?>
     <style>
         :root {
             --primary: #1e3a5f;
@@ -129,7 +129,7 @@
             }
         }
     </style>
-    @stack('styles')
+    <?php echo $__env->yieldPushContent('styles'); ?>
 </head>
 <body>
 
@@ -141,11 +141,11 @@
             <small class="text-white-50">پنل مدیریت</small>
         </div>
         <div class="pt-3">
-            <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+            <a href="<?php echo e(route('dashboard')); ?>" class="nav-link <?php echo e(request()->routeIs('dashboard') ? 'active' : ''); ?>">
                 <i class="fas fa-tachometer-alt"></i> داشبورد
             </a>
 
-            <a href="{{ route('productions.index') }}" class="nav-link {{ request()->routeIs('productions.*') ? 'active' : '' }}">
+            <a href="<?php echo e(route('productions.index')); ?>" class="nav-link <?php echo e(request()->routeIs('productions.*') ? 'active' : ''); ?>">
                 <i class="fas fa-industry"></i> تولید
             </a>
 
@@ -154,8 +154,8 @@
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-kilns">
-                <a href="{{ route('tonneli.index') }}"><i class="fas fa-industry"></i> پخت کوره تونلی</a>
-                <a href="{{ route('shuttle.index') }}"><i class="fas fa-train"></i> پخت شاتل</a>
+                <a href="<?php echo e(route('tonneli.index')); ?>"><i class="fas fa-industry"></i> پخت کوره تونلی</a>
+                <a href="<?php echo e(route('shuttle.index')); ?>"><i class="fas fa-train"></i> پخت شاتل</a>
             </div>
 
             <!-- ===== منوی فروش ===== -->
@@ -164,9 +164,9 @@
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-sales">
-                <a href="{{ route('sales.index') }}"><i class="fas fa-file-invoice-dollar"></i> رسمی</a>
-                <a href="{{ route('informal-sales.index') }}"><i class="fas fa-file-invoice"></i> غیررسمی</a>
-                <a href="{{ route('cost-price.index') }}"><i class="fas fa-calculator"></i> قیمت تمام شده</a>
+                <a href="<?php echo e(route('sales.index')); ?>"><i class="fas fa-file-invoice-dollar"></i> رسمی</a>
+                <a href="<?php echo e(route('informal-sales.index')); ?>"><i class="fas fa-file-invoice"></i> غیررسمی</a>
+                <a href="<?php echo e(route('cost-price.index')); ?>"><i class="fas fa-calculator"></i> قیمت تمام شده</a>
             </div>
 
             <!-- ===== منوی خرید ===== -->
@@ -175,8 +175,8 @@
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-purchases">
-                <a href="{{ route('raw-material-purchases.index') }}"><i class="fas fa-cube"></i> خرید مواد</a>
-                <a href="{{ route('packaging-purchases.index') }}"><i class="fas fa-box"></i> خرید کارتن و لایه</a>
+                <a href="<?php echo e(route('raw-material-purchases.index')); ?>"><i class="fas fa-cube"></i> خرید مواد</a>
+                <a href="<?php echo e(route('packaging-purchases.index')); ?>"><i class="fas fa-box"></i> خرید کارتن و لایه</a>
             </div>
 
             <!-- ===== منوی موجودی ===== -->
@@ -185,13 +185,13 @@
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-inventory">
-                <a href="{{ route('opening-inventories.index') }}"><i class="fas fa-database"></i> موجودی اول دوره</a>
-                <a href="{{ route('inventory.raw-materials') }}"><i class="fas fa-cube"></i> مواد اولیه</a>
-                <a href="{{ route('inventory.raw') }}"><i class="fas fa-cube"></i> موجودی خام</a>
-                <a href="{{ route('inventory.mum') }}"><i class="fas fa-fire"></i> موجودی موم (۹۰۰°)</a>
-                <a href="{{ route('inventory.glaze1300') }}"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a>
-                <a href="{{ route('inventory.packaging-stock') }}"><i class="fas fa-box"></i> کارتن و لایه</a>
-                <a href="{{ route('inventory.warehouse') }}"><i class="fas fa-warehouse"></i> موجودی انبار</a>
+                <a href="<?php echo e(route('opening-inventories.index')); ?>"><i class="fas fa-database"></i> موجودی اول دوره</a>
+                <a href="<?php echo e(route('inventory.raw-materials')); ?>"><i class="fas fa-cube"></i> مواد اولیه</a>
+                <a href="<?php echo e(route('inventory.raw')); ?>"><i class="fas fa-cube"></i> موجودی خام</a>
+                <a href="<?php echo e(route('inventory.mum')); ?>"><i class="fas fa-fire"></i> موجودی موم (۹۰۰°)</a>
+                <a href="<?php echo e(route('inventory.glaze1300')); ?>"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a>
+                <a href="<?php echo e(route('inventory.packaging-stock')); ?>"><i class="fas fa-box"></i> کارتن و لایه</a>
+                <a href="<?php echo e(route('inventory.warehouse')); ?>"><i class="fas fa-warehouse"></i> موجودی انبار</a>
             </div>
 
             <!-- ===== منوی گزارشات ===== -->
@@ -200,9 +200,9 @@
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-reports">
-                <a href="{{ route('reports.production') }}"><i class="fas fa-industry"></i> گزارش تولید</a>
-                <a href="{{ route('reports.firing') }}"><i class="fas fa-fire"></i> گزارش پخت</a>
-                <a href="{{ route('reports.annual') }}"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
+                <a href="<?php echo e(route('reports.production')); ?>"><i class="fas fa-industry"></i> گزارش تولید</a>
+                <a href="<?php echo e(route('reports.firing')); ?>"><i class="fas fa-fire"></i> گزارش پخت</a>
+                <a href="<?php echo e(route('reports.annual')); ?>"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
 
             <hr class="text-white-50 mx-3 my-2">
@@ -214,19 +214,19 @@
             </button>
             <div class="submenu" id="submenu-settings">
                 <div style="padding: 5px 40px 5px 20px; color: rgba(255,255,255,0.4); font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">تعاریف پایه</div>
-                <a href="{{ route('raw-materials.index') }}"><i class="fas fa-cube"></i> مواد اولیه</a>
-                <a href="{{ route('formulas.index') }}"><i class="fas fa-calculator"></i> فرمول‌ها</a>
-                <a href="{{ route('packagings.index') }}"><i class="fas fa-box"></i> کارتن و لایه</a>
+                <a href="<?php echo e(route('raw-materials.index')); ?>"><i class="fas fa-cube"></i> مواد اولیه</a>
+                <a href="<?php echo e(route('formulas.index')); ?>"><i class="fas fa-calculator"></i> فرمول‌ها</a>
+                <a href="<?php echo e(route('packagings.index')); ?>"><i class="fas fa-box"></i> کارتن و لایه</a>
 
                 <div style="padding: 5px 40px 5px 20px; color: rgba(255,255,255,0.4); font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">مدیریت سیستم</div>
-                <a href="{{ route('operators.index') }}"><i class="fas fa-user-cog"></i> مدیریت اپراتورها</a>
-                <a href="{{ route('presses.index') }}"><i class="fas fa-cogs"></i> مدیریت پرس‌ها</a>
-                <a href="{{ route('products.index') }}"><i class="fas fa-box"></i> مدیریت کالاها</a>
-                <a href="{{ route('product_logs.index') }}"><i class="fas fa-history"></i> تاریخچه تغییرات</a>
+                <a href="<?php echo e(route('operators.index')); ?>"><i class="fas fa-user-cog"></i> مدیریت اپراتورها</a>
+                <a href="<?php echo e(route('presses.index')); ?>"><i class="fas fa-cogs"></i> مدیریت پرس‌ها</a>
+                <a href="<?php echo e(route('products.index')); ?>"><i class="fas fa-box"></i> مدیریت کالاها</a>
+                <a href="<?php echo e(route('product_logs.index')); ?>"><i class="fas fa-history"></i> تاریخچه تغییرات</a>
             </div>
 
-            <form method="POST" action="{{ route('logout') }}" class="mt-3 px-3 pb-3">
-                @csrf
+            <form method="POST" action="<?php echo e(route('logout')); ?>" class="mt-3 px-3 pb-3">
+                <?php echo csrf_field(); ?>
                 <button type="submit" class="btn btn-outline-light btn-sm w-100">
                     <i class="fas fa-sign-out-alt ms-1"></i> خروج
                 </button>
@@ -240,36 +240,38 @@
                 <i class="fas fa-bars"></i>
             </button>
             <div>
-                <span class="text-muted">{{ Auth::user()->name ?? 'کاربر' }}</span>
+                <span class="text-muted"><?php echo e(Auth::user()->name ?? 'کاربر'); ?></span>
             </div>
         </div>
         <div class="p-3 p-md-4">
 
-            @if(session('undo_record') && session()->has('success'))
+            <?php if(session('undo_record') && session()->has('success')): ?>
                 <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
-                    <span>{{ session()->pull('success') }}</span>
+                    <span><?php echo e(session()->pull('success')); ?></span>
                     <div class="d-flex gap-2">
-                        <a href="{{ route('undo.restore') }}" class="btn btn-sm btn-success">↩️ برگرداندن</a>
-                        <a href="{{ route('undo.discard') }}" class="btn btn-sm btn-secondary">✖️ انصراف</a>
+                        <a href="<?php echo e(route('undo.restore')); ?>" class="btn btn-sm btn-success">↩️ برگرداندن</a>
+                        <a href="<?php echo e(route('undo.discard')); ?>" class="btn btn-sm btn-secondary">✖️ انصراف</a>
                     </div>
                 </div>
-            @endif
+            <?php endif; ?>
 
-            @if(session('success') && !session('undo_record'))
+            <?php if(session('success') && !session('undo_record')): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    {{ session()->pull('success') }}
+                    <?php echo e(session()->pull('success')); ?>
+
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
-            @endif
+            <?php endif; ?>
 
-            @if(session('error'))
+            <?php if(session('error')): ?>
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    {{ session()->pull('error') }}
+                    <?php echo e(session()->pull('error')); ?>
+
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
-            @endif
+            <?php endif; ?>
 
-            @yield('content')
+            <?php echo $__env->yieldContent('content'); ?>
         </div>
     </div>
 
@@ -302,6 +304,6 @@
             button.classList.toggle('open');
         }
     </script>
-    @stack('scripts')
+    <?php echo $__env->yieldPushContent('scripts'); ?>
 </body>
-</html>
+</html><?php /**PATH F:\ceramic-erp-backup\resources\views/layouts/app.blade.php ENDPATH**/ ?>
