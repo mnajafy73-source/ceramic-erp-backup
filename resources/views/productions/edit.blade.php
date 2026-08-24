@@ -1,39 +1,5 @@
 @extends('layouts.app')
 
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        try {
-            if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
-                $('#date').persianDatepicker({
-                    format: 'YYYY/MM/DD',
-                    autoClose: true,
-                    initialValue: false,
-                    observer: true,
-                    calendar: { persian: { locale: 'fa' } }
-                });
-            }
-        } catch (e) {}
-
-        // نمایش/مخفی کردن پرس بر اساس عملیات
-        function togglePress() {
-            const stage = document.getElementById('stage').value;
-            const pressGroup = document.getElementById('press-group');
-            if (stage === 'production') {
-                pressGroup.style.display = 'block';
-                document.getElementById('press_id').setAttribute('required', 'required');
-            } else {
-                pressGroup.style.display = 'none';
-                document.getElementById('press_id').removeAttribute('required');
-            }
-        }
-
-        document.getElementById('stage').addEventListener('change', togglePress);
-        togglePress();
-    });
-</script>
-@endpush
-
 @section('content')
 <div class="mb-4">
     <h4 class="fw-bold mb-1">ویرایش تولید</h4>
@@ -47,96 +13,168 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
+        @if ($errors->any())
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <form action="{{ route('productions.update', $production) }}" method="POST">
             @csrf
             @method('PUT')
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label class="form-label small">تاریخ <span class="text-danger">*</span></label>
-                    <input type="text" name="date" id="date" class="form-control form-control-sm @error('date') is-invalid @enderror"
-                           value="{{ old('date', $production->jalali_date) }}" required autocomplete="off">
-                    @error('date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label small">اپراتور <span class="text-danger">*</span></label>
-                    <select name="operator_id" class="form-select form-select-sm @error('operator_id') is-invalid @enderror" required>
-                        @foreach($operators as $op)
-                            <option value="{{ $op->id }}" {{ old('operator_id', $production->operator_id) == $op->id ? 'selected' : '' }}>{{ $op->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('operator_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label small">محصول <span class="text-danger">*</span></label>
-                    <select name="product_id" class="form-select form-select-sm @error('product_id') is-invalid @enderror" required>
-                        @foreach($products as $p)
-                            <option value="{{ $p->id }}" {{ old('product_id', $production->product_id) == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('product_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label small">عملیات <span class="text-danger">*</span></label>
-                    <select name="stage" id="stage" class="form-select form-select-sm @error('stage') is-invalid @enderror" required>
-                        <option value="production" {{ old('stage', $production->stage) == 'production' ? 'selected' : '' }}>تولید</option>
-                        <option value="payment" {{ old('stage', $production->stage) == 'payment' ? 'selected' : '' }}>پرداخت</option>
-                        <option value="packaging" {{ old('stage', $production->stage) == 'packaging' ? 'selected' : '' }}>بسته‌بندی</option>
-                    </select>
-                    @error('stage')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label class="form-label small">تعداد <span class="text-danger">*</span></label>
-                    <input type="number" name="quantity" class="form-control form-control-sm @error('quantity') is-invalid @enderror"
-                           value="{{ old('quantity', $production->quantity) }}" step="0.01" required>
-                    @error('quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label small">زمان (ساعت)</label>
-                    <input type="number" name="time_hours" class="form-control form-control-sm @error('time_hours') is-invalid @enderror"
-                           value="{{ old('time_hours', $production->time_hours) }}" step="0.01" min="0">
-                    @error('time_hours')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-3 mb-3" id="press-group" style="{{ $production->stage == 'production' ? 'display:block;' : 'display:none;' }}">
-                    <label class="form-label small">پرس</label>
-                    <select name="press_id" id="press_id" class="form-select form-select-sm @error('press_id') is-invalid @enderror">
-                        <option value="">انتخاب پرس...</option>
-                        @foreach($presses as $pr)
-                            <option value="{{ $pr->id }}" {{ old('press_id', $production->press_id) == $pr->id ? 'selected' : '' }}>{{ $pr->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('press_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-            </div>
 
-            {{-- توقف‌های تولید --}}
-            <div class="card bg-light mt-3">
-                <div class="card-body py-2">
-                    <h6 class="fw-bold small">توقف‌های تولید</h6>
-                    <div class="row g-2 align-items-end" id="stops-container">
-                        @foreach($production->stops as $index => $stop)
-                        <div class="col-md-3 stop-row">
-                            <select name="stop_types[]" class="form-select form-select-sm">
-                                <option value="machine_failure" {{ $stop->type == 'machine_failure' ? 'selected' : '' }}>خرابی ماشین</option>
-                                <option value="mold_change_repair" {{ $stop->type == 'mold_change_repair' ? 'selected' : '' }}>تعویض قالب</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2 stop-row">
-                            <input type="number" name="stop_hours[]" class="form-control form-control-sm" placeholder="ساعت" step="0.01" min="0" value="{{ $stop->hours }}">
-                        </div>
-                        <div class="col-md-1 stop-row">
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.stop-row').remove()">✖</button>
-                        </div>
+            <div class="row g-3">
+                <!-- تاریخ -->
+                <div class="col-md-4">
+                    <label class="form-label">تاریخ <span class="text-danger">*</span></label>
+                    <input type="text" name="date" class="form-control @error('date') is-invalid @enderror"
+                           value="{{ old('date', $production->jalali_date) }}" required>
+                    @error('date')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- اپراتور -->
+                <div class="col-md-4">
+                    <label class="form-label">اپراتور <span class="text-danger">*</span></label>
+                    <select name="operator_id" class="form-select @error('operator_id') is-invalid @enderror" required>
+                        <option value="">انتخاب اپراتور</option>
+                        @foreach($operators as $operator)
+                            <option value="{{ $operator->id }}" {{ old('operator_id', $production->operator_id) == $operator->id ? 'selected' : '' }}>
+                                {{ $operator->name }}
+                            </option>
                         @endforeach
+                    </select>
+                    @error('operator_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- پرس -->
+                <div class="col-md-4">
+                    <label class="form-label">پرس</label>
+                    <select name="press_id" class="form-select @error('press_id') is-invalid @enderror">
+                        <option value="">بدون پرس</option>
+                        @foreach($presses as $press)
+                            <option value="{{ $press->id }}" {{ old('press_id', $production->press_id) == $press->id ? 'selected' : '' }}>
+                                {{ $press->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('press_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- محصول -->
+                <div class="col-md-4">
+                    <label class="form-label">محصول <span class="text-danger">*</span></label>
+                    <select name="product_id" class="form-select @error('product_id') is-invalid @enderror" required>
+                        <option value="">انتخاب محصول</option>
+                        @foreach($products as $product)
+                            <option value="{{ $product->id }}" {{ old('product_id', $production->product_id) == $product->id ? 'selected' : '' }}>
+                                {{ $product->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('product_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- عملیات (فارسی) -->
+                <div class="col-md-4">
+                    <label class="form-label">عملیات <span class="text-danger">*</span></label>
+                    <select name="stage" class="form-select @error('stage') is-invalid @enderror" required>
+                        <option value="">انتخاب عملیات</option>
+                        <option value="تولید" {{ old('stage', $production->stage) == 'تولید' ? 'selected' : '' }}>تولید</option>
+                        <option value="پرداخت" {{ old('stage', $production->stage) == 'پرداخت' ? 'selected' : '' }}>پرداخت</option>
+                        <option value="بسته‌بندی" {{ old('stage', $production->stage) == 'بسته‌بندی' ? 'selected' : '' }}>بسته‌بندی</option>
+                    </select>
+                    @error('stage')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- تعداد -->
+                <div class="col-md-4">
+                    <label class="form-label">تعداد <span class="text-danger">*</span></label>
+                    <input type="number" name="quantity" class="form-control @error('quantity') is-invalid @enderror"
+                           value="{{ old('quantity', $production->quantity) }}" required min="1">
+                    @error('quantity')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- زمان (ساعت) -->
+                <div class="col-md-4">
+                    <label class="form-label">زمان (ساعت)</label>
+                    <input type="number" name="time_hours" class="form-control @error('time_hours') is-invalid @enderror"
+                           value="{{ old('time_hours', $production->time_hours) }}" step="0.1" min="0">
+                    @error('time_hours')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- یادداشت -->
+                <div class="col-12">
+                    <label class="form-label">یادداشت</label>
+                    <textarea name="notes" class="form-control @error('notes') is-invalid @enderror" rows="2">{{ old('notes', $production->notes) }}</textarea>
+                    @error('notes')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- توقف‌ها (فارسی) -->
+                <div class="col-12 mt-3">
+                    <hr>
+                    <h6 class="fw-bold">توقف‌ها (اختیاری)</h6>
+                    <div id="stops-container">
+                        @if($production->stops->count())
+                            @foreach($production->stops as $index => $stop)
+                                <div class="row g-2 stop-row mt-2">
+                                    <div class="col-md-5">
+                                        <select name="stop_types[]" class="form-select">
+                                            <option value="خرابی ماشین" {{ $stop->type == 'خرابی ماشین' ? 'selected' : '' }}>خرابی ماشین</option>
+                                            <option value="تعویض قالب" {{ $stop->type == 'تعویض قالب' ? 'selected' : '' }}>تعویض قالب</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="number" name="stop_hours[]" class="form-control" placeholder="ساعت" step="0.1" min="0" value="{{ $stop->hours }}">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger btn-sm remove-stop">حذف</button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="row g-2 stop-row">
+                                <div class="col-md-5">
+                                    <select name="stop_types[]" class="form-select">
+                                        <option value="خرابی ماشین">خرابی ماشین</option>
+                                        <option value="تعویض قالب">تعویض قالب</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="number" name="stop_hours[]" class="form-control" placeholder="ساعت" step="0.1" min="0">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-danger btn-sm remove-stop" style="display:none;">حذف</button>
+                                </div>
+                            </div>
+                        @endif
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addStopRow()">➕ افزودن توقف</button>
+                    <button type="button" id="add-stop" class="btn btn-sm btn-secondary mt-2">➕ افزودن توقف</button>
                 </div>
             </div>
 
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i> بروزرسانی</button>
-                <a href="{{ route('productions.index') }}" class="btn btn-secondary btn-sm ms-2">انصراف</a>
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">به‌روزرسانی</button>
+                <a href="{{ route('productions.index') }}" class="btn btn-secondary">انصراف</a>
             </div>
         </form>
     </div>
@@ -144,24 +182,43 @@
 
 @push('scripts')
 <script>
-    function addStopRow() {
-        const container = document.getElementById('stops-container');
-        const html = `
-            <div class="col-md-3 stop-row">
-                <select name="stop_types[]" class="form-select form-select-sm">
-                    <option value="machine_failure">خرابی ماشین</option>
-                    <option value="mold_change_repair">تعویض قالب</option>
-                </select>
-            </div>
-            <div class="col-md-2 stop-row">
-                <input type="number" name="stop_hours[]" class="form-control form-control-sm" placeholder="ساعت" step="0.01" min="0">
-            </div>
-            <div class="col-md-1 stop-row">
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.stop-row').remove()">✖</button>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', html);
-    }
+    document.addEventListener('DOMContentLoaded', function() {
+        let stopIndex = {{ $production->stops->count() ?: 1 }};
+
+        document.getElementById('add-stop').addEventListener('click', function() {
+            const container = document.getElementById('stops-container');
+            const newRow = document.createElement('div');
+            newRow.className = 'row g-2 stop-row mt-2';
+            newRow.innerHTML = `
+                <div class="col-md-5">
+                    <select name="stop_types[]" class="form-select">
+                        <option value="خرابی ماشین">خرابی ماشین</option>
+                        <option value="تعویض قالب">تعویض قالب</option>
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <input type="number" name="stop_hours[]" class="form-control" placeholder="ساعت" step="0.1" min="0">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-danger btn-sm remove-stop">حذف</button>
+                </div>
+            `;
+            container.appendChild(newRow);
+            stopIndex++;
+        });
+
+        document.getElementById('stops-container').addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-stop')) {
+                const row = e.target.closest('.stop-row');
+                if (document.querySelectorAll('.stop-row').length > 1) {
+                    row.remove();
+                } else {
+                    alert('حداقل یک ردیف توقف باید باقی بماند.');
+                }
+            }
+        });
+    });
 </script>
 @endpush
+
 @endsection

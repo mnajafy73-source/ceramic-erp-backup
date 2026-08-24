@@ -205,6 +205,11 @@
                 <a href="<?php echo e(route('reports.annual')); ?>"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
 
+            <!-- ===== منوی جدید: وارد کردن ===== -->
+            <a href="<?php echo e(route('import.index')); ?>" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>">
+                <i class="fas fa-upload"></i> وارد کردن
+            </a>
+
             <hr class="text-white-50 mx-3 my-2">
 
             <!-- ===== منوی تنظیمات ===== -->

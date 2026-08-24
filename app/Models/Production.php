@@ -5,19 +5,47 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\HasUndo;
+use Morilog\Jalali\Jalalian;
 
 class Production extends Model
 {
     use HasFactory, HasUndo;
 
     protected $fillable = [
-        'date', 'operator_id', 'press_id', 'product_id',
-        'stage', 'quantity', 'time_hours', 'notes',
+        'date',
+        'operator_id',
+        'press_id',
+        'product_id',
+        'stage',
+        'quantity',
+        'time_hours',
+        'notes',
     ];
 
-    protected $casts = [
-        'date' => 'date',
+    // ========== تبدیل stage به فارسی/انگلیسی ==========
+    private static $stageMap = [
+        'تولید' => 'production',
+        'پرداخت' => 'payment',
+        'بسته‌بندی' => 'packaging',
     ];
+
+    public function setStageAttribute($value)
+    {
+        $this->attributes['stage'] = self::$stageMap[$value] ?? $value;
+    }
+
+    public function getStageAttribute($value)
+    {
+        $reverseMap = array_flip(self::$stageMap);
+        return $reverseMap[$value] ?? $value;
+    }
+
+    // ========== تاریخ شمسی ==========
+    // تاریخ به‌صورت شمسی ذخیره می‌شود، بنابراین نیازی به تبدیل ندارد
+    public function getJalaliDateAttribute()
+    {
+        return $this->date; // چون خودش شمسی است
+    }
 
     public function operator()
     {

@@ -6,13 +6,14 @@ use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Formula;
 use App\Models\Packaging;
+use App\Models\ProductAlias;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::with('unit');
+        $query = Product::with('unit', 'aliases');
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -56,10 +57,11 @@ class ProductController extends Controller
             'formula_id'    => 'nullable|exists:formulas,id',
             'carton_packaging_id' => 'nullable|exists:packagings,id',
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
+            'firing_process' => 'nullable|in:tonneli,shuttle,both',
         ]);
 
-        if (!isset($validated['firing_process'])) {
-            $validated['firing_process'] = 'تونلی';
+        if (empty($validated['firing_process'])) {
+            $validated['firing_process'] = 'tonneli';
         }
 
         $validated['status'] = $request->has('status');
@@ -73,16 +75,28 @@ class ProductController extends Controller
         $validated['weight'] = $validated['weight'] ?? null;
         $validated['formula_id'] = $validated['formula_id'] ?? null;
 
-        Product::create($validated);
+        $product = Product::create($validated);
 
-        return redirect()->route('products.create')
+        // اگر نام‌های مستعار در فرم ارسال شده‌اند، آنها را ذخیره کن
+        if ($request->has('aliases')) {
+            $aliases = array_filter(array_map('trim', explode(',', $request->aliases)));
+            foreach ($aliases as $alias) {
+                if (!empty($alias)) {
+                    ProductAlias::create([
+                        'product_id' => $product->id,
+                        'alias' => $alias,
+                    ]);
+                }
+            }
+        }
+
+        return redirect()->route('products.index')
             ->with('success', 'کالا با موفقیت ایجاد شد.');
     }
 
     public function show(Product $product)
     {
-        // حذف 'inventory' از بارگذاری
-        $product->load('unit', 'logs.user');
+        $product->load('unit', 'logs.user', 'aliases');
         return view('products.show', compact('product'));
     }
 
@@ -91,6 +105,7 @@ class ProductController extends Controller
         $units = Unit::all();
         $formulas = Formula::all();
         $packagings = Packaging::all();
+        $product->load('aliases');
         return view('products.edit', compact('product', 'units', 'formulas', 'packagings'));
     }
 
@@ -111,23 +126,48 @@ class ProductController extends Controller
             'formula_id'    => 'nullable|exists:formulas,id',
             'carton_packaging_id' => 'nullable|exists:packagings,id',
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
+            'firing_process' => 'nullable|in:tonneli,shuttle,both',
         ]);
 
-        unset($validated['code']);
+        if (empty($validated['firing_process'])) {
+            $validated['firing_process'] = $product->firing_process ?? 'tonneli';
+        }
+
         $validated['status'] = $request->has('status');
         $validated['in_production'] = $request->has('in_production');
         $validated['cavities'] = $validated['cavities'] ?? $product->cavities;
         $validated['weight'] = $validated['weight'] ?? null;
         $validated['formula_id'] = $validated['formula_id'] ?? null;
 
-        if (isset($validated['firing_process'])) {
-            $product->firing_process = $validated['firing_process'];
-        }
-
         $product->update($validated);
+
+        // ========== مدیریت نام‌های مستعار ==========
+        if ($request->has('aliases')) {
+            // حذف alias‌های قدیمی
+            $product->aliases()->delete();
+
+            // اضافه کردن alias‌های جدید
+            $aliases = array_filter(array_map('trim', explode(',', $request->aliases)));
+            foreach ($aliases as $alias) {
+                if (!empty($alias)) {
+                    ProductAlias::create([
+                        'product_id' => $product->id,
+                        'alias' => $alias,
+                    ]);
+                }
+            }
+        }
 
         return redirect()->route('products.index')
             ->with('success', 'کالا با موفقیت ویرایش شد.');
+    }
+
+    // متد حذف یک alias خاص
+    public function deleteAlias($aliasId)
+    {
+        $alias = ProductAlias::findOrFail($aliasId);
+        $alias->delete();
+        return redirect()->back()->with('success', 'نام مستعار با موفقیت حذف شد.');
     }
 
     public function toggleStatus(Product $product)
@@ -155,6 +195,8 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         try {
+            // حذف alias‌های مرتبط
+            $product->aliases()->delete();
             $product->delete();
             return redirect()->route('products.index')->with('success', 'کالا حذف شد.');
         } catch (\Exception $e) {

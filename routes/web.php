@@ -30,6 +30,9 @@ use App\Http\Controllers\CostPriceController;
 // ========== گزارشات ==========
 use App\Http\Controllers\ReportController;
 
+// ========== واردات از اکسل ==========
+use App\Http\Controllers\ImportController;
+
 Route::get('/', function () { return view('welcome'); });
 
 // ==================== داشبورد ====================
@@ -56,15 +59,16 @@ Route::get('/tonneli/{tonneli}', [TonneliFiringController::class, 'show'])->name
 Route::get('/tonneli/{tonneli}/edit', [TonneliFiringController::class, 'edit'])->name('tonneli.edit')->middleware('auth');
 Route::put('/tonneli/{tonneli}', [TonneliFiringController::class, 'update'])->name('tonneli.update')->middleware('auth');
 
-// ==================== کوره شاتل ====================
+// ==================== کوره شاتل (مسیرهای جدید با پارامترهای کامل) ====================
 Route::get('/shuttle', [ShuttleFiringController::class, 'index'])->name('shuttle.index')->middleware('auth');
 Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create')->middleware('auth');
 Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store')->middleware('auth');
-Route::get('/shuttle/batch/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show')->middleware('auth');
-Route::get('/shuttle/batch/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit')->middleware('auth');
-Route::put('/shuttle/batch/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update')->middleware('auth');
-Route::delete('/shuttle/batch/delete', [ShuttleFiringController::class, 'destroyBatch'])->name('shuttle.destroy-batch')->middleware('auth');
-Route::delete('/shuttle/{shuttle}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy')->middleware('auth');
+
+// مسیرهای جدید با کلید کامل برای تشخیص یکتا
+Route::get('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show')->middleware('auth');
+Route::get('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit')->middleware('auth');
+Route::put('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update')->middleware('auth');
+Route::delete('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy')->middleware('auth');
 
 // ==================== فروش رسمی ====================
 Route::resource('sales', SaleController::class)->middleware('auth');
@@ -121,6 +125,7 @@ Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-pri
 
 // ==================== گزارشات ====================
 Route::get('/reports/production', [ReportController::class, 'production'])->name('reports.production')->middleware('auth');
+Route::get('/reports/production/export', [ReportController::class, 'exportProductionCSV'])->name('reports.production.export')->middleware('auth');
 Route::get('/reports/firing', [ReportController::class, 'firing'])->name('reports.firing')->middleware('auth');
 Route::get('/reports/annual', [ReportController::class, 'annual'])->name('reports.annual')->middleware('auth');
 
@@ -132,5 +137,12 @@ Route::get('/inventory/mum', [InventoryController::class, 'mum'])->name('invento
 Route::get('/inventory/glaze1300', [InventoryController::class, 'glaze1300'])->name('inventory.glaze1300')->middleware('auth');
 Route::get('/inventory/packaging-stock', [InventoryController::class, 'packagingStock'])->name('inventory.packaging-stock')->middleware('auth');
 Route::get('/inventory/warehouse', [InventoryController::class, 'warehouse'])->name('inventory.warehouse')->middleware('auth');
+
+// ==================== واردات از اکسل ====================
+Route::get('/import', [ImportController::class, 'index'])->name('import.index')->middleware('auth');
+Route::post('/import/productions', [ImportController::class, 'importProductions'])->name('import.productions')->middleware('auth');
+Route::post('/import/tonneli', [ImportController::class, 'importTonneli'])->name('import.tonneli')->middleware('auth');
+Route::post('/import/shuttle', [ImportController::class, 'importShuttle'])->name('import.shuttle')->middleware('auth');
+Route::get('/import/from-path', [ImportController::class, 'importFromPath'])->name('import.from-path')->middleware('auth');
 
 require __DIR__.'/auth.php';

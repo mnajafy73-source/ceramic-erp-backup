@@ -205,6 +205,11 @@
                 <a href="{{ route('reports.annual') }}"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
 
+            <!-- ===== منوی جدید: وارد کردن ===== -->
+            <a href="{{ route('import.index') }}" class="nav-link {{ request()->routeIs('import.*') ? 'active' : '' }}">
+                <i class="fas fa-upload"></i> وارد کردن
+            </a>
+
             <hr class="text-white-50 mx-3 my-2">
 
             <!-- ===== منوی تنظیمات ===== -->

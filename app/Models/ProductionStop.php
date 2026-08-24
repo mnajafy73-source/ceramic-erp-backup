@@ -15,6 +15,25 @@ class ProductionStop extends Model
         'hours',
     ];
 
+    // ========== تبدیل type به فارسی/انگلیسی ==========
+    private static $stopTypeMap = [
+        'خرابی ماشین' => 'machine_failure',
+        'تعویض قالب'  => 'mold_change_repair',
+    ];
+
+    // Mutator: قبل از ذخیره، فارسی را به انگلیسی تبدیل کن
+    public function setTypeAttribute($value)
+    {
+        $this->attributes['type'] = self::$stopTypeMap[$value] ?? $value;
+    }
+
+    // Accessor: هنگام خواندن، انگلیسی را به فارسی تبدیل کن
+    public function getTypeAttribute($value)
+    {
+        $reverseMap = array_flip(self::$stopTypeMap);
+        return $reverseMap[$value] ?? $value;
+    }
+
     public function production()
     {
         return $this->belongsTo(Production::class);

@@ -1,70 +1,11 @@
 @extends('layouts.app')
 
-@push('scripts')
-<script>
-    let productIndex = {{ $items->count() }};
-
-    function addProductRow(productId = '', qty = '', packaged = false) {
-        const container = document.getElementById('products-container');
-        if (!container) return;
-        const checked = packaged ? 'checked' : '';
-        const html = `
-            <div class="row g-2 mb-2 product-row">
-                <div class="col-md-4">
-                    <select name="products[${productIndex}][product_id]" class="form-select" required>
-                        <option value="">انتخاب محصول...</option>
-                        @foreach($products as $p)
-                            <option value="{{ $p->id }}" ${productId == {{ $p->id }} ? 'selected' : ''}>{{ $p->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <input type="number" name="products[${productIndex}][output_quantity]" class="form-control" value="${qty}" placeholder="تعداد" step="0.01">
-                </div>
-                <div class="col-md-3 d-flex align-items-center">
-                    <div class="form-check form-switch">
-                        <input type="hidden" name="products[${productIndex}][is_packaged]" value="0">
-                        <input class="form-check-input" type="checkbox" name="products[${productIndex}][is_packaged]" value="1" ${checked}>
-                        <label class="form-check-label">بسته‌بندی</label>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.product-row').remove()">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', html);
-        productIndex++;
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        @foreach($items as $i => $item)
-            addProductRow({{ $item->product_id }}, '{{ $item->output_quantity }}', {{ $item->is_packaged ? 'true' : 'false' }});
-        @endforeach
-
-        try {
-            if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
-                $('#date').persianDatepicker({
-                    format: 'YYYY/MM/DD',
-                    autoClose: true,
-                    initialValue: false,
-                    observer: true,
-                    calendar: { persian: { locale: 'fa' } }
-                });
-            }
-        } catch (e) {}
-    });
-</script>
-@endpush
-
 @section('content')
 <div class="mb-4">
     <h4 class="fw-bold mb-1">ویرایش پخت شاتل</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('shuttle.index') }}">پخت‌های شاتل</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('shuttle.index') }}">کوره شاتل</a></li>
             <li class="breadcrumb-item active">ویرایش</li>
         </ol>
     </nav>
@@ -72,55 +13,112 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <form action="{{ route('shuttle.update', ['firingNumber' => $firingNumber, 'date' => $date, 'kiln_type' => $kilnType]) }}" method="POST">
+        <form action="{{ route('shuttle.update', $firing->firing_number) }}" method="POST">
             @csrf
             @method('PUT')
 
-            <div class="row">
-                <div class="col-md-6 mb-3">
+            <div class="row g-3">
+                <!-- تاریخ -->
+                <div class="col-md-3">
                     <label class="form-label">تاریخ <span class="text-danger">*</span></label>
-                    <input type="text" name="date" id="date" class="form-control @error('date') is-invalid @enderror" 
-                           value="{{ old('date', $jalaliDate) }}" required autocomplete="off">
-                    @error('date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <input type="text" name="date" class="form-control @error('date') is-invalid @enderror"
+                           value="{{ old('date', $firing->jalali_date) }}" required>
+                    @error('date')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">نوع کوره <span class="text-danger">*</span></label>
-                    <select name="kiln_type" id="kiln_type" class="form-select @error('kiln_type') is-invalid @enderror" required>
-                        <option value="">انتخاب کنید...</option>
-                        <option value="kiln_1" {{ old('kiln_type', $kilnType) == 'kiln_1' ? 'selected' : '' }}>کوره ۱</option>
-                        <option value="kiln_2" {{ old('kiln_type', $kilnType) == 'kiln_2' ? 'selected' : '' }}>کوره ۲</option>
-                        <option value="kiln_3" {{ old('kiln_type', $kilnType) == 'kiln_3' ? 'selected' : '' }}>کوره ۳</option>
-                        <option value="packaging" {{ old('kiln_type', $kilnType) == 'packaging' ? 'selected' : '' }}>بسته‌بندی</option>
-                    </select>
-                    @error('kiln_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-            </div>
 
-            <div class="row">
-                <div class="col-md-6 mb-3" id="subtype-group" style="{{ $items->first()->firing_subtype ? 'display:block;' : 'display:none;' }}">
+                <!-- کوره -->
+                <div class="col-md-3">
+                    <label class="form-label">کوره <span class="text-danger">*</span></label>
+                    <select name="kiln_number" class="form-select @error('kiln_number') is-invalid @enderror" required>
+                        <option value="">انتخاب کوره</option>
+                        <option value="1" {{ old('kiln_number', $firing->kiln_number) == '1' ? 'selected' : '' }}>کوره ۱</option>
+                        <option value="2" {{ old('kiln_number', $firing->kiln_number) == '2' ? 'selected' : '' }}>کوره ۲</option>
+                        <option value="3" {{ old('kiln_number', $firing->kiln_number) == '3' ? 'selected' : '' }}>کوره ۳</option>
+                        <option value="4" {{ old('kiln_number', $firing->kiln_number) == '4' ? 'selected' : '' }}>کوره ۴</option>
+                        <option value="packaging" {{ old('kiln_number', $firing->kiln_number) == 'packaging' ? 'selected' : '' }}>بسته‌بندی</option>
+                    </select>
+                    @error('kiln_number')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- نوع پخت -->
+                <div class="col-md-3">
                     <label class="form-label">نوع پخت <span class="text-danger">*</span></label>
-                    <select name="firing_subtype" id="firing_subtype" class="form-select @error('firing_subtype') is-invalid @enderror">
-                        <option value="">انتخاب کنید...</option>
-                        <option value="mum" {{ old('firing_subtype', $items->first()->firing_subtype) == 'mum' ? 'selected' : '' }}>موم (۹۰۰°)</option>
-                        <option value="glaze" {{ old('firing_subtype', $items->first()->firing_subtype) == 'glaze' ? 'selected' : '' }}>لعابدار</option>
+                    <select name="firing_type" class="form-select @error('firing_type') is-invalid @enderror" required>
+                        <option value="">انتخاب نوع پخت</option>
+                        <option value="معمولی" {{ old('firing_type', $firing->firing_type) == 'معمولی' ? 'selected' : '' }}>معمولی</option>
+                        <option value="1300" {{ old('firing_type', $firing->firing_type) == '1300' ? 'selected' : '' }}>۱۳۰۰</option>
+                        <option value="لعابدار" {{ old('firing_type', $firing->firing_type) == 'لعابدار' ? 'selected' : '' }}>لعابدار</option>
+                        <option value="موم" {{ old('firing_type', $firing->firing_type) == 'موم' ? 'selected' : '' }}>موم</option>
                     </select>
-                    @error('firing_subtype')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    @error('firing_type')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
                 </div>
-                {{-- حذف فیلد شماره پخت --}}
+
+                <!-- محصول -->
+                <div class="col-md-3">
+                    <label class="form-label">محصول <span class="text-danger">*</span></label>
+                    <select name="product_id" class="form-select @error('product_id') is-invalid @enderror" required>
+                        <option value="">انتخاب محصول</option>
+                        @foreach($products as $product)
+                            <option value="{{ $product->id }}" {{ old('product_id', $firing->product_id) == $product->id ? 'selected' : '' }}>
+                                {{ $product->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('product_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- تعداد کل -->
+                <div class="col-md-3">
+                    <label class="form-label">تعداد کل <span class="text-danger">*</span></label>
+                    <input type="number" name="total_quantity" class="form-control @error('total_quantity') is-invalid @enderror"
+                           value="{{ old('total_quantity', $firing->total_quantity ?? 0) }}" step="1" min="0" required>
+                    @error('total_quantity')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- تعداد اصلی -->
+                <div class="col-md-3">
+                    <label class="form-label">تعداد اصلی (خروجی سالم) <span class="text-danger">*</span></label>
+                    <input type="number" name="main_quantity" class="form-control @error('main_quantity') is-invalid @enderror"
+                           value="{{ old('main_quantity', $firing->output_quantity) }}" step="1" min="0" required>
+                    @error('main_quantity')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- ضایعات -->
+                <div class="col-md-3">
+                    <label class="form-label">ضایعات <span class="text-danger">*</span></label>
+                    <input type="number" name="waste" class="form-control @error('waste') is-invalid @enderror"
+                           value="{{ old('waste', 0) }}" step="1" min="0" required>
+                    @error('waste')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- بسته‌بندی -->
+                <div class="col-md-3">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="is_packaged" class="form-check-input" id="is_packaged" value="1"
+                               {{ old('is_packaged', $firing->is_packaged) ? 'checked' : '' }}>
+                        <label class="form-check-label" for="is_packaged">بسته‌بندی شده</label>
+                    </div>
+                </div>
             </div>
 
-            <div class="card bg-light mb-3">
-                <div class="card-body">
-                    <h6 class="fw-bold mb-3">➕ محصولات این پخت</h6>
-                    <div id="products-container"></div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addProductRow()">
-                        <i class="fas fa-plus-circle"></i> افزودن محصول
-                    </button>
-                </div>
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">به‌روزرسانی</button>
+                <a href="{{ route('shuttle.index') }}" class="btn btn-secondary">انصراف</a>
             </div>
-
-            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> بروزرسانی</button>
-            <a href="{{ route('shuttle.index') }}" class="btn btn-secondary ms-2">انصراف</a>
         </form>
     </div>
 </div>

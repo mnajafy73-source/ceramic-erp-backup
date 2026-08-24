@@ -45,7 +45,7 @@ class ShuttleFiring extends Model
     }
 
     /**
-     * محاسبه موجودی خام یک محصول خاص
+     * محاسبه موجودی خام
      */
     public static function getRawStock($productId)
     {
@@ -89,27 +89,36 @@ class ShuttleFiring extends Model
             ->where('kiln_type', 'kiln_2')
             ->sum('output_quantity');
 
-        $packaged = self::where('product_id', $productId)
+        // بسته‌بندی شاتل با kiln_type = packaging
+        $packagedShuttle = self::where('product_id', $productId)
             ->where('kiln_type', 'packaging')
             ->sum('output_quantity');
 
-        return $glazeProduction - $packaged;
+        return $glazeProduction - $packagedShuttle;
     }
 
     /**
      * محاسبه موجودی انبار
+     * ✅ بدون نیاز به رکوردهای packaging اضافی
      */
     public static function getWarehouseStock($productId)
     {
         $opening = OpeningInventory::where('product_id', $productId)->sum('quantity');
 
-        $packaged = self::where('product_id', $productId)
-            ->where('kiln_type', 'packaging')
+        // ===== خروجی‌های بسته‌بندی‌شده از کوره شاتل =====
+        $packagedShuttle = self::where('product_id', $productId)
+            ->where('is_packaged', 1)
             ->sum('output_quantity');
 
+        // ===== خروجی‌های بسته‌بندی‌شده از کوره تونلی =====
+        $packagedTonneli = TonneliFiringItem::where('product_id', $productId)
+            ->where('is_packaged', 1)
+            ->sum('output_quantity');
+
+        // ===== فروش =====
         $sales = Sale::where('product_id', $productId)->sum('quantity');
         $informalSales = InformalSale::where('product_id', $productId)->sum('quantity');
 
-        return $opening + $packaged - $sales - $informalSales;
+        return $opening + $packagedShuttle + $packagedTonneli - $sales - $informalSales;
     }
 }

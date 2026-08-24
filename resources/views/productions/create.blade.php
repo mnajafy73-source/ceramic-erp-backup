@@ -123,9 +123,9 @@
                 <td>
                     <select name="rows[${rowIndex}][stage]" class="form-select form-select-sm stage-select" onchange="togglePress(this, ${rowIndex})">
                         <option value="">انتخاب...</option>
-                        <option value="production">تولید</option>
-                        <option value="payment">پرداخت</option>
-                        <option value="packaging">بسته‌بندی</option>
+                        <option value="تولید">تولید</option>
+                        <option value="پرداخت">پرداخت</option>
+                        <option value="بسته‌بندی">بسته‌بندی</option>
                     </select>
                 </td>
                 <td class="press-col" style="display: none;">
@@ -165,8 +165,8 @@
         const html = `
             <div class="stop-item">
                 <select name="rows[${index}][stop_types][]" class="form-select form-select-sm">
-                    <option value="machine_failure">خرابی ماشین</option>
-                    <option value="mold_change_repair">تعویض قالب</option>
+                    <option value="خرابی ماشین">خرابی ماشین</option>
+                    <option value="تعویض قالب">تعویض قالب</option>
                 </select>
                 <input type="number" name="rows[${index}][stop_hours][]" class="form-control form-control-sm" placeholder="ساعت" step="0.01" min="0">
                 <button type="button" class="btn btn-sm btn-outline-danger btn-icon" onclick="this.closest('.stop-item').remove()">✖</button>
@@ -185,13 +185,13 @@
         if (!row) return;
         const pressCol = row.querySelector('.press-col');
         const pressHeader = document.querySelector('.press-header');
-        if (select.value === 'production') {
+        if (select.value === 'تولید') {
             pressCol.style.display = 'table-cell';
             pressHeader.style.display = 'table-cell';
             pressCol.querySelector('select').setAttribute('required', 'required');
         } else {
             pressCol.style.display = 'none';
-            const anyProduction = document.querySelector('.stage-select[value="production"]');
+            const anyProduction = document.querySelector('.stage-select[value="تولید"]');
             if (!anyProduction) {
                 pressHeader.style.display = 'none';
             }
@@ -247,7 +247,7 @@
                 <div class="col-md-3">
                     <label class="form-label fw-semibold mb-0">تاریخ <span class="required-star">*</span></label>
                     <input type="text" name="date" id="date" class="form-control form-control-sm @error('date') is-invalid @enderror"
-                           value="{{ old('date', $yesterday ?? '') }}" required autocomplete="off">
+                           value="{{ old('date', $today ?? '') }}" required autocomplete="off">
                     @error('date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-9 text-end">

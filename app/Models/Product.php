@@ -4,39 +4,40 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Traits\HasUndo;
 
 class Product extends Model
 {
-    use HasFactory, HasUndo;
+    use HasFactory;
 
     protected $fillable = [
-        'code', 'name', 'unit_id',
-        'tonneli_feed_rate', 'cavities', 'per_box', 'per_pack',
-        'per_pallet', 'layers_per_box', 'status', 'in_production',
+        'code',
+        'name',
+        'unit_id',
+        'weight',
+        'formula_id',
+        'per_box',
+        'layers_per_box',
+        'carton_packaging_id',
+        'layer_packaging_id',
+        'tonneli_feed_rate',
+        'cavities',
+        'per_pack',
+        'per_pallet',
+        'status',
+        'in_production',
         'firing_process',
-        'weight', 'formula_id',
-        'carton_packaging_id', 'layer_packaging_id',
     ];
 
-    protected $casts = [
-        'status' => 'boolean',
-        'in_production' => 'boolean',
-    ];
+    // ========== ارتباط با نام‌های مستعار ==========
+    public function aliases()
+    {
+        return $this->hasMany(ProductAlias::class);
+    }
 
+    // ========== سایر روابط ==========
     public function unit()
     {
         return $this->belongsTo(Unit::class);
-    }
-
-    public function logs()
-    {
-        return $this->hasMany(ProductLog::class);
-    }
-
-    public function inventory()
-    {
-        return $this->hasOne(Inventory::class);
     }
 
     public function formula()
@@ -52,13 +53,5 @@ class Product extends Model
     public function layerPackaging()
     {
         return $this->belongsTo(Packaging::class, 'layer_packaging_id');
-    }
-
-    public function delete()
-    {
-        if ($this->logs()->exists()) {
-            throw new \Exception('این کالا دارای تاریخچه است و نمی‌توان آن را حذف کرد.');
-        }
-        return parent::delete();
     }
 }

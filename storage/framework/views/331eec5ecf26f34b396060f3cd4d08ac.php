@@ -1,12 +1,10 @@
-@extends('layouts.app')
-
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="mb-4">
     <h4 class="fw-bold mb-1">جزئیات پخت شاتل</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('shuttle.index') }}">کوره شاتل</a></li>
-            <li class="breadcrumb-item active">جزئیات پخت شماره {{ $firing->firing_number }}</li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('shuttle.index')); ?>">کوره شاتل</a></li>
+            <li class="breadcrumb-item active">جزئیات پخت شماره <?php echo e($firing->firing_number); ?></li>
         </ol>
     </nav>
 </div>
@@ -15,7 +13,7 @@
     <div class="card-body">
         <!-- اطلاعات اصلی پخت -->
         <div class="row g-3 mb-4">
-            @php
+            <?php
                 $kilnDisplay = 'نامشخص';
                 if ($firing->kiln_type === 'packaging') {
                     $kilnDisplay = 'بسته‌بندی';
@@ -33,30 +31,30 @@
                         $firingTypeDisplay = 'موم';
                     }
                 }
-            @endphp
+            ?>
             <div class="col-md-3">
                 <label class="fw-bold">شماره پخت:</label>
-                <span class="badge bg-dark fs-6">{{ $firing->firing_number }}</span>
+                <span class="badge bg-dark fs-6"><?php echo e($firing->firing_number); ?></span>
             </div>
             <div class="col-md-3">
                 <label class="fw-bold">تاریخ:</label>
-                <span>{{ $firing->date }}</span>
+                <span><?php echo e($firing->date); ?></span>
             </div>
             <div class="col-md-3">
                 <label class="fw-bold">کوره:</label>
-                <span class="badge bg-primary">{{ $kilnDisplay }}</span>
+                <span class="badge bg-primary"><?php echo e($kilnDisplay); ?></span>
             </div>
             <div class="col-md-3">
                 <label class="fw-bold">نوع پخت:</label>
-                <span class="badge bg-info">{{ $firingTypeDisplay }}</span>
+                <span class="badge bg-info"><?php echo e($firingTypeDisplay); ?></span>
             </div>
         </div>
 
         <hr>
 
         <!-- جدول آیتم‌های پخت -->
-        <h6 class="fw-bold mb-3">محصولات این پخت ({{ $firing->items->count() }} مورد)</h6>
-        @if($firing->items->count())
+        <h6 class="fw-bold mb-3">محصولات این پخت (<?php echo e($firing->items->count()); ?> مورد)</h6>
+        <?php if($firing->items->count()): ?>
             <div class="table-responsive">
                 <table class="table table-bordered table-hover">
                     <thead class="table-light">
@@ -69,71 +67,71 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($firing->items as $index => $item)
+                        <?php $__currentLoopData = $firing->items; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $index + 1 }}</td>
-                                <td>{{ $item->product->name ?? 'نامشخص' }}</td>
-                                <td>{{ number_format($item->output_quantity) }}</td>
+                                <td><?php echo e($index + 1); ?></td>
+                                <td><?php echo e($item->product->name ?? 'نامشخص'); ?></td>
+                                <td><?php echo e(number_format($item->output_quantity)); ?></td>
                                 <td>
-                                    @if($item->is_packaged)
+                                    <?php if($item->is_packaged): ?>
                                         <span class="badge bg-success">بله</span>
-                                    @else
+                                    <?php else: ?>
                                         <span class="badge bg-secondary">خیر</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
                                 <td>
-                                    {{-- لینک ویرایش آیتم (هر آیتم به همان پخت اشاره دارد، پس پارامترهای یکسان) --}}
-                                    <a href="{{ route('shuttle.edit', [
+                                    
+                                    <a href="<?php echo e(route('shuttle.edit', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
                                         'day' => $firing->day,
                                         'kiln_type' => $firing->kiln_type,
                                         'firingNumber' => $firing->firing_number
-                                    ]) }}" class="btn btn-sm btn-primary">
+                                    ])); ?>" class="btn btn-sm btn-primary">
                                         <i class="fas fa-edit"></i> ویرایش کل پخت
                                     </a>
                                 </td>
                             </tr>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tbody>
                     <tfoot>
                         <tr class="table-active">
                             <th colspan="2" class="text-end">مجموع:</th>
-                            <th>{{ number_format($firing->total_quantity) }}</th>
+                            <th><?php echo e(number_format($firing->total_quantity)); ?></th>
                             <th colspan="2"></th>
                         </tr>
                     </tfoot>
                 </table>
             </div>
-        @else
+        <?php else: ?>
             <div class="alert alert-warning">هیچ آیتمی برای این پخت یافت نشد.</div>
-        @endif
+        <?php endif; ?>
 
         <div class="mt-3 d-flex gap-2">
-            {{-- ✅ دکمه بازگشت به لیست --}}
-            <a href="{{ route('shuttle.index') }}" class="btn btn-secondary">بازگشت به لیست</a>
+            
+            <a href="<?php echo e(route('shuttle.index')); ?>" class="btn btn-secondary">بازگشت به لیست</a>
 
-            {{-- ✅ دکمه ویرایش کل پخت با پارامترهای کامل --}}
-            <a href="{{ route('shuttle.edit', [
+            
+            <a href="<?php echo e(route('shuttle.edit', [
                 'year' => $firing->year,
                 'month' => $firing->month,
                 'day' => $firing->day,
                 'kiln_type' => $firing->kiln_type,
                 'firingNumber' => $firing->firing_number
-            ]) }}" class="btn btn-primary">
+            ])); ?>" class="btn btn-primary">
                 <i class="fas fa-edit"></i> ویرایش پخت
             </a>
 
-            {{-- ✅ فرم حذف با پارامترهای کامل --}}
-            <form action="{{ route('shuttle.destroy', [
+            
+            <form action="<?php echo e(route('shuttle.destroy', [
                 'year' => $firing->year,
                 'month' => $firing->month,
                 'day' => $firing->day,
                 'kiln_type' => $firing->kiln_type,
                 'firingNumber' => $firing->firing_number
-            ]) }}" method="POST" class="d-inline">
-                @csrf
-                @method('DELETE')
+            ])); ?>" method="POST" class="d-inline">
+                <?php echo csrf_field(); ?>
+                <?php echo method_field('DELETE'); ?>
                 <button type="submit" class="btn btn-danger" onclick="return confirm('آیا از حذف این پخت مطمئن هستید؟')">
                     <i class="fas fa-trash"></i> حذف پخت
                 </button>
@@ -141,4 +139,5 @@
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/shuttle/show.blade.php ENDPATH**/ ?>

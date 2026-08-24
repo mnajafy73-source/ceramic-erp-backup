@@ -1,95 +1,147 @@
 <?php $__env->startSection('content'); ?>
 <div class="mb-4">
-    <h4 class="fw-bold mb-1">لیست پخت‌های شاتل</h4>
+    <h4 class="fw-bold mb-1">لیست پخت‌های کوره شاتل</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item active">پخت شاتل</li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">داشبورد</a></li>
+            <li class="breadcrumb-item active">کوره شاتل</li>
         </ol>
     </nav>
 </div>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <div class="mb-3">
+        
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <a href="<?php echo e(route('shuttle.create')); ?>" class="btn btn-primary">
-                <i class="fas fa-plus me-1"></i> ثبت پخت جدید
+                <i class="fas fa-plus-circle me-1"></i> ثبت پخت جدید
             </a>
         </div>
 
-        <?php if(session('success')): ?>
-            <div class="alert alert-success"><?php echo e(session('success')); ?></div>
-        <?php endif; ?>
-        <?php if(session('error')): ?>
-            <div class="alert alert-danger"><?php echo e(session('error')); ?></div>
+        
+        <?php if($kilnCounts->count()): ?>
+            <div class="row g-2 mb-3">
+                <?php $__currentLoopData = $kilnCounts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $kilnType => $count): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php
+                        $kilnDisplay = 'نامشخص';
+                        if ($kilnType === 'packaging') {
+                            $kilnDisplay = 'بسته‌بندی';
+                        } elseif (str_starts_with($kilnType, 'kiln_')) {
+                            $kilnDisplay = 'کوره ' . substr($kilnType, 5);
+                        }
+                    ?>
+                    <div class="col-auto">
+                        <span class="badge bg-primary p-2 fs-6">
+                            <?php echo e($kilnDisplay); ?>: <?php echo e($count); ?> پخت
+                        </span>
+                    </div>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            </div>
         <?php endif; ?>
 
         
-        <div class="row mb-4">
-            <?php $__currentLoopData = $summaryData; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $data): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                <div class="col-md-3 col-6 mb-2">
-                    <div class="card bg-light">
-                        <div class="card-body text-center py-2">
-                            <h6 class="card-title mb-0"><?php echo e($data['label']); ?></h6>
-                            <span class="badge bg-primary"><?php echo e($data['count']); ?></span>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-        </div>
+        <?php if($paginated->count()): ?>
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ردیف</th>
+                            <th>شماره پخت</th>
+                            <th>تاریخ</th>
+                            <th>کوره</th>
+                            <th>نوع پخت</th>
+                            <th>تعداد محصولات</th>
+                            <th>مجموع تعداد</th>
+                            <th>وضعیت بسته‌بندی</th>
+                            <th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php $__currentLoopData = $paginated; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $firing): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php
+                                $kilnDisplay = 'نامشخص';
+                                if ($firing->kiln_type === 'packaging') {
+                                    $kilnDisplay = 'بسته‌بندی';
+                                } elseif (str_starts_with($firing->kiln_type, 'kiln_')) {
+                                    $kilnDisplay = 'کوره ' . substr($firing->kiln_type, 5);
+                                }
 
-        <div class="table-responsive">
-            <table class="table table-bordered table-hover">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>تاریخ</th>
-                        <th>نوع کوره</th>
-                        <th>شماره پخت</th>
-                        <th>عملیات</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php $__empty_1 = true; $__currentLoopData = $batches; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $batch): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
-                    <tr>
-                        <td><?php echo e($batches->firstItem() + $index); ?></td>
-                        <td><?php echo e(\Morilog\Jalali\Jalalian::fromCarbon($batch->date)->format('Y/m/d')); ?></td>
-                        <td><?php echo e($kilnLabels[$batch->kiln_type] ?? $batch->kiln_type); ?></td>
-                        <td><?php echo e($batch->firing_number); ?></td>
-                        <td>
-                            <a href="<?php echo e(route('shuttle.show', ['firingNumber' => $batch->firing_number, 'date' => $batch->date->format('Y-m-d'), 'kiln_type' => $batch->kiln_type])); ?>" 
-                               class="btn btn-sm btn-success">
-                                <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="<?php echo e(route('shuttle.edit', ['firingNumber' => $batch->firing_number, 'date' => $batch->date->format('Y-m-d'), 'kiln_type' => $batch->kiln_type])); ?>" 
-                               class="btn btn-sm btn-warning">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <form action="<?php echo e(route('shuttle.destroy-batch')); ?>" method="POST" class="d-inline" 
-                                  onsubmit="return confirm('آیا از حذف این پخت مطمئن هستید؟')">
-                                <?php echo csrf_field(); ?>
-                                <?php echo method_field('DELETE'); ?>
-                                <input type="hidden" name="firing_number" value="<?php echo e($batch->firing_number); ?>">
-                                <input type="hidden" name="date" value="<?php echo e($batch->date->format('Y-m-d')); ?>">
-                                <input type="hidden" name="kiln_type" value="<?php echo e($batch->kiln_type); ?>">
-                                <button type="submit" class="btn btn-sm btn-danger">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
-                    <tr>
-                        <td colspan="5" class="text-center">هیچ پخت شاتلی ثبت نشده است.</td>
-                    </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                                $firingTypeDisplay = 'معمولی';
+                                if ($firing->kiln_type === 'kiln_2') {
+                                    $firingTypeDisplay = '۱۳۰۰';
+                                } elseif ($firing->kiln_type === 'kiln_3') {
+                                    if ($firing->firing_subtype === 'glaze') {
+                                        $firingTypeDisplay = 'لعابدار';
+                                    } elseif ($firing->firing_subtype === 'mum') {
+                                        $firingTypeDisplay = 'موم';
+                                    }
+                                }
+                            ?>
+                            <tr>
+                                <td><?php echo e($paginated->firstItem() + $index); ?></td>
+                                <td><?php echo e($firing->firing_number); ?></td>
+                                <td><?php echo e($firing->date); ?></td>
+                                <td><span class="badge bg-primary"><?php echo e($kilnDisplay); ?></span></td>
+                                <td><span class="badge bg-info"><?php echo e($firingTypeDisplay); ?></span></td>
+                                <td><?php echo e($firing->products_count); ?></td>
+                                <td><?php echo e(number_format($firing->total_quantity)); ?></td>
+                                <td>
+                                    <?php if($firing->is_packaged): ?>
+                                        <span class="badge bg-success">بله</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">خیر</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    
+                                    <a href="<?php echo e(route('shuttle.show', [
+                                        'year' => $firing->year,
+                                        'month' => $firing->month,
+                                        'day' => $firing->day,
+                                        'kiln_type' => $firing->kiln_type,
+                                        'firingNumber' => $firing->firing_number
+                                    ])); ?>" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i> مشاهده
+                                    </a>
 
-        <div class="mt-3">
-            <?php echo e($batches->links()); ?>
+                                    
+                                    <a href="<?php echo e(route('shuttle.edit', [
+                                        'year' => $firing->year,
+                                        'month' => $firing->month,
+                                        'day' => $firing->day,
+                                        'kiln_type' => $firing->kiln_type,
+                                        'firingNumber' => $firing->firing_number
+                                    ])); ?>" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-edit"></i> ویرایش
+                                    </a>
 
-        </div>
+                                    
+                                    <form action="<?php echo e(route('shuttle.destroy', [
+                                        'year' => $firing->year,
+                                        'month' => $firing->month,
+                                        'day' => $firing->day,
+                                        'kiln_type' => $firing->kiln_type,
+                                        'firingNumber' => $firing->firing_number
+                                    ])); ?>" method="POST" class="d-inline">
+                                        <?php echo csrf_field(); ?>
+                                        <?php echo method_field('DELETE'); ?>
+                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('آیا از حذف این پخت مطمئن هستید؟')">
+                                            <i class="fas fa-trash"></i> حذف
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-3">
+                <?php echo e($paginated->links()); ?>
+
+            </div>
+        <?php else: ?>
+            <div class="alert alert-info">هیچ پخت شاتلی ثبت نشده است.</div>
+        <?php endif; ?>
     </div>
 </div>
 <?php $__env->stopSection(); ?>
