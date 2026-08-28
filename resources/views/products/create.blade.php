@@ -201,9 +201,25 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
+
+                <!-- ===== والد (محصول خام) ===== -->
+                <div class="col-md-3">
+                    <label class="form-label">محصول خام (والد)</label>
+                    <select name="parent_product_id" class="form-select @error('parent_product_id') is-invalid @enderror">
+                        <option value="">بدون والد (خام)</option>
+                        @foreach($allProducts as $p)
+                            <option value="{{ $p->id }}" {{ old('parent_product_id') == $p->id ? 'selected' : '' }}>
+                                {{ $p->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('parent_product_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
             </div>
 
-            <!-- ========== بخش نام‌های مستعار (Aliases) ========== -->
+            <!-- ========== بخش نام‌های مستعار ========== -->
             <div class="row mt-4">
                 <div class="col-12">
                     <hr>

@@ -9,7 +9,12 @@ class ProductLog extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['product_id', 'user_id', 'action', 'changes'];
+    protected $fillable = [
+        'product_id',
+        'user_id',
+        'action',
+        'changes',
+    ];
 
     public function product()
     {

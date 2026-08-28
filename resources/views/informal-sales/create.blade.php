@@ -1,74 +1,11 @@
 @extends('layouts.app')
 
-@push('scripts')
-<script>
-    let productIndex = 0;
-
-    function addProductRow() {
-        const container = document.getElementById('products-container');
-        if (!container) return;
-        const html = `
-            <div class="row g-2 mb-2 product-row" id="product-row-${productIndex}">
-                <div class="col-md-4">
-                    <select name="products[${productIndex}][product_id]" class="form-select" required>
-                        <option value="">انتخاب محصول...</option>
-                        @foreach($products as $p)
-                            <option value="{{ $p->id }}">{{ $p->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <input type="number" name="products[${productIndex}][quantity]" class="form-control" placeholder="تعداد" step="0.01" required>
-                </div>
-                <div class="col-md-3">
-                    <input type="number" name="products[${productIndex}][unit_price]" class="form-control" placeholder="قیمت واحد" step="0.01" required>
-                </div>
-                <div class="col-md-2">
-                    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.product-row').remove(); calculateTotal();">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', html);
-        productIndex++;
-    }
-
-    function calculateTotal() {
-        let total = 0;
-        document.querySelectorAll('.product-row').forEach(row => {
-            const qty = parseFloat(row.querySelector('input[name$="[quantity]"]')?.value) || 0;
-            const price = parseFloat(row.querySelector('input[name$="[unit_price]"]')?.value) || 0;
-            total += qty * price;
-        });
-        document.getElementById('total_price').textContent = total.toLocaleString();
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        try {
-            if (typeof $ !== 'undefined' && $.fn.persianDatepicker) {
-                $('#date').persianDatepicker({
-                    format: 'YYYY/MM/DD',
-                    autoClose: true,
-                    initialValue: false,
-                    observer: true,
-                    calendar: { persian: { locale: 'fa' } }
-                });
-            }
-        } catch (e) {}
-        addProductRow();
-        document.addEventListener('change', calculateTotal);
-        document.addEventListener('input', calculateTotal);
-    });
-</script>
-@endpush
-
 @section('content')
 <div class="mb-4">
-    <h4 class="fw-bold mb-1">ثبت فاکتور فروش غیررسمی جدید</h4>
+    <h4 class="fw-bold mb-1">ثبت فروش غیررسمی جدید</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('informal-sales.index') }}">فاکتورها</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('informal-sales.index') }}">فروش غیررسمی</a></li>
             <li class="breadcrumb-item active">ثبت جدید</li>
         </ol>
     </nav>
@@ -78,45 +15,207 @@
     <div class="card-body">
         <form action="{{ route('informal-sales.store') }}" method="POST">
             @csrf
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">تاریخ <span class="text-danger">*</span></label>
-                    <input type="text" name="date" id="date" class="form-control @error('date') is-invalid @enderror" 
-                           value="{{ old('date', $today) }}" required autocomplete="off">
-                    @error('date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">شماره فاکتور</label>
-                    <input type="text" class="form-control bg-light" value="{{ $displayNumber }}" disabled>
-                    <small class="text-muted">شماره به‌طور خودکار تولید می‌شود.</small>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">نام مشتری <span class="text-danger">*</span></label>
-                    <input type="text" name="customer_name" class="form-control @error('customer_name') is-invalid @enderror" 
-                           value="{{ old('customer_name') }}" required>
-                    @error('customer_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-            </div>
 
-            <div class="card bg-light mb-3">
-                <div class="card-body">
-                    <h6 class="fw-bold mb-3">➕ محصولات این فاکتور</h6>
-                    <div id="products-container"></div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addProductRow(); calculateTotal();">
-                        <i class="fas fa-plus-circle"></i> افزودن محصول
-                    </button>
-                </div>
-            </div>
-
-            <div class="row">
+            <div class="row g-3">
+                <!-- تاریخ شمسی -->
                 <div class="col-md-4">
-                    <p><strong>جمع کل:</strong> <span id="total_price">0</span></p>
+                    <label class="form-label">تاریخ <span class="text-danger">*</span></label>
+                    <input type="text" name="date" class="form-control @error('date') is-invalid @enderror"
+                           value="{{ old('date', $today) }}" required>
+                    @error('date')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- مشتری -->
+                <div class="col-md-4">
+                    <label class="form-label">مشتری</label>
+                    <select name="customer_id" class="form-select @error('customer_id') is-invalid @enderror">
+                        <option value="">انتخاب مشتری</option>
+                        @foreach($customers as $customer)
+                            <option value="{{ $customer->id }}" {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
+                                {{ $customer->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('customer_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- نام مشتری جدید -->
+                <div class="col-md-4">
+                    <label class="form-label">نام مشتری جدید</label>
+                    <input type="text" name="customer_name" class="form-control @error('customer_name') is-invalid @enderror"
+                           value="{{ old('customer_name') }}" placeholder="در صورت عدم انتخاب مشتری">
+                    @error('customer_name')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <!-- وضعیت -->
+                <div class="col-md-4">
+                    <label class="form-label">وضعیت</label>
+                    <select name="status" class="form-select">
+                        <option value="unpaid" {{ old('status') == 'unpaid' ? 'selected' : '' }}>پرداخت نشده</option>
+                        <option value="paid" {{ old('status') == 'paid' ? 'selected' : '' }}>پرداخت شده</option>
+                        <option value="canceled" {{ old('status') == 'canceled' ? 'selected' : '' }}>لغو شده</option>
+                    </select>
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> ثبت</button>
-            <a href="{{ route('informal-sales.index') }}" class="btn btn-secondary ms-2">بازگشت</a>
+            <hr class="mt-4">
+
+            <!-- ===== آیتم‌های فاکتور ===== -->
+            <h6 class="fw-bold">آیتم‌های فاکتور</h6>
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>محصول</th>
+                            <th>تعداد</th>
+                            <th>قیمت واحد (ریال)</th>
+                            <th>قیمت کل</th>
+                            <th>حذف</th>
+                        </tr>
+                    </thead>
+                    <tbody id="items-container">
+                        <tr class="item-row">
+                            <td>
+                                <select name="items[0][product_id]" class="form-select" required>
+                                    <option value="">انتخاب محصول</option>
+                                    @foreach($products as $product)
+                                        <option value="{{ $product->id }}">{{ $product->name }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" name="items[0][quantity]" class="form-control quantity" placeholder="تعداد" step="1" min="1" required>
+                            </td>
+                            <td>
+                                <input type="number" name="items[0][unit_price]" class="form-control unit-price" placeholder="قیمت واحد" step="1000" min="0" required>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control item-total" readonly>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-danger remove-row" style="display:none;">✖</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-active">
+                            <th colspan="3" class="text-end">جمع کل:</th>
+                            <th id="grand-total">0</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                <button type="button" class="btn btn-sm btn-secondary" id="add-row">
+                    <i class="fas fa-plus-circle"></i> افزودن ردیف
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">ثبت فروش</button>
+                <a href="{{ route('informal-sales.index') }}" class="btn btn-secondary">انصراف</a>
+            </div>
         </form>
     </div>
 </div>
+
+@push('scripts')
+<script>
+    let rowIndex = 1;
+
+    document.getElementById('add-row').addEventListener('click', function() {
+        const container = document.getElementById('items-container');
+        const html = `
+            <tr class="item-row">
+                <td>
+                    <select name="items[${rowIndex}][product_id]" class="form-select" required>
+                        <option value="">انتخاب محصول</option>
+                        @foreach($products as $product)
+                            <option value="{{ $product->id }}">{{ $product->name }}</option>
+                        @endforeach
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="items[${rowIndex}][quantity]" class="form-control quantity" placeholder="تعداد" step="1" min="1" required>
+                </td>
+                <td>
+                    <input type="number" name="items[${rowIndex}][unit_price]" class="form-control unit-price" placeholder="قیمت واحد" step="1000" min="0" required>
+                </td>
+                <td>
+                    <input type="text" class="form-control item-total" readonly>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-danger remove-row">✖</button>
+                </td>
+            </tr>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+        rowIndex++;
+        updateRemoveButtons();
+        attachCalculationEvents();
+    });
+
+    document.getElementById('items-container').addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-row')) {
+            const row = e.target.closest('.item-row');
+            if (document.querySelectorAll('.item-row').length > 1) {
+                row.remove();
+                updateRemoveButtons();
+                calculateGrandTotal();
+            }
+        }
+    });
+
+    function updateRemoveButtons() {
+        const rows = document.querySelectorAll('.item-row');
+        rows.forEach((row, index) => {
+            const btn = row.querySelector('.remove-row');
+            if (index === 0 && rows.length === 1) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'inline-block';
+            }
+        });
+    }
+
+    function attachCalculationEvents() {
+        document.querySelectorAll('.quantity, .unit-price').forEach(el => {
+            el.removeEventListener('input', calculateRowTotal);
+            el.addEventListener('input', calculateRowTotal);
+        });
+    }
+
+    function calculateRowTotal(e) {
+        const row = e.target.closest('.item-row');
+        const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+        const unitPrice = parseFloat(row.querySelector('.unit-price').value) || 0;
+        const total = quantity * unitPrice;
+        row.querySelector('.item-total').value = total.toLocaleString();
+        calculateGrandTotal();
+    }
+
+    function calculateGrandTotal() {
+        const totals = document.querySelectorAll('.item-total');
+        let sum = 0;
+        totals.forEach(input => {
+            const val = parseFloat(input.value.replace(/,/g, '')) || 0;
+            sum += val;
+        });
+        document.getElementById('grand-total').textContent = sum.toLocaleString();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateRemoveButtons();
+        attachCalculationEvents();
+    });
+</script>
+@endpush
 @endsection

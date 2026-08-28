@@ -158,7 +158,6 @@
                 <a href="<?php echo e(route('shuttle.index')); ?>"><i class="fas fa-train"></i> پخت شاتل</a>
             </div>
 
-            <!-- ===== منوی فروش ===== -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-sales')">
                 <span><i class="fas fa-shopping-cart"></i> فروش</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -169,7 +168,6 @@
                 <a href="<?php echo e(route('cost-price.index')); ?>"><i class="fas fa-calculator"></i> قیمت تمام شده</a>
             </div>
 
-            <!-- ===== منوی خرید ===== -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-purchases')">
                 <span><i class="fas fa-shopping-basket"></i> خرید</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -179,7 +177,6 @@
                 <a href="<?php echo e(route('packaging-purchases.index')); ?>"><i class="fas fa-box"></i> خرید کارتن و لایه</a>
             </div>
 
-            <!-- ===== منوی موجودی ===== -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-inventory')">
                 <span><i class="fas fa-cubes"></i> موجودی</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -194,7 +191,6 @@
                 <a href="<?php echo e(route('inventory.warehouse')); ?>"><i class="fas fa-warehouse"></i> موجودی انبار</a>
             </div>
 
-            <!-- ===== منوی گزارشات ===== -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
                 <span><i class="fas fa-chart-bar"></i> گزارشات</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -205,14 +201,12 @@
                 <a href="<?php echo e(route('reports.annual')); ?>"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
 
-            <!-- ===== منوی جدید: وارد کردن ===== -->
             <a href="<?php echo e(route('import.index')); ?>" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>">
                 <i class="fas fa-upload"></i> وارد کردن
             </a>
 
             <hr class="text-white-50 mx-3 my-2">
 
-            <!-- ===== منوی تنظیمات ===== -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-settings')">
                 <span><i class="fas fa-cog"></i> تنظیمات</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -227,6 +221,7 @@
                 <a href="<?php echo e(route('operators.index')); ?>"><i class="fas fa-user-cog"></i> مدیریت اپراتورها</a>
                 <a href="<?php echo e(route('presses.index')); ?>"><i class="fas fa-cogs"></i> مدیریت پرس‌ها</a>
                 <a href="<?php echo e(route('products.index')); ?>"><i class="fas fa-box"></i> مدیریت کالاها</a>
+                <a href="<?php echo e(route('customers.index')); ?>"><i class="fas fa-users"></i> مدیریت مشتریان</a>
                 <a href="<?php echo e(route('product_logs.index')); ?>"><i class="fas fa-history"></i> تاریخچه تغییرات</a>
             </div>
 

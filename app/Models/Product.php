@@ -26,7 +26,26 @@ class Product extends Model
         'status',
         'in_production',
         'firing_process',
+        'parent_product_id',
     ];
+
+    // ========== ارتباط با لاگ‌های محصول ==========
+    public function logs()
+    {
+        return $this->hasMany(ProductLog::class);
+    }
+
+    // ========== ارتباط با والد (محصول خام) ==========
+    public function parent()
+    {
+        return $this->belongsTo(Product::class, 'parent_product_id');
+    }
+
+    // ========== ارتباط با فرزندان (محصولات فرآوری‌شده) ==========
+    public function children()
+    {
+        return $this->hasMany(Product::class, 'parent_product_id');
+    }
 
     // ========== ارتباط با نام‌های مستعار ==========
     public function aliases()

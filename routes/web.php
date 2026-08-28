@@ -14,8 +14,7 @@ use App\Http\Controllers\ShuttleFiringController;
 use App\Http\Controllers\UndoController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\InformalSaleController;
-
-// ========== بخش انبار ==========
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\FormulaController;
 use App\Http\Controllers\PackagingController;
@@ -23,15 +22,10 @@ use App\Http\Controllers\RawMaterialPurchaseController;
 use App\Http\Controllers\PackagingPurchaseController;
 use App\Http\Controllers\OpeningInventoryController;
 use App\Http\Controllers\InventoryController;
-
-// ========== قیمت تمام شده ==========
 use App\Http\Controllers\CostPriceController;
-
-// ========== گزارشات ==========
 use App\Http\Controllers\ReportController;
-
-// ========== واردات از اکسل ==========
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\TestController;
 
 Route::get('/', function () { return view('welcome'); });
 
@@ -59,12 +53,10 @@ Route::get('/tonneli/{tonneli}', [TonneliFiringController::class, 'show'])->name
 Route::get('/tonneli/{tonneli}/edit', [TonneliFiringController::class, 'edit'])->name('tonneli.edit')->middleware('auth');
 Route::put('/tonneli/{tonneli}', [TonneliFiringController::class, 'update'])->name('tonneli.update')->middleware('auth');
 
-// ==================== کوره شاتل (مسیرهای جدید با پارامترهای کامل) ====================
+// ==================== کوره شاتل ====================
 Route::get('/shuttle', [ShuttleFiringController::class, 'index'])->name('shuttle.index')->middleware('auth');
 Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create')->middleware('auth');
 Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store')->middleware('auth');
-
-// مسیرهای جدید با کلید کامل برای تشخیص یکتا
 Route::get('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show')->middleware('auth');
 Route::get('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit')->middleware('auth');
 Route::put('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update')->middleware('auth');
@@ -79,6 +71,10 @@ Route::post('/sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sa
 Route::resource('informal-sales', InformalSaleController::class)->middleware('auth');
 Route::post('/informal-sales/{informal_sale}/mark-paid', [InformalSaleController::class, 'markAsPaid'])->name('informal-sales.paid')->middleware('auth');
 Route::post('/informal-sales/{informal_sale}/cancel', [InformalSaleController::class, 'cancel'])->name('informal-sales.cancel')->middleware('auth');
+
+// ==================== مشتریان ====================
+Route::resource('customers', CustomerController::class)->middleware('auth');
+Route::patch('/customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->name('customers.toggle-status')->middleware('auth');
 
 // ==================== اپراتورها ====================
 Route::resource('operators', OperatorController::class)->middleware('auth');
@@ -144,5 +140,43 @@ Route::post('/import/productions', [ImportController::class, 'importProductions'
 Route::post('/import/tonneli', [ImportController::class, 'importTonneli'])->name('import.tonneli')->middleware('auth');
 Route::post('/import/shuttle', [ImportController::class, 'importShuttle'])->name('import.shuttle')->middleware('auth');
 Route::get('/import/from-path', [ImportController::class, 'importFromPath'])->name('import.from-path')->middleware('auth');
+
+// ===== مسیر واردات فروش غیررسمی (مهم) =====
+Route::post('/import/informal-sales', [ImportController::class, 'importInformalSales'])->name('import.informal-sales')->middleware('auth');
+
+// ===== مسیر تست (فقط برای عیب‌یابی) =====
+Route::get('/test', [TestController::class, 'index'])->name('test.index')->middleware('auth');
+Route::post('/test', [TestController::class, 'store'])->name('test.store')->middleware('auth');
+
+Route::get('/test-informal-sale-simple', function () {
+    try {
+        $customer = App\Models\Customer::firstOrCreate(['name' => 'تست سریع'], ['status' => 1]);
+        $product = App\Models\Product::firstOrCreate(['name' => 'محصول سریع'], ['code' => 'FAST001', 'status' => 1, 'cavities' => 0, 'weight' => 0, 'per_box' => 0, 'layers_per_box' => 0, 'firing_process' => 'tonneli']);
+
+        $jalali = Morilog\Jalali\Jalalian::fromFormat('Y/m/d', '1405/06/01');
+        $gregorian = $jalali->toCarbon();
+
+        $sale = App\Models\InformalSale::create([
+            'year' => 1405,
+            'number' => 1000,
+            'date' => $gregorian,
+            'customer_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'total_price' => 500000,
+            'status' => 'unpaid',
+        ]);
+
+        App\Models\InformalSaleProduct::create([
+            'informal_sale_id' => $sale->id,
+            'product_id' => $product->id,
+            'quantity' => 5,
+            'unit_price' => 100000,
+        ]);
+
+        return "✅ ثبت شد. ID: " . $sale->id . " - تاریخ شمسی: 1405/06/01";
+    } catch (\Exception $e) {
+        return "❌ خطا: " . $e->getMessage();
+    }
+});
 
 require __DIR__.'/auth.php';

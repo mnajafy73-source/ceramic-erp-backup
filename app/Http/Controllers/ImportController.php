@@ -12,6 +12,9 @@ use App\Models\Press;
 use App\Models\Product;
 use App\Models\ProductAlias;
 use App\Models\Packaging;
+use App\Models\Customer;
+use App\Models\InformalSale;
+use App\Models\InformalSaleProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Morilog\Jalali\Jalalian;
@@ -19,11 +22,17 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ImportController extends Controller
 {
+    // ============================================================
+    //  صفحه اصلی واردات
+    // ============================================================
     public function index()
     {
         return view('import.index');
     }
 
+    // ============================================================
+    //  واردات خودکار از مسیر (دکمه)
+    // ============================================================
     public function importFromPath()
     {
         $filePath = env('EXCEL_FILE_PATH');
@@ -42,7 +51,9 @@ class ImportController extends Controller
             DB::statement('DELETE FROM tonneli_firings');
             DB::statement('DELETE FROM shuttle_firings');
 
-            $spreadsheet = IOFactory::load($filePath);
+            $reader = IOFactory::createReaderForFile($filePath);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($filePath);
 
             $this->importProductionsFromSpreadsheet($spreadsheet);
             $this->importTonneliFromSpreadsheet($spreadsheet);
@@ -67,7 +78,9 @@ class ImportController extends Controller
             'file' => 'required|file|mimes:xlsx,xls|max:10240',
         ]);
 
-        $spreadsheet = IOFactory::load($request->file('file')->getPathname());
+        $reader = IOFactory::createReaderForFile($request->file('file')->getPathname());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($request->file('file')->getPathname());
         $sheet = $spreadsheet->getSheetByName('تولید');
 
         if (!$sheet) {
@@ -164,7 +177,9 @@ class ImportController extends Controller
             'file' => 'required|file|mimes:xlsx,xls|max:10240',
         ]);
 
-        $spreadsheet = IOFactory::load($request->file('file')->getPathname());
+        $reader = IOFactory::createReaderForFile($request->file('file')->getPathname());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($request->file('file')->getPathname());
         $sheet = $spreadsheet->getSheetByName('کوره تونلی');
 
         if (!$sheet) {
@@ -254,7 +269,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه کوره شاتل (آپلود دستی) - نسخه نهایی
+    //  برگه کوره شاتل (آپلود دستی)
     // ============================================================
     public function importShuttle(Request $request)
     {
@@ -264,7 +279,9 @@ class ImportController extends Controller
             'file' => 'required|file|mimes:xlsx,xls|max:10240',
         ]);
 
-        $spreadsheet = IOFactory::load($request->file('file')->getPathname());
+        $reader = IOFactory::createReaderForFile($request->file('file')->getPathname());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($request->file('file')->getPathname());
         $sheet = $spreadsheet->getSheetByName('کوره شاتل');
 
         if (!$sheet) {
@@ -339,7 +356,6 @@ class ImportController extends Controller
             }
         }
 
-        // مرتب‌سازی گروه‌ها بر اساس تاریخ
         usort($groups, function ($a, $b) {
             return strcmp($a['year'] . '-' . $a['month'] . '-' . $a['day'],
                           $b['year'] . '-' . $b['month'] . '-' . $b['day']);
@@ -349,7 +365,6 @@ class ImportController extends Controller
         DB::beginTransaction();
 
         try {
-            // شمارنده برای هر ترکیب (سال، ماه، کوره)
             $monthlyCounters = [];
 
             foreach ($groups as $group) {
@@ -401,12 +416,160 @@ class ImportController extends Controller
     }
 
     // ============================================================
+    //  برگه فروش غیررسمی (نسخه نهایی بدون نقص)
+    //  ستون‌ها: سال | ماه | روز | شماره فاکتور | نام مشتری | محصول | تعداد | بهای واحد | قیمت کل | وضعیت پرداخت
+    // ============================================================
+    public function importInformalSales(Request $request)
+    {
+        set_time_limit(0);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:10240',
+        ]);
+
+        $reader = IOFactory::createReaderForFile($request->file('file')->getPathname());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($request->file('file')->getPathname());
+
+        // پیدا کردن برگه
+        $sheetNames = ['غیر رسمی', 'غیررسمی', 'غیر رسمی فروش', 'غیررسمی فروش'];
+        $sheet = null;
+        foreach ($sheetNames as $name) {
+            $sheet = $spreadsheet->getSheetByName($name);
+            if ($sheet) break;
+        }
+
+        if (!$sheet) {
+            $allSheets = [];
+            foreach ($spreadsheet->getAllSheets() as $s) {
+                $allSheets[] = $s->getTitle();
+            }
+            return back()->withErrors(['file' => 'برگه "غیر رسمی" پیدا نشد. برگه‌ها: ' . implode(', ', $allSheets)]);
+        }
+
+        $rows = $sheet->toArray();
+        array_shift($rows); // حذف سطر عنوان
+
+        if (empty($rows)) {
+            return back()->withErrors(['file' => 'فایل خالی است.']);
+        }
+
+        $count = 0;
+        $errors = [];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($rows as $rowIndex => $row) {
+                try {
+                    if (empty(array_filter($row))) {
+                        continue;
+                    }
+
+                    $row = array_pad($row, 10, '');
+
+                    $year = (int) trim($row[0]);
+                    $month = (int) trim($row[1]);
+                    $day = (int) trim($row[2]);
+                    $invoiceNumber = trim($row[3]);
+                    $customerName = trim($row[4]);
+                    $productName = trim($row[5]);
+                    $quantity = (float) str_replace(',', '', trim($row[6]));
+                    $unitPrice = (float) str_replace(',', '', trim($row[7]));
+                    $totalPrice = (float) str_replace(',', '', trim($row[8]));
+                    $paymentStatus = trim($row[9]);
+
+                    if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31 || empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) {
+                        $errors[] = "ردیف " . ($rowIndex + 2) . ": داده‌های ضروری کامل نیستند.";
+                        continue;
+                    }
+
+                    $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
+                    try {
+                        $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
+                        $gregorianDate = $jalaliDate->toCarbon();
+                    } catch (\Exception $e) {
+                        $errors[] = "ردیف " . ($rowIndex + 2) . ": تاریخ {$dateStr} نامعتبر است.";
+                        continue;
+                    }
+
+                    // پیدا کردن یا ایجاد مشتری
+                    $customer = Customer::firstOrCreate(
+                        ['name' => $customerName],
+                        ['status' => 1]
+                    );
+
+                    // پیدا کردن یا ایجاد محصول (با alias)
+                    $product = $this->findProductForSale($productName);
+                    if (!$product) {
+                        $errors[] = "ردیف " . ($rowIndex + 2) . ": محصول {$productName} پیدا نشد.";
+                        continue;
+                    }
+
+                    // پیدا کردن فاکتور با شماره و سال
+                    $sale = InformalSale::where('year', $year)
+                        ->where('number', $invoiceNumber)
+                        ->first();
+
+                    if (!$sale) {
+                        $sale = InformalSale::create([
+                            'year' => $year,
+                            'number' => $invoiceNumber,
+                            'date' => $gregorianDate,
+                            'customer_id' => $customer->id,
+                            'customer_name' => $customer->name,
+                            'total_price' => 0,
+                            'status' => ($paymentStatus == '1' || strtolower($paymentStatus) == 'بله' || strtolower($paymentStatus) == 'paid') ? 'paid' : 'unpaid',
+                        ]);
+                    }
+
+                    InformalSaleProduct::create([
+                        'informal_sale_id' => $sale->id,
+                        'product_id' => $product->id,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                    ]);
+
+                    $sale->total_price += $totalPrice;
+                    $sale->save();
+
+                    if ($paymentStatus == '1' || strtolower($paymentStatus) == 'بله' || strtolower($paymentStatus) == 'paid') {
+                        $sale->status = 'paid';
+                        $sale->save();
+                    }
+
+                    $count++;
+                } catch (\Exception $e) {
+                    $errors[] = "ردیف " . ($rowIndex + 2) . ": " . $e->getMessage();
+                }
+            }
+
+            DB::commit();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['file' => 'خطا در ذخیره‌سازی: ' . $e->getMessage()]);
+        }
+
+        $message = "✅ {$count} آیتم فروش غیررسمی با موفقیت وارد شد.";
+        if (!empty($errors)) {
+            $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
+            if (count($errors) > 5) {
+                $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
+            }
+        }
+
+        return redirect()->route('import.index')->with('success', $message);
+    }
+
+    // ============================================================
     //  متدهای کمکی
     // ============================================================
 
     private $operatorsCache = [];
     private $productsCache = [];
     private $pressesCache = [];
+    private $customersCache = [];
 
     private function getOrCreateOperator($name)
     {
@@ -442,7 +605,9 @@ class ImportController extends Controller
         }
 
         $product = Product::create([
+            'code' => 'IMP-' . time() . '-' . rand(100, 999),
             'name' => $cleanName,
+            'unit_id' => 1,
             'status' => 1,
             'cavities' => 0,
             'weight' => 0,
@@ -453,6 +618,63 @@ class ImportController extends Controller
 
         $this->productsCache[$cleanName] = $product;
         return $product;
+    }
+
+    private function findProductForSale($name)
+    {
+        $cleanName = trim($name);
+
+        if (isset($this->productsCache[$cleanName])) {
+            return $this->productsCache[$cleanName];
+        }
+
+        $alias = ProductAlias::where('alias', $cleanName)->first();
+        if ($alias) {
+            $product = $alias->product;
+            $this->productsCache[$cleanName] = $product;
+            return $product;
+        }
+
+        $product = Product::where('name', $cleanName)->first();
+        if ($product) {
+            $this->productsCache[$cleanName] = $product;
+            return $product;
+        }
+
+        $product = Product::create([
+            'code' => 'SALE-' . time() . '-' . rand(100, 999),
+            'name' => $cleanName,
+            'unit_id' => 1,
+            'status' => 1,
+            'cavities' => 0,
+            'weight' => 0,
+            'per_box' => 0,
+            'layers_per_box' => 0,
+            'firing_process' => 'tonneli',
+        ]);
+
+        $this->productsCache[$cleanName] = $product;
+        return $product;
+    }
+
+    private function getOrCreateCustomer($name)
+    {
+        $cleanName = trim($name);
+        if (empty($cleanName)) {
+            $cleanName = 'مشتری ناشناس';
+        }
+
+        if (isset($this->customersCache[$cleanName])) {
+            return $this->customersCache[$cleanName];
+        }
+
+        $customer = Customer::firstOrCreate(
+            ['name' => $cleanName],
+            ['status' => 1]
+        );
+
+        $this->customersCache[$cleanName] = $customer;
+        return $customer;
     }
 
     private function getOrCreatePress($number)
@@ -511,8 +733,20 @@ class ImportController extends Controller
         }
     }
 
+    private function detectStopType($reason)
+    {
+        $reason = trim($reason);
+        if (strpos($reason, 'قالب') !== false || strpos($reason, 'تعویض') !== false) {
+            return 'تعویض قالب';
+        }
+        if (strpos($reason, 'خرابی') !== false || strpos($reason, 'ماشین') !== false) {
+            return 'خرابی ماشین';
+        }
+        return 'سایر';
+    }
+
     // ============================================================
-    //  متدهای واردات از مسیر
+    //  متدهای واردات از مسیر (برای importFromPath)
     // ============================================================
 
     private function importProductionsFromSpreadsheet($spreadsheet)
@@ -749,17 +983,5 @@ class ImportController extends Controller
             DB::rollBack();
             throw $e;
         }
-    }
-
-    private function detectStopType($reason)
-    {
-        $reason = trim($reason);
-        if (strpos($reason, 'قالب') !== false || strpos($reason, 'تعویض') !== false) {
-            return 'تعویض قالب';
-        }
-        if (strpos($reason, 'خرابی') !== false || strpos($reason, 'ماشین') !== false) {
-            return 'خرابی ماشین';
-        }
-        return 'سایر';
     }
 }

@@ -18,7 +18,7 @@
             @method('PUT')
 
             <div class="row g-3">
-                <!-- کد -->
+                <!-- کد (غیرقابل ویرایش) -->
                 <div class="col-md-3">
                     <label class="form-label">کد <span class="text-danger">*</span></label>
                     <input type="text" name="code" class="form-control @error('code') is-invalid @enderror"
@@ -202,9 +202,28 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
+
+                <!-- ===== والد (محصول خام) ===== -->
+                <div class="col-md-3">
+                    <label class="form-label">محصول خام (والد)</label>
+                    <select name="parent_product_id" class="form-select @error('parent_product_id') is-invalid @enderror">
+                        <option value="">بدون والد (خام)</option>
+                        @foreach($allProducts as $p)
+                            <option value="{{ $p->id }}" {{ old('parent_product_id', $product->parent_product_id) == $p->id ? 'selected' : '' }}>
+                                {{ $p->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('parent_product_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    @if($product->parent)
+                        <small class="text-muted">والد فعلی: <strong>{{ $product->parent->name }}</strong></small>
+                    @endif
+                </div>
             </div>
 
-            <!-- ========== بخش نام‌های مستعار (Aliases) ========== -->
+            <!-- ========== بخش نام‌های مستعار ========== -->
             <div class="row mt-4">
                 <div class="col-12">
                     <hr>
@@ -220,7 +239,7 @@
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                     <div class="mt-2">
-                        <small class="text-muted">نام‌های مستعار فعلی: 
+                        <small class="text-muted">نام‌های مستعار فعلی:
                             @if($product->aliases->count())
                                 <span class="badge bg-info">{{ $product->aliases->pluck('alias')->implode('، ') }}</span>
                             @else
