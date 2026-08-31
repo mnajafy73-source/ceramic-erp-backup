@@ -66,19 +66,27 @@
                 <thead>
                     <tr>
                         <th>نام ماده</th>
-                        <th>واحد</th>
-                        <th>موجودی (کیلوگرم)</th>
+                        <th>موجودی (گرم)</th>
+                        <th>موجودی (تن)</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($materials as $material)
-                        @if(!request('search') || request('search') == $material->id)
+                        @php
+                            $stockInGram = (int) $material->stock;
+                            $stockInTon = $stockInGram / 1000000;
+                            
+                            $formattedGram = number_format($stockInGram, 0);
+                            $formattedTon = rtrim(rtrim(number_format($stockInTon, 3, '.', ''), '0'), '.');
+                            if ($formattedTon === '') {
+                                $formattedTon = '0';
+                            }
+                        @endphp
                         <tr>
                             <td>{{ $material->name }}</td>
-                            <td>{{ $material->unit == 'kg' ? 'کیلوگرم' : 'تن' }}</td>
-                            <td>{{ number_format($material->stock, 2) }}</td>
+                            <td>{{ $formattedGram }}</td>
+                            <td>{{ $formattedTon }}</td>
                         </tr>
-                        @endif
                     @empty
                     <tr>
                         <td colspan="3" class="text-center">

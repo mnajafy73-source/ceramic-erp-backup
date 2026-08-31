@@ -21,6 +21,20 @@
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+
+        {{-- نمایش دکمه Undo در صورت وجود --}}
+        @if(session('undo_record'))
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <span>یک خرید حذف شده قابل برگشت است.</span>
+                <div>
+                    <a href="{{ route('undo.restore') }}" class="btn btn-sm btn-success">بازگرداندن</a>
+                    <a href="{{ route('undo.discard') }}" class="btn btn-sm btn-danger">لغو</a>
+                </div>
+            </div>
+        @endif
 
         <table class="table table-bordered table-hover">
             <thead>
@@ -40,7 +54,7 @@
                     <td>{{ $purchase->supplier ?? '-' }}</td>
                     <td>
                         @foreach($purchase->items as $item)
-                            <span class="badge bg-info">{{ $item->rawMaterial->name }} ({{ number_format($item->quantity, 2) }} کیلو)</span>
+                            <span class="badge bg-info">{{ $item->rawMaterial->name }} ({{ $item->display_quantity }})</span>
                         @endforeach
                     </td>
                     <td>

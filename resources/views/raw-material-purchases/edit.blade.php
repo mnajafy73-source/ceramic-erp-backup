@@ -55,25 +55,42 @@
                 <label class="form-label">مواد خریداری‌شده <span class="text-danger">*</span></label>
                 <div id="items-container">
                     @foreach($rawMaterialPurchase->items as $index => $item)
-                    <div class="item-row row g-2 mb-2">
-                        <div class="col-md-4">
-                            <select name="items[{{ $index }}][raw_material_id]" class="form-select" required>
-                                <option value="">انتخاب ماده...</option>
-                                @foreach($materials as $material)
-                                    <option value="{{ $material->id }}" {{ $item->raw_material_id == $material->id ? 'selected' : '' }}>{{ $material->name }}</option>
-                                @endforeach
-                            </select>
+                        @php
+                            // تبدیل از گرم به واحد انتخابی
+                            $displayQuantity = 0;
+                            if ($item->unit === 'ton') {
+                                $displayQuantity = $item->quantity / 1000000;
+                            } else {
+                                $displayQuantity = $item->quantity / 1000;
+                            }
+                            $formattedQty = rtrim(rtrim(number_format($displayQuantity, 3, '.', ''), '0'), '.');
+                            if ($formattedQty === '') $formattedQty = '0';
+                        @endphp
+                        <div class="item-row row g-2 mb-2">
+                            <div class="col-md-4">
+                                <select name="items[{{ $index }}][raw_material_id]" class="form-select" required>
+                                    <option value="">انتخاب ماده...</option>
+                                    @foreach($materials as $material)
+                                        <option value="{{ $material->id }}" {{ $item->raw_material_id == $material->id ? 'selected' : '' }}>{{ $material->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" name="items[{{ $index }}][quantity]" value="{{ $formattedQty }}" class="form-control format-number" required>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="items[{{ $index }}][unit]" class="form-select" required>
+                                    <option value="kg" {{ $item->unit == 'kg' ? 'selected' : '' }}>کیلوگرم</option>
+                                    <option value="ton" {{ $item->unit == 'ton' ? 'selected' : '' }}>تن</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" name="items[{{ $index }}][total_price]" value="{{ number_format($item->total_price) }}" class="form-control format-number" required>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-danger remove-item w-100">-</button>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <input type="text" name="items[{{ $index }}][quantity]" value="{{ number_format($item->quantity, 2) }}" placeholder="مقدار (کیلوگرم)" class="form-control format-number" required>
-                        </div>
-                        <div class="col-md-3">
-                            <input type="text" name="items[{{ $index }}][total_price]" value="{{ number_format($item->total_price) }}" placeholder="قیمت کل (ریال)" class="form-control format-number" required>
-                        </div>
-                        <div class="col-md-2">
-                            <button type="button" class="btn btn-danger remove-item w-100">-</button>
-                        </div>
-                    </div>
                     @endforeach
                 </div>
                 <button type="button" id="add-item" class="btn btn-success mt-2">
@@ -102,22 +119,24 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-3">
-                <input type="text" name="items[${itemCount}][quantity]" placeholder="مقدار (کیلوگرم)" class="form-control format-number" required>
+            <div class="col-md-2">
+                <input type="text" name="items[${itemCount}][quantity]" placeholder="مقدار" class="form-control format-number" required>
+            </div>
+            <div class="col-md-2">
+                <select name="items[${itemCount}][unit]" class="form-select" required>
+                    <option value="kg">کیلوگرم</option>
+                    <option value="ton">تن</option>
+                </select>
             </div>
             <div class="col-md-3">
                 <input type="text" name="items[${itemCount}][total_price]" placeholder="قیمت کل (ریال)" class="form-control format-number" required>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-1">
                 <button type="button" class="btn btn-danger remove-item w-100">-</button>
             </div>
         `;
         container.appendChild(newRow);
         itemCount++;
-
-        if (typeof window.applyFormatToNewInputs === 'function') {
-            window.applyFormatToNewInputs(container);
-        }
     });
 
     document.addEventListener('click', function(e) {

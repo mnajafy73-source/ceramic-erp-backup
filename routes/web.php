@@ -44,6 +44,9 @@ Route::get('/productions/{production}/edit', [ProductionController::class, 'edit
 Route::put('/productions/{production}', [ProductionController::class, 'update'])->name('productions.update')->middleware('auth');
 Route::delete('/productions/{production}', [ProductionController::class, 'destroy'])->name('productions.destroy')->middleware('auth');
 
+// ✅ حذف گروهی بر اساس تاریخ (اصلاح‌شده با سه پارامتر)
+Route::delete('/productions/group/{year}/{month}/{day}', [ProductionController::class, 'destroyGroup'])->name('productions.destroy-group')->middleware('auth');
+
 // ==================== کوره تونلی ====================
 Route::get('/tonneli', [TonneliFiringController::class, 'index'])->name('tonneli.index')->middleware('auth');
 Route::get('/tonneli/create', [TonneliFiringController::class, 'create'])->name('tonneli.create')->middleware('auth');
@@ -141,8 +144,11 @@ Route::post('/import/tonneli', [ImportController::class, 'importTonneli'])->name
 Route::post('/import/shuttle', [ImportController::class, 'importShuttle'])->name('import.shuttle')->middleware('auth');
 Route::get('/import/from-path', [ImportController::class, 'importFromPath'])->name('import.from-path')->middleware('auth');
 
-// ===== مسیر واردات فروش غیررسمی (مهم) =====
+// ===== مسیر واردات فروش غیررسمی =====
 Route::post('/import/informal-sales', [ImportController::class, 'importInformalSales'])->name('import.informal-sales')->middleware('auth');
+
+// ===== مسیر واردات فروش رسمی =====
+Route::post('/import/formal-sales', [ImportController::class, 'importFormalSales'])->name('import.formal-sales')->middleware('auth');
 
 // ===== مسیر تست (فقط برای عیب‌یابی) =====
 Route::get('/test', [TestController::class, 'index'])->name('test.index')->middleware('auth');

@@ -29,20 +29,20 @@
                 <tr>
                     <th>#</th>
                     <th>ماده</th>
-                    <th>مقدار (کیلوگرم)</th>
+                    <th>مقدار</th>
                     <th>قیمت کل (ریال)</th>
                     <th>قیمت هر گرم (ریال)</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($rawMaterialPurchase->items as $item)
-                <tr>
-                    <td>{{ $loop->iteration }}</td>
-                    <td>{{ $item->rawMaterial->name }}</td>
-                    <td>{{ number_format($item->quantity, 2) }}</td>
-                    <td>{{ number_format($item->total_price) }}</td>
-                    <td>{{ number_format($item->price_per_gram, 2) }}</td>
-                </tr>
+                    <tr>
+                        <td>{{ $loop->iteration }}</td>
+                        <td>{{ $item->rawMaterial->name }}</td>
+                        <td>{{ $item->display_quantity }}</td>
+                        <td>{{ number_format($item->total_price) }}</td>
+                        <td>{{ number_format($item->price_per_gram, 2) }}</td>
+                    </tr>
                 @endforeach
             </tbody>
         </table>

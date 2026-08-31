@@ -16,13 +16,13 @@ class Production extends Model
         'operator_id',
         'press_id',
         'product_id',
+        'product_weight',
         'stage',
         'quantity',
         'time_hours',
         'notes',
     ];
 
-    // ========== تبدیل stage به فارسی/انگلیسی ==========
     private static $stageMap = [
         'تولید' => 'production',
         'پرداخت' => 'payment',
@@ -40,11 +40,9 @@ class Production extends Model
         return $reverseMap[$value] ?? $value;
     }
 
-    // ========== تاریخ شمسی ==========
-    // تاریخ به‌صورت شمسی ذخیره می‌شود، بنابراین نیازی به تبدیل ندارد
     public function getJalaliDateAttribute()
     {
-        return $this->date; // چون خودش شمسی است
+        return $this->date;
     }
 
     public function operator()

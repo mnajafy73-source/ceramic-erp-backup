@@ -7,18 +7,16 @@ use App\Models\RawMaterialPurchase;
 use App\Models\RawMaterialPurchaseItem;
 use Illuminate\Http\Request;
 use Morilog\Jalali\Jalalian;
+use Illuminate\Support\Facades\DB;
 
 class RawMaterialPurchaseController extends Controller
 {
-    /**
-     * حذف کاما از اعداد ورودی (سطح دسترسی protected)
-     */
     protected function cleanNumber($value)
     {
         if (is_null($value) || $value === '') {
             return null;
         }
-        return str_replace(',', '', $value);
+        return preg_replace('/[^0-9.]/', '', $value);
     }
 
     public function index()
@@ -37,7 +35,6 @@ class RawMaterialPurchaseController extends Controller
 
     public function store(Request $request)
     {
-        // پاکسازی کاماها
         $cleanedData = $request->all();
         $cleanedData['total_transport_cost'] = $this->cleanNumber($request->total_transport_cost);
 
@@ -45,11 +42,11 @@ class RawMaterialPurchaseController extends Controller
             foreach ($cleanedData['items'] as $key => $item) {
                 $cleanedData['items'][$key]['quantity'] = $this->cleanNumber($item['quantity'] ?? 0);
                 $cleanedData['items'][$key]['total_price'] = $this->cleanNumber($item['total_price'] ?? 0);
+                $cleanedData['items'][$key]['unit'] = $item['unit'] ?? 'kg';
             }
         }
         $request->merge($cleanedData);
 
-        // اعتبارسنجی
         $validated = $request->validate([
             'purchase_date' => 'required|string',
             'supplier' => 'nullable|string|max:255',
@@ -58,6 +55,7 @@ class RawMaterialPurchaseController extends Controller
             'items.*.raw_material_id' => 'required|exists:raw_materials,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.total_price' => 'required|numeric|min:0',
+            'items.*.unit' => 'required|in:kg,ton',
         ]);
 
         try {
@@ -66,20 +64,43 @@ class RawMaterialPurchaseController extends Controller
             return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
         }
 
-        $purchase = RawMaterialPurchase::create([
-            'purchase_date' => $gregorianDate,
-            'supplier' => $request->supplier,
-            'total_transport_cost' => $request->total_transport_cost ?? 0,
-        ]);
+        DB::beginTransaction();
 
-        foreach ($request->items as $item) {
-            $purchase->items()->create($item);
+        try {
+            $purchase = RawMaterialPurchase::create([
+                'purchase_date' => $gregorianDate,
+                'supplier' => $request->supplier,
+                'total_transport_cost' => $request->total_transport_cost ?? 0,
+            ]);
 
-            $rawMaterial = RawMaterial::find($item['raw_material_id']);
-            if ($rawMaterial) {
-                $rawMaterial->stock += $item['quantity'];
-                $rawMaterial->save();
+            foreach ($request->items as $item) {
+                $quantity = (float) $item['quantity'];
+                $unit = $item['unit'];
+
+                if ($unit === 'ton') {
+                    $quantityInGram = $quantity * 1000000;
+                } else {
+                    $quantityInGram = $quantity * 1000;
+                }
+
+                $purchase->items()->create([
+                    'raw_material_id' => $item['raw_material_id'],
+                    'quantity' => $quantityInGram,
+                    'total_price' => $item['total_price'],
+                    'unit' => $unit,
+                ]);
+
+                // به‌روزرسانی موجودی بر اساس محاسبه واقعی
+                $rawMaterial = RawMaterial::find($item['raw_material_id']);
+                if ($rawMaterial) {
+                    $rawMaterial->refreshStock(); // این متد موجودی را بر اساس خرید و مصرف محاسبه می‌کند
+                }
             }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'خطا در ثبت خرید: ' . $e->getMessage()]);
         }
 
         return redirect()->route('raw-material-purchases.index')
@@ -101,7 +122,6 @@ class RawMaterialPurchaseController extends Controller
 
     public function update(Request $request, RawMaterialPurchase $rawMaterialPurchase)
     {
-        // پاکسازی کاماها
         $cleanedData = $request->all();
         $cleanedData['total_transport_cost'] = $this->cleanNumber($request->total_transport_cost);
 
@@ -109,6 +129,7 @@ class RawMaterialPurchaseController extends Controller
             foreach ($cleanedData['items'] as $key => $item) {
                 $cleanedData['items'][$key]['quantity'] = $this->cleanNumber($item['quantity'] ?? 0);
                 $cleanedData['items'][$key]['total_price'] = $this->cleanNumber($item['total_price'] ?? 0);
+                $cleanedData['items'][$key]['unit'] = $item['unit'] ?? 'kg';
             }
         }
         $request->merge($cleanedData);
@@ -121,6 +142,7 @@ class RawMaterialPurchaseController extends Controller
             'items.*.raw_material_id' => 'required|exists:raw_materials,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.total_price' => 'required|numeric|min:0',
+            'items.*.unit' => 'required|in:kg,ton',
         ]);
 
         try {
@@ -129,31 +151,46 @@ class RawMaterialPurchaseController extends Controller
             return back()->withErrors(['date' => 'فرمت تاریخ شمسی نادرست است.'])->withInput();
         }
 
-        // برگرداندن موجودی قبلی
-        foreach ($rawMaterialPurchase->items as $item) {
-            $rawMaterial = RawMaterial::find($item->raw_material_id);
-            if ($rawMaterial) {
-                $rawMaterial->stock -= $item->quantity;
-                $rawMaterial->save();
+        DB::beginTransaction();
+
+        try {
+            // حذف آیتم‌های قبلی و به‌روزرسانی خرید
+            $rawMaterialPurchase->items()->delete();
+
+            $rawMaterialPurchase->update([
+                'purchase_date' => $gregorianDate,
+                'supplier' => $request->supplier,
+                'total_transport_cost' => $request->total_transport_cost ?? 0,
+            ]);
+
+            foreach ($request->items as $item) {
+                $quantity = (float) $item['quantity'];
+                $unit = $item['unit'];
+
+                if ($unit === 'ton') {
+                    $quantityInGram = $quantity * 1000000;
+                } else {
+                    $quantityInGram = $quantity * 1000;
+                }
+
+                $rawMaterialPurchase->items()->create([
+                    'raw_material_id' => $item['raw_material_id'],
+                    'quantity' => $quantityInGram,
+                    'total_price' => $item['total_price'],
+                    'unit' => $unit,
+                ]);
+
+                // به‌روزرسانی موجودی
+                $rawMaterial = RawMaterial::find($item['raw_material_id']);
+                if ($rawMaterial) {
+                    $rawMaterial->refreshStock();
+                }
             }
-        }
 
-        $rawMaterialPurchase->items()->delete();
-
-        $rawMaterialPurchase->update([
-            'purchase_date' => $gregorianDate,
-            'supplier' => $request->supplier,
-            'total_transport_cost' => $request->total_transport_cost ?? 0,
-        ]);
-
-        foreach ($request->items as $item) {
-            $rawMaterialPurchase->items()->create($item);
-
-            $rawMaterial = RawMaterial::find($item['raw_material_id']);
-            if ($rawMaterial) {
-                $rawMaterial->stock += $item['quantity'];
-                $rawMaterial->save();
-            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'خطا در ویرایش خرید: ' . $e->getMessage()]);
         }
 
         return redirect()->route('raw-material-purchases.index')
@@ -162,7 +199,27 @@ class RawMaterialPurchaseController extends Controller
 
     public function destroy(RawMaterialPurchase $rawMaterialPurchase)
     {
-        $rawMaterialPurchase->delete();
+        DB::beginTransaction();
+
+        try {
+            $rawMaterialPurchase->delete(); // حذف خرید و آیتم‌ها (با cascade)
+
+            // به‌روزرسانی موجودی برای تمام مواد اولیه‌ای که در این خرید بودند
+            $rawMaterialIds = $rawMaterialPurchase->items()->pluck('raw_material_id')->unique();
+            foreach ($rawMaterialIds as $id) {
+                $rawMaterial = RawMaterial::find($id);
+                if ($rawMaterial) {
+                    $rawMaterial->refreshStock();
+                }
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('raw-material-purchases.index')
+                ->with('error', 'خطا در حذف خرید: ' . $e->getMessage());
+        }
+
         return redirect()->route('raw-material-purchases.index')
             ->with('success', 'خرید مواد با موفقیت حذف شد.');
     }

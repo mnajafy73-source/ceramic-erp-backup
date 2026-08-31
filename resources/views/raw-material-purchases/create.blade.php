@@ -62,13 +62,19 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <input type="text" name="items[0][quantity]" placeholder="مقدار (کیلوگرم)" class="form-control format-number" required>
+                        <div class="col-md-2">
+                            <input type="text" name="items[0][quantity]" placeholder="مقدار" class="form-control format-number" required>
+                        </div>
+                        <div class="col-md-2">
+                            <select name="items[0][unit]" class="form-select" required>
+                                <option value="kg">کیلوگرم</option>
+                                <option value="ton">تن</option>
+                            </select>
                         </div>
                         <div class="col-md-3">
                             <input type="text" name="items[0][total_price]" placeholder="قیمت کل (ریال)" class="form-control format-number" required>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-1">
                             <button type="button" class="btn btn-danger remove-item w-100">-</button>
                         </div>
                     </div>
@@ -99,22 +105,24 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-3">
-                <input type="text" name="items[${itemCount}][quantity]" placeholder="مقدار (کیلوگرم)" class="form-control format-number" required>
+            <div class="col-md-2">
+                <input type="text" name="items[${itemCount}][quantity]" placeholder="مقدار" class="form-control format-number" required>
+            </div>
+            <div class="col-md-2">
+                <select name="items[${itemCount}][unit]" class="form-select" required>
+                    <option value="kg">کیلوگرم</option>
+                    <option value="ton">تن</option>
+                </select>
             </div>
             <div class="col-md-3">
                 <input type="text" name="items[${itemCount}][total_price]" placeholder="قیمت کل (ریال)" class="form-control format-number" required>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-1">
                 <button type="button" class="btn btn-danger remove-item w-100">-</button>
             </div>
         `;
         container.appendChild(newRow);
         itemCount++;
-
-        if (typeof window.applyFormatToNewInputs === 'function') {
-            window.applyFormatToNewInputs(container);
-        }
     });
 
     document.addEventListener('click', function(e) {

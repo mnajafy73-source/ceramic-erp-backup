@@ -7,18 +7,16 @@ use App\Models\ProductionStop;
 use App\Models\Operator;
 use App\Models\Press;
 use App\Models\Product;
+use App\Models\RawMaterial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Morilog\Jalali\Jalalian;
 
 class ProductionController extends Controller
 {
-    /**
-     * نمایش لیست تولیدات گروه‌بندی شده بر اساس تاریخ
-     */
     public function index()
     {
-        // گروه‌بندی بر اساس تاریخ با جمع‌بندی
         $productions = Production::select(
             'date',
             DB::raw('count(*) as total_rows'),
@@ -31,17 +29,13 @@ class ProductionController extends Controller
         ->orderBy('date', 'desc')
         ->paginate(50);
 
-        // بارگذاری اطلاعات مرتبط برای هر گروه
         $productions->getCollection()->transform(function ($item) {
-            // دریافت نام اپراتورها
             $operatorIds = array_filter(explode(',', $item->operator_ids ?? ''));
             $operators = Operator::whereIn('id', $operatorIds)->pluck('name')->implode('، ');
             
-            // دریافت نام محصولات
             $productIds = array_filter(explode(',', $item->product_ids ?? ''));
             $products = Product::whereIn('id', $productIds)->pluck('name')->implode('، ');
             
-            // دریافت عملیات‌ها
             $stages = array_filter(explode(',', $item->stages ?? ''));
             
             $item->operators_text = $operators ?: '-';
@@ -54,9 +48,6 @@ class ProductionController extends Controller
         return view('productions.index', compact('productions'));
     }
 
-    /**
-     * نمایش فرم ثبت تولید
-     */
     public function create()
     {
         $operators = Operator::where('status', 1)->orderBy('name')->get();
@@ -66,9 +57,6 @@ class ProductionController extends Controller
         return view('productions.create', compact('operators', 'presses', 'products', 'today'));
     }
 
-    /**
-     * ذخیره تولید جدید (پشتیبانی از چند ردیف)
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -86,7 +74,6 @@ class ProductionController extends Controller
             'rows.*.stop_hours.*' => 'numeric|min:0',
         ]);
 
-        // اعتبارسنجی تاریخ شمسی
         try {
             Jalalian::fromFormat('Y/m/d', $request->date);
         } catch (\Exception $e) {
@@ -94,50 +81,59 @@ class ProductionController extends Controller
         }
 
         $count = 0;
+        DB::beginTransaction();
 
-        foreach ($request->rows as $rowData) {
-            $production = Production::create([
-                'date' => $request->date,
-                'operator_id' => $rowData['operator_id'],
-                'press_id' => $rowData['press_id'] ?? null,
-                'product_id' => $rowData['product_id'],
-                'stage' => $rowData['stage'],
-                'quantity' => $rowData['quantity'],
-                'time_hours' => $rowData['time_hours'] ?? 0,
-                'notes' => null,
-            ]);
+        try {
+            foreach ($request->rows as $rowData) {
+                $product = Product::find($rowData['product_id']);
+                $productWeight = $product ? $product->weight : null;
 
-            if (!empty($rowData['stop_types']) && !empty($rowData['stop_hours'])) {
-                foreach ($rowData['stop_types'] as $index => $type) {
-                    if (isset($rowData['stop_hours'][$index])) {
-                        ProductionStop::create([
-                            'production_id' => $production->id,
-                            'type' => $type,
-                            'hours' => $rowData['stop_hours'][$index],
-                        ]);
+                $production = Production::create([
+                    'date' => $request->date,
+                    'operator_id' => $rowData['operator_id'],
+                    'press_id' => $rowData['press_id'] ?? null,
+                    'product_id' => $rowData['product_id'],
+                    'product_weight' => $productWeight,
+                    'stage' => $rowData['stage'],
+                    'quantity' => $rowData['quantity'],
+                    'time_hours' => $rowData['time_hours'] ?? 0,
+                    'notes' => null,
+                ]);
+
+                // ✅ کسر مواد اولیه با لاگ دیباگ
+                $this->subtractMaterials($production, $productWeight);
+
+                if (!empty($rowData['stop_types']) && !empty($rowData['stop_hours'])) {
+                    foreach ($rowData['stop_types'] as $index => $type) {
+                        if (isset($rowData['stop_hours'][$index])) {
+                            ProductionStop::create([
+                                'production_id' => $production->id,
+                                'type' => $type,
+                                'hours' => $rowData['stop_hours'][$index],
+                            ]);
+                        }
                     }
                 }
+
+                $count++;
             }
 
-            $count++;
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'خطا در ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
         return redirect()->route('productions.index')
             ->with('success', $count . ' ردیف تولید با موفقیت ثبت شد.');
     }
 
-    /**
-     * نمایش جزئیات یک تولید
-     */
     public function show(Production $production)
     {
         $production->load(['operator', 'press', 'product', 'stops']);
         return view('productions.show', compact('production'));
     }
 
-    /**
-     * نمایش فرم ویرایش تولید
-     */
     public function edit(Production $production)
     {
         $operators = Operator::where('status', 1)->orderBy('name')->get();
@@ -147,9 +143,6 @@ class ProductionController extends Controller
         return view('productions.edit', compact('production', 'operators', 'presses', 'products'));
     }
 
-    /**
-     * به‌روزرسانی تولید
-     */
     public function update(Request $request, Production $production)
     {
         $validated = $request->validate([
@@ -167,46 +160,140 @@ class ProductionController extends Controller
             'stop_hours.*' => 'numeric|min:0',
         ]);
 
-        // اعتبارسنجی تاریخ شمسی
         try {
             Jalalian::fromFormat('Y/m/d', $validated['date']);
         } catch (\Exception $e) {
             return back()->withErrors(['date' => 'تاریخ وارد شده معتبر نیست.'])->withInput();
         }
 
-        $production->update($validated);
+        DB::beginTransaction();
 
-        $production->stops()->delete();
-        if (!empty($request->stop_types) && !empty($request->stop_hours)) {
-            foreach ($request->stop_types as $index => $type) {
-                if (isset($request->stop_hours[$index])) {
-                    ProductionStop::create([
-                        'production_id' => $production->id,
-                        'type' => $type,
-                        'hours' => $request->stop_hours[$index],
-                    ]);
+        try {
+            $this->addMaterials($production);
+
+            $product = Product::find($validated['product_id']);
+            $newWeight = $product ? $product->weight : null;
+
+            $production->update([
+                'date' => $validated['date'],
+                'operator_id' => $validated['operator_id'],
+                'press_id' => $validated['press_id'] ?? null,
+                'product_id' => $validated['product_id'],
+                'product_weight' => $newWeight,
+                'stage' => $validated['stage'],
+                'quantity' => $validated['quantity'],
+                'time_hours' => $validated['time_hours'] ?? 0,
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            $production->refresh();
+            $this->subtractMaterials($production, $newWeight);
+
+            $production->stops()->delete();
+            if (!empty($request->stop_types) && !empty($request->stop_hours)) {
+                foreach ($request->stop_types as $index => $type) {
+                    if (isset($request->stop_hours[$index])) {
+                        ProductionStop::create([
+                            'production_id' => $production->id,
+                            'type' => $type,
+                            'hours' => $request->stop_hours[$index],
+                        ]);
+                    }
                 }
             }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'خطا در ویرایش: ' . $e->getMessage()]);
         }
 
         return redirect()->route('productions.index')
             ->with('success', 'تولید با موفقیت به‌روزرسانی شد.');
     }
 
-    /**
-     * حذف تولید
-     */
     public function destroy(Production $production)
     {
-        $production->stops()->delete();
-        $production->delete();
+        DB::beginTransaction();
+
+        try {
+            $this->addMaterials($production);
+            $production->stops()->delete();
+            $production->delete();
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'خطا در حذف: ' . $e->getMessage()]);
+        }
+
         return redirect()->route('productions.index')
             ->with('success', 'تولید با موفقیت حذف شد.');
     }
 
-    /**
-     * نمایش تولیدات یک تاریخ خاص (جزئیات)
-     */
+    public function destroyGroup($year, $month, $day)
+    {
+        $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
+
+        try {
+            Jalalian::fromFormat('Y/m/d', $dateStr);
+        } catch (\Exception $e) {
+            return redirect()->route('productions.index')
+                ->withErrors(['error' => 'تاریخ وارد شده معتبر نیست.']);
+        }
+
+        $productions = Production::where('date', $dateStr)->get();
+
+        if ($productions->isEmpty()) {
+            return redirect()->route('productions.index')
+                ->withErrors(['error' => 'هیچ تولیدی برای این تاریخ یافت نشد.']);
+        }
+
+        $allItems = [];
+
+        foreach ($productions as $production) {
+            $prodData = $production->getAttributes();
+            unset($prodData['id'], $prodData['created_at'], $prodData['updated_at']);
+
+            $stopsData = [];
+            foreach ($production->stops as $stop) {
+                $stopData = $stop->getAttributes();
+                unset($stopData['id'], $stopData['production_id'], $stopData['created_at'], $stopData['updated_at']);
+                $stopsData[] = $stopData;
+            }
+
+            $allItems[] = [
+                'production' => $prodData,
+                'stops' => $stopsData,
+            ];
+        }
+
+        session()->put('undo_record', [
+            'class' => Production::class,
+            'multiple' => true,
+            'data' => $allItems,
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($productions as $production) {
+                $this->addMaterials($production);
+                $production->stops()->delete();
+                $production->delete();
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            session()->forget('undo_record');
+            return redirect()->route('productions.index')
+                ->withErrors(['error' => 'خطا در حذف گروهی: ' . $e->getMessage()]);
+        }
+
+        return redirect()->route('productions.index')
+            ->with('success', '✅ ' . $productions->count() . ' رکورد تولید تاریخ ' . $dateStr . ' با موفقیت حذف شدند.');
+    }
+
     public function showByDate(Request $request)
     {
         $date = $request->input('date');
@@ -214,7 +301,6 @@ class ProductionController extends Controller
             return redirect()->route('productions.index')->withErrors('تاریخ مشخص نشده است.');
         }
 
-        // اعتبارسنجی تاریخ شمسی
         try {
             Jalalian::fromFormat('Y/m/d', $date);
         } catch (\Exception $e) {
@@ -227,5 +313,82 @@ class ProductionController extends Controller
             ->get();
 
         return view('productions.by-date', compact('productions', 'date'));
+    }
+
+    // ============================================================
+    //  متدهای کمکی کسر و بازگشت مواد اولیه (با لاگ دیباگ)
+    // ============================================================
+
+    private function subtractMaterials(Production $production, $weight = null)
+    {
+        $product = $production->product;
+        $weight = $weight ?? $production->product_weight ?? ($product ? $product->weight : null);
+
+        // ===== لاگ دیباگ =====
+        Log::info('===== SUBTRACT MATERIALS =====');
+        Log::info('Production ID: ' . $production->id);
+        Log::info('Product ID: ' . ($product ? $product->id : 'null'));
+        Log::info('Product Name: ' . ($product ? $product->name : 'null'));
+        Log::info('Weight: ' . $weight);
+        Log::info('Quantity: ' . $production->quantity);
+        Log::info('Formula ID: ' . ($product ? $product->formula_id : 'null'));
+
+        if (!$product || !$weight || !$product->formula_id) {
+            Log::warning('SKIP: Missing product, weight, or formula_id');
+            return;
+        }
+
+        $weightInKg = $this->convertWeightToKg($weight);
+        $totalMaterialKg = $production->quantity * $weightInKg;
+
+        Log::info('Weight in kg: ' . $weightInKg);
+        Log::info('Total material kg: ' . $totalMaterialKg);
+
+        $formulaItems = $product->formula->items;
+        Log::info('Formula items count: ' . $formulaItems->count());
+
+        foreach ($formulaItems as $item) {
+            $consumedKg = ($totalMaterialKg * $item->percentage) / 100;
+            $consumedGram = $consumedKg * 1000;
+            Log::info('Raw material ID: ' . $item->raw_material_id . ', Percentage: ' . $item->percentage . '%, Consumed gram: ' . $consumedGram);
+
+            $rawMaterial = RawMaterial::find($item->raw_material_id);
+            if ($rawMaterial) {
+                $oldStock = $rawMaterial->stock;
+                $rawMaterial->stock -= $consumedGram;
+                $rawMaterial->save();
+                Log::info('Raw material "' . $rawMaterial->name . '" stock: ' . $oldStock . ' → ' . $rawMaterial->stock);
+            } else {
+                Log::error('Raw material not found for ID: ' . $item->raw_material_id);
+            }
+        }
+    }
+
+    private function addMaterials(Production $production)
+    {
+        $product = $production->product;
+        $weight = $production->product_weight ?? ($product ? $product->weight : null);
+
+        if (!$product || !$weight || !$product->formula_id) {
+            return;
+        }
+
+        $weightInKg = $this->convertWeightToKg($weight);
+        $totalMaterialKg = $production->quantity * $weightInKg;
+
+        foreach ($product->formula->items as $item) {
+            $consumedKg = ($totalMaterialKg * $item->percentage) / 100;
+            $consumedGram = $consumedKg * 1000;
+            $rawMaterial = RawMaterial::find($item->raw_material_id);
+            if ($rawMaterial) {
+                $rawMaterial->stock += $consumedGram;
+                $rawMaterial->save();
+            }
+        }
+    }
+
+    private function convertWeightToKg($weight)
+    {
+        return ($weight < 1000) ? $weight / 1000 : $weight;
     }
 }

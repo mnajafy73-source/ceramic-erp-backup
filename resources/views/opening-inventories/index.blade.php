@@ -71,12 +71,7 @@
                     <td>{{ $item->product->name ?? 'محصول حذف شده' }}</td>
                     <td>{{ number_format($item->quantity) }}</td>
                     <td>
-                        {{-- تبدیل تاریخ میلادی به شمسی --}}
-                        @if($item->date)
-                            {{ jdate($item->date)->format('Y/m/d') }}
-                        @else
-                            -
-                        @endif
+                        {{ $item->jalali_date ?? '-' }}
                     </td>
                     <td>
                         <a href="{{ route('opening-inventories.edit', $item) }}" class="btn btn-sm btn-warning">

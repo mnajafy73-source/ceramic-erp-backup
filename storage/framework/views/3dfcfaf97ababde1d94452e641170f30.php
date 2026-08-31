@@ -114,6 +114,23 @@
             color: var(--primary);
             cursor: pointer;
         }
+        /* ✅ استایل بخش Undo */
+        .alert-undo {
+            background: #e8f5fe;
+            border: 1px solid #b8dfff;
+            border-radius: 10px;
+            padding: 12px 18px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .alert-undo .btn-group {
+            display: flex;
+            gap: 8px;
+        }
         @media (max-width: 991px) {
             .sidebar {
                 transform: translateX(100%);
@@ -245,19 +262,32 @@
         </div>
         <div class="p-3 p-md-4">
 
-            <?php if(session('undo_record') && session()->has('success')): ?>
-                <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
-                    <span><?php echo e(session()->pull('success')); ?></span>
-                    <div class="d-flex gap-2">
-                        <a href="<?php echo e(route('undo.restore')); ?>" class="btn btn-sm btn-success">↩️ برگرداندن</a>
-                        <a href="<?php echo e(route('undo.discard')); ?>" class="btn btn-sm btn-secondary">✖️ انصراف</a>
+            
+            
+            
+            <?php if(session('undo_record')): ?>
+                <div class="alert-undo">
+                    <span>
+                        <i class="fas fa-undo-alt me-2 text-primary"></i>
+                        یک عملیات حذف قابل برگشت است.
+                    </span>
+                    <div class="btn-group">
+                        <a href="<?php echo e(route('undo.restore')); ?>" class="btn btn-sm btn-success">
+                            <i class="fas fa-undo me-1"></i> بازگرداندن
+                        </a>
+                        <a href="<?php echo e(route('undo.discard')); ?>" class="btn btn-sm btn-danger">
+                            <i class="fas fa-times me-1"></i> لغو
+                        </a>
                     </div>
                 </div>
             <?php endif; ?>
 
-            <?php if(session('success') && !session('undo_record')): ?>
+            
+            
+            
+            <?php if(session('success')): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <?php echo e(session()->pull('success')); ?>
+                    <?php echo e(session('success')); ?>
 
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
@@ -265,8 +295,19 @@
 
             <?php if(session('error')): ?>
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <?php echo e(session()->pull('error')); ?>
+                    <?php echo e(session('error')); ?>
 
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php endif; ?>
+
+            <?php if($errors->any()): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <ul class="mb-0">
+                        <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <li><?php echo e($error); ?></li>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    </ul>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php endif; ?>

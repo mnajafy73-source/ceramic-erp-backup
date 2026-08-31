@@ -6,6 +6,8 @@ use App\Models\Product;
 use App\Models\ShuttleFiring;
 use App\Models\Packaging;
 use App\Models\RawMaterial;
+use App\Models\WaxInventory;
+use App\Models\Glaze1300Inventory;
 use Illuminate\Http\Request;
 
 class InventoryController extends Controller
@@ -25,11 +27,12 @@ class InventoryController extends Controller
     }
 
     /**
-     * موجودی خام
+     * ✅ موجودی خام (فقط محصولات والد - بدون فرزندان)
      */
     public function raw(Request $request)
     {
-        $query = Product::where('status', 1);
+        $query = Product::where('status', 1)
+            ->whereNull('parent_product_id');
 
         if ($request->filled('search')) {
             $query->where('id', $request->search);
@@ -49,11 +52,14 @@ class InventoryController extends Controller
     }
 
     /**
-     * موجودی موم (۹۰۰ درجه)
+     * موجودی موم (۹۰۰ درجه) - فقط محصولات با موجودی > ۰
      */
     public function mum(Request $request)
     {
-        $query = Product::where('status', 1);
+        $query = Product::where('status', 1)
+            ->whereHas('waxInventory', function ($q) {
+                $q->where('stock', '>', 0);
+            });
 
         if ($request->filled('search')) {
             $query->where('id', $request->search);
@@ -65,7 +71,7 @@ class InventoryController extends Controller
         foreach ($products as $product) {
             $inventories[] = [
                 'product' => $product,
-                'stock' => ShuttleFiring::getMumStock($product->id),
+                'stock' => $product->waxInventory->stock ?? 0,
             ];
         }
 
@@ -73,11 +79,14 @@ class InventoryController extends Controller
     }
 
     /**
-     * موجودی ۱۳۰۰ درجه
+     * موجودی ۱۳۰۰ درجه - فقط محصولات با موجودی > ۰
      */
     public function glaze1300(Request $request)
     {
-        $query = Product::where('status', 1);
+        $query = Product::where('status', 1)
+            ->whereHas('glaze1300Inventory', function ($q) {
+                $q->where('stock', '>', 0);
+            });
 
         if ($request->filled('search')) {
             $query->where('id', $request->search);
@@ -89,7 +98,7 @@ class InventoryController extends Controller
         foreach ($products as $product) {
             $inventories[] = [
                 'product' => $product,
-                'stock' => ShuttleFiring::getGlaze1300Stock($product->id),
+                'stock' => $product->glaze1300Inventory->stock ?? 0,
             ];
         }
 

@@ -15,8 +15,11 @@ use App\Models\Packaging;
 use App\Models\Customer;
 use App\Models\InformalSale;
 use App\Models\InformalSaleProduct;
+use App\Models\Sale;
+use App\Models\SaleProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Artisan;
 use Morilog\Jalali\Jalalian;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -31,7 +34,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  واردات خودکار از مسیر (دکمه)
+    //  واردات خودکار از مسیر (دکمه) - ✅ با اجرای خودکار fix-stock
     // ============================================================
     public function importFromPath()
     {
@@ -58,9 +61,16 @@ class ImportController extends Controller
             $this->importProductionsFromSpreadsheet($spreadsheet);
             $this->importTonneliFromSpreadsheet($spreadsheet);
             $this->importShuttleFromSpreadsheet($spreadsheet);
+            $this->importInformalSalesFromSpreadsheet($spreadsheet);
+            $this->importFormalSalesFromSpreadsheet($spreadsheet);
+
+            // ✅ اجرای خودکار دستورات fix-stock بعد از واردات
+            Artisan::call('raw-material:fix-stock');
+            Artisan::call('wax:fix-stock');
+            Artisan::call('glaze1300:fix-stock');
 
             return redirect()->route('import.index')
-                ->with('success', '✅ تمام برگه‌ها با موفقیت از مسیر وارد شدند.');
+                ->with('success', '✅ تمام برگه‌ها با موفقیت از مسیر وارد شدند و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.');
         } catch (\Exception $e) {
             return redirect()->route('import.index')
                 ->withErrors(['file' => 'خطا در خواندن فایل: ' . $e->getMessage()]);
@@ -68,7 +78,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه تولید (آپلود دستی)
+    //  برگه تولید (آپلود دستی) - ✅ با اجرای خودکار fix-stock
     // ============================================================
     public function importProductions(Request $request)
     {
@@ -126,11 +136,14 @@ class ImportController extends Controller
                     $product = $this->findOrCreateProduct($productName);
                     $press = !empty($pressNumber) ? $this->getOrCreatePress($pressNumber) : null;
 
+                    $productWeight = $product ? $product->weight : null;
+
                     $production = Production::create([
                         'date' => $dateStr,
                         'operator_id' => $operator->id,
                         'press_id' => $press?->id,
                         'product_id' => $product->id,
+                        'product_weight' => $productWeight,
                         'stage' => 'تولید',
                         'quantity' => $quantity,
                         'time_hours' => $timeHours,
@@ -157,7 +170,12 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در حین ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        $message = "✅ {$count} رکورد تولید با موفقیت وارد شد.";
+        // ✅ اجرای خودکار fix-stock بعد از واردات
+        Artisan::call('raw-material:fix-stock');
+        Artisan::call('wax:fix-stock');
+        Artisan::call('glaze1300:fix-stock');
+
+        $message = "✅ {$count} رکورد تولید با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
@@ -167,7 +185,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه کوره تونلی (آپلود دستی)
+    //  برگه کوره تونلی (آپلود دستی) - ✅ با اجرای خودکار fix-stock
     // ============================================================
     public function importTonneli(Request $request)
     {
@@ -259,7 +277,12 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در حین ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        $message = "✅ {$count} رکورد کوره تونلی با موفقیت وارد شد.";
+        // ✅ اجرای خودکار fix-stock بعد از واردات
+        Artisan::call('raw-material:fix-stock');
+        Artisan::call('wax:fix-stock');
+        Artisan::call('glaze1300:fix-stock');
+
+        $message = "✅ {$count} رکورد کوره تونلی با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
@@ -269,7 +292,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه کوره شاتل (آپلود دستی)
+    //  برگه کوره شاتل (آپلود دستی) - ✅ با اجرای خودکار fix-stock
     // ============================================================
     public function importShuttle(Request $request)
     {
@@ -406,7 +429,12 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در حین ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        $message = "✅ {$count} رکورد کوره شاتل در " . count($groups) . " پخت با موفقیت وارد شد.";
+        // ✅ اجرای خودکار fix-stock بعد از واردات
+        Artisan::call('raw-material:fix-stock');
+        Artisan::call('wax:fix-stock');
+        Artisan::call('glaze1300:fix-stock');
+
+        $message = "✅ {$count} رکورد کوره شاتل در " . count($groups) . " پخت با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
@@ -416,8 +444,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه فروش غیررسمی (نسخه نهایی بدون نقص)
-    //  ستون‌ها: سال | ماه | روز | شماره فاکتور | نام مشتری | محصول | تعداد | بهای واحد | قیمت کل | وضعیت پرداخت
+    //  برگه فروش غیررسمی (آپلود دستی) - ✅ با اجرای خودکار fix-stock
     // ============================================================
     public function importInformalSales(Request $request)
     {
@@ -431,7 +458,6 @@ class ImportController extends Controller
         $reader->setReadDataOnly(true);
         $spreadsheet = $reader->load($request->file('file')->getPathname());
 
-        // پیدا کردن برگه
         $sheetNames = ['غیر رسمی', 'غیررسمی', 'غیر رسمی فروش', 'غیررسمی فروش'];
         $sheet = null;
         foreach ($sheetNames as $name) {
@@ -448,7 +474,7 @@ class ImportController extends Controller
         }
 
         $rows = $sheet->toArray();
-        array_shift($rows); // حذف سطر عنوان
+        array_shift($rows);
 
         if (empty($rows)) {
             return back()->withErrors(['file' => 'فایل خالی است.']);
@@ -479,7 +505,8 @@ class ImportController extends Controller
                     $totalPrice = (float) str_replace(',', '', trim($row[8]));
                     $paymentStatus = trim($row[9]);
 
-                    if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31 || empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) {
+                    if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31 ||
+                        empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) {
                         $errors[] = "ردیف " . ($rowIndex + 2) . ": داده‌های ضروری کامل نیستند.";
                         continue;
                     }
@@ -493,25 +520,33 @@ class ImportController extends Controller
                         continue;
                     }
 
-                    // پیدا کردن یا ایجاد مشتری
                     $customer = Customer::firstOrCreate(
                         ['name' => $customerName],
                         ['status' => 1]
                     );
 
-                    // پیدا کردن یا ایجاد محصول (با alias)
-                    $product = $this->findProductForSale($productName);
+                    $product = $this->findProduct($productName);
                     if (!$product) {
-                        $errors[] = "ردیف " . ($rowIndex + 2) . ": محصول {$productName} پیدا نشد.";
+                        $errors[] = "ردیف " . ($rowIndex + 2) . ": محصول '{$productName}' پیدا نشد. لطفاً ابتدا محصول را تعریف کنید.";
                         continue;
                     }
 
-                    // پیدا کردن فاکتور با شماره و سال
+                    if ($totalPrice <= 0) {
+                        $totalPrice = $quantity * $unitPrice;
+                    }
+
                     $sale = InformalSale::where('year', $year)
                         ->where('number', $invoiceNumber)
                         ->first();
 
                     if (!$sale) {
+                        $status = 'pending';
+                        if ($paymentStatus == '1' ||
+                            strtolower($paymentStatus) == 'بله' ||
+                            strtolower($paymentStatus) == 'paid') {
+                            $status = 'paid';
+                        }
+
                         $sale = InformalSale::create([
                             'year' => $year,
                             'number' => $invoiceNumber,
@@ -519,7 +554,7 @@ class ImportController extends Controller
                             'customer_id' => $customer->id,
                             'customer_name' => $customer->name,
                             'total_price' => 0,
-                            'status' => ($paymentStatus == '1' || strtolower($paymentStatus) == 'بله' || strtolower($paymentStatus) == 'paid') ? 'paid' : 'unpaid',
+                            'status' => $status,
                         ]);
                     }
 
@@ -532,11 +567,6 @@ class ImportController extends Controller
 
                     $sale->total_price += $totalPrice;
                     $sale->save();
-
-                    if ($paymentStatus == '1' || strtolower($paymentStatus) == 'بله' || strtolower($paymentStatus) == 'paid') {
-                        $sale->status = 'paid';
-                        $sale->save();
-                    }
 
                     $count++;
                 } catch (\Exception $e) {
@@ -551,7 +581,12 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        $message = "✅ {$count} آیتم فروش غیررسمی با موفقیت وارد شد.";
+        // ✅ اجرای خودکار fix-stock بعد از واردات
+        Artisan::call('raw-material:fix-stock');
+        Artisan::call('wax:fix-stock');
+        Artisan::call('glaze1300:fix-stock');
+
+        $message = "✅ {$count} آیتم فروش غیررسمی با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) {
@@ -563,7 +598,533 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  متدهای کمکی
+    //  برگه فروش رسمی (آپلود دستی) - ✅ با اجرای خودکار fix-stock
+    // ============================================================
+    public function importFormalSales(Request $request)
+    {
+        set_time_limit(0);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:10240',
+        ]);
+
+        $reader = IOFactory::createReaderForFile($request->file('file')->getPathname());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($request->file('file')->getPathname());
+
+        $sheetNames = ['رسمی', 'فروش رسمی', 'رسمی فروش'];
+        $sheet = null;
+        foreach ($sheetNames as $name) {
+            $sheet = $spreadsheet->getSheetByName($name);
+            if ($sheet) break;
+        }
+
+        if (!$sheet) {
+            $allSheets = [];
+            foreach ($spreadsheet->getAllSheets() as $s) {
+                $allSheets[] = $s->getTitle();
+            }
+            return back()->withErrors(['file' => 'برگه "رسمی" پیدا نشد. برگه‌ها: ' . implode(', ', $allSheets)]);
+        }
+
+        $rows = $sheet->toArray();
+        array_shift($rows);
+
+        if (empty($rows)) {
+            return back()->withErrors(['file' => 'فایل خالی است.']);
+        }
+
+        DB::statement('PRAGMA foreign_keys = OFF');
+
+        DB::statement('DELETE FROM sale_products');
+        DB::statement('DELETE FROM sales');
+
+        $count = 0;
+        $errors = [];
+
+        DB::beginTransaction();
+
+        try {
+            $invoiceTotals = [];
+            $invoiceTaxTotals = [];
+            $invoiceWithTaxTotals = [];
+            $invoiceStatus = [];
+
+            foreach ($rows as $rowIndex => $row) {
+                try {
+                    if (empty(array_filter($row))) {
+                        continue;
+                    }
+
+                    $col = array_pad($row, 14, '');
+
+                    $year = (int) trim($col[0]);
+                    $month = (int) trim($col[1]);
+                    $day = (int) trim($col[2]);
+                    $invoiceNumber = trim($col[3]);
+                    $customerName = trim($col[4]);
+                    $productName = trim($col[5]);
+                    $quantity = (float) str_replace(',', '', trim($col[6]));
+                    $unitPrice = (float) str_replace(',', '', trim($col[7]));
+                    $priceAfterDiscount = (float) str_replace(',', '', trim($col[10]));
+                    $taxAmount = (float) str_replace(',', '', trim($col[11]));
+                    $totalWithTax = (float) str_replace(',', '', trim($col[12]));
+                    $paymentStatus = isset($col[13]) ? trim($col[13]) : '';
+
+                    if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31 ||
+                        empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) {
+                        $errors[] = "ردیف " . ($rowIndex + 2) . ": داده‌های ضروری کامل نیستند.";
+                        continue;
+                    }
+
+                    $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
+                    try {
+                        $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
+                        $gregorianDate = $jalaliDate->toCarbon();
+                    } catch (\Exception $e) {
+                        $errors[] = "ردیف " . ($rowIndex + 2) . ": تاریخ {$dateStr} نامعتبر است.";
+                        continue;
+                    }
+
+                    $product = $this->findProduct($productName);
+                    if (!$product) {
+                        $errors[] = "ردیف " . ($rowIndex + 2) . ": محصول '{$productName}' پیدا نشد. لطفاً ابتدا محصول را تعریف کنید.";
+                        continue;
+                    }
+
+                    if ($priceAfterDiscount <= 0) {
+                        $priceAfterDiscount = $quantity * $unitPrice;
+                    }
+
+                    if (!isset($invoiceTotals[$invoiceNumber])) {
+                        $invoiceTotals[$invoiceNumber] = 0;
+                        $invoiceTaxTotals[$invoiceNumber] = 0;
+                        $invoiceWithTaxTotals[$invoiceNumber] = 0;
+                    }
+
+                    $invoiceTotals[$invoiceNumber] += $priceAfterDiscount;
+                    $invoiceTaxTotals[$invoiceNumber] += $taxAmount;
+                    $invoiceWithTaxTotals[$invoiceNumber] += $totalWithTax;
+
+                    if (!isset($invoiceStatus[$invoiceNumber])) {
+                        if ($paymentStatus == '1' || strtolower($paymentStatus) == 'paid' || strtolower($paymentStatus) == 'پرداخت شده') {
+                            $invoiceStatus[$invoiceNumber] = 'paid';
+                        } else {
+                            $invoiceStatus[$invoiceNumber] = 'pending';
+                        }
+                    }
+
+                    $sale = Sale::where('invoice_number', $invoiceNumber)->first();
+                    if (!$sale) {
+                        $sale = Sale::create([
+                            'invoice_number' => $invoiceNumber,
+                            'date' => $gregorianDate,
+                            'customer_name' => $customerName,
+                            'invoice_id' => null,
+                            'tax_percent' => 0,
+                            'total_price' => 0,
+                            'total_with_tax' => 0,
+                            'status' => $invoiceStatus[$invoiceNumber],
+                        ]);
+                    }
+
+                    SaleProduct::create([
+                        'sale_id' => $sale->id,
+                        'product_id' => $product->id,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                    ]);
+
+                    $count++;
+
+                } catch (\Exception $e) {
+                    $errors[] = "ردیف " . ($rowIndex + 2) . ": " . $e->getMessage();
+                }
+            }
+
+            foreach ($invoiceTotals as $invNum => $total) {
+                $sale = Sale::where('invoice_number', $invNum)->first();
+                if ($sale) {
+                    $taxPercent = 0;
+                    if ($total > 0 && isset($invoiceTaxTotals[$invNum])) {
+                        $taxPercent = ($invoiceTaxTotals[$invNum] / $total) * 100;
+                    }
+
+                    $sale->total_price = $total;
+                    $sale->tax_percent = round($taxPercent, 2);
+                    $sale->total_with_tax = $invoiceWithTaxTotals[$invNum] ?? $total;
+                    if (isset($invoiceStatus[$invNum])) {
+                        $sale->status = $invoiceStatus[$invNum];
+                    }
+                    $sale->save();
+
+                    foreach ($sale->products as $product) {
+                        $calc = $this->calculateBoxAndLayer($product->product_id, $product->quantity);
+                        $this->decreaseStockDB($product->product_id, $product->quantity, $calc['box'], $calc['layer'], $calc['pallet']);
+                    }
+                }
+            }
+
+            DB::commit();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['file' => 'خطا در ذخیره‌سازی: ' . $e->getMessage()]);
+        } finally {
+            DB::statement('PRAGMA foreign_keys = ON');
+        }
+
+        // ✅ اجرای خودکار fix-stock بعد از واردات
+        Artisan::call('raw-material:fix-stock');
+        Artisan::call('wax:fix-stock');
+        Artisan::call('glaze1300:fix-stock');
+
+        $message = "✅ {$count} آیتم فروش رسمی با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
+        if (!empty($errors)) {
+            $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
+            if (count($errors) > 5) {
+                $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
+            }
+        }
+
+        return redirect()->route('import.index')->with('success', $message);
+    }
+
+    // ============================================================
+    //  ✅ واردات فروش غیررسمی از مسیر (بدون تغییر)
+    // ============================================================
+    private function importInformalSalesFromSpreadsheet($spreadsheet)
+    {
+        $sheetNames = ['غیر رسمی', 'غیررسمی', 'غیر رسمی فروش', 'غیررسمی فروش'];
+        $sheet = null;
+        foreach ($sheetNames as $name) {
+            $sheet = $spreadsheet->getSheetByName($name);
+            if ($sheet) break;
+        }
+
+        if (!$sheet) {
+            return;
+        }
+
+        $rows = $sheet->toArray();
+        array_shift($rows);
+
+        if (empty($rows)) {
+            return;
+        }
+
+        DB::statement('DELETE FROM informal_sale_products');
+        DB::statement('DELETE FROM informal_sales');
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($rows as $rowIndex => $row) {
+                try {
+                    if (empty(array_filter($row))) {
+                        continue;
+                    }
+
+                    $row = array_pad($row, 10, '');
+
+                    $year = (int) trim($row[0]);
+                    $month = (int) trim($row[1]);
+                    $day = (int) trim($row[2]);
+                    $invoiceNumber = trim($row[3]);
+                    $customerName = trim($row[4]);
+                    $productName = trim($row[5]);
+                    $quantity = (float) str_replace(',', '', trim($row[6]));
+                    $unitPrice = (float) str_replace(',', '', trim($row[7]));
+                    $totalPrice = (float) str_replace(',', '', trim($row[8]));
+                    $paymentStatus = trim($row[9]);
+
+                    if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31 ||
+                        empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) {
+                        continue;
+                    }
+
+                    $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
+                    try {
+                        $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
+                        $gregorianDate = $jalaliDate->toCarbon();
+                    } catch (\Exception $e) {
+                        continue;
+                    }
+
+                    $customer = Customer::firstOrCreate(
+                        ['name' => $customerName],
+                        ['status' => 1]
+                    );
+
+                    $product = $this->findProduct($productName);
+                    if (!$product) {
+                        continue;
+                    }
+
+                    if ($totalPrice <= 0) {
+                        $totalPrice = $quantity * $unitPrice;
+                    }
+
+                    $sale = InformalSale::where('year', $year)
+                        ->where('number', $invoiceNumber)
+                        ->first();
+
+                    if (!$sale) {
+                        $status = 'pending';
+                        if ($paymentStatus == '1' ||
+                            strtolower($paymentStatus) == 'بله' ||
+                            strtolower($paymentStatus) == 'paid') {
+                            $status = 'paid';
+                        }
+
+                        $sale = InformalSale::create([
+                            'year' => $year,
+                            'number' => $invoiceNumber,
+                            'date' => $gregorianDate,
+                            'customer_id' => $customer->id,
+                            'customer_name' => $customer->name,
+                            'total_price' => 0,
+                            'status' => $status,
+                        ]);
+                    }
+
+                    InformalSaleProduct::create([
+                        'informal_sale_id' => $sale->id,
+                        'product_id' => $product->id,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                    ]);
+
+                    $sale->total_price += $totalPrice;
+                    $sale->save();
+
+                } catch (\Exception $e) {
+                    // ادامه
+                }
+            }
+
+            DB::commit();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error in importInformalSalesFromSpreadsheet: ' . $e->getMessage());
+        }
+    }
+
+    // ============================================================
+    //  ✅ واردات فروش رسمی از مسیر (بدون تغییر)
+    // ============================================================
+    private function importFormalSalesFromSpreadsheet($spreadsheet)
+    {
+        $sheetNames = ['رسمی', 'فروش رسمی', 'رسمی فروش'];
+        $sheet = null;
+        foreach ($sheetNames as $name) {
+            $sheet = $spreadsheet->getSheetByName($name);
+            if ($sheet) break;
+        }
+
+        if (!$sheet) {
+            return;
+        }
+
+        $rows = $sheet->toArray();
+        array_shift($rows);
+
+        if (empty($rows)) {
+            return;
+        }
+
+        DB::statement('PRAGMA foreign_keys = OFF');
+
+        DB::statement('DELETE FROM sale_products');
+        DB::statement('DELETE FROM sales');
+
+        DB::beginTransaction();
+
+        try {
+            $invoiceTotals = [];
+            $invoiceTaxTotals = [];
+            $invoiceWithTaxTotals = [];
+            $invoiceStatus = [];
+
+            foreach ($rows as $rowIndex => $row) {
+                try {
+                    if (empty(array_filter($row))) {
+                        continue;
+                    }
+
+                    $col = array_pad($row, 14, '');
+
+                    $year = (int) trim($col[0]);
+                    $month = (int) trim($col[1]);
+                    $day = (int) trim($col[2]);
+                    $invoiceNumber = trim($col[3]);
+                    $customerName = trim($col[4]);
+                    $productName = trim($col[5]);
+                    $quantity = (float) str_replace(',', '', trim($col[6]));
+                    $unitPrice = (float) str_replace(',', '', trim($col[7]));
+                    $priceAfterDiscount = (float) str_replace(',', '', trim($col[10]));
+                    $taxAmount = (float) str_replace(',', '', trim($col[11]));
+                    $totalWithTax = (float) str_replace(',', '', trim($col[12]));
+                    $paymentStatus = isset($col[13]) ? trim($col[13]) : '';
+
+                    if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31 ||
+                        empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) {
+                        continue;
+                    }
+
+                    $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
+                    try {
+                        $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
+                        $gregorianDate = $jalaliDate->toCarbon();
+                    } catch (\Exception $e) {
+                        continue;
+                    }
+
+                    $product = $this->findProduct($productName);
+                    if (!$product) {
+                        continue;
+                    }
+
+                    if ($priceAfterDiscount <= 0) {
+                        $priceAfterDiscount = $quantity * $unitPrice;
+                    }
+
+                    if (!isset($invoiceTotals[$invoiceNumber])) {
+                        $invoiceTotals[$invoiceNumber] = 0;
+                        $invoiceTaxTotals[$invoiceNumber] = 0;
+                        $invoiceWithTaxTotals[$invoiceNumber] = 0;
+                    }
+
+                    $invoiceTotals[$invoiceNumber] += $priceAfterDiscount;
+                    $invoiceTaxTotals[$invoiceNumber] += $taxAmount;
+                    $invoiceWithTaxTotals[$invoiceNumber] += $totalWithTax;
+
+                    if (!isset($invoiceStatus[$invoiceNumber])) {
+                        if ($paymentStatus == '1' || strtolower($paymentStatus) == 'paid' || strtolower($paymentStatus) == 'پرداخت شده') {
+                            $invoiceStatus[$invoiceNumber] = 'paid';
+                        } else {
+                            $invoiceStatus[$invoiceNumber] = 'pending';
+                        }
+                    }
+
+                    $sale = Sale::where('invoice_number', $invoiceNumber)->first();
+                    if (!$sale) {
+                        $sale = Sale::create([
+                            'invoice_number' => $invoiceNumber,
+                            'date' => $gregorianDate,
+                            'customer_name' => $customerName,
+                            'invoice_id' => null,
+                            'tax_percent' => 0,
+                            'total_price' => 0,
+                            'total_with_tax' => 0,
+                            'status' => $invoiceStatus[$invoiceNumber],
+                        ]);
+                    }
+
+                    SaleProduct::create([
+                        'sale_id' => $sale->id,
+                        'product_id' => $product->id,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                    ]);
+
+                } catch (\Exception $e) {
+                    // ادامه
+                }
+            }
+
+            foreach ($invoiceTotals as $invNum => $total) {
+                $sale = Sale::where('invoice_number', $invNum)->first();
+                if ($sale) {
+                    $taxPercent = 0;
+                    if ($total > 0 && isset($invoiceTaxTotals[$invNum])) {
+                        $taxPercent = ($invoiceTaxTotals[$invNum] / $total) * 100;
+                    }
+
+                    $sale->total_price = $total;
+                    $sale->tax_percent = round($taxPercent, 2);
+                    $sale->total_with_tax = $invoiceWithTaxTotals[$invNum] ?? $total;
+                    if (isset($invoiceStatus[$invNum])) {
+                        $sale->status = $invoiceStatus[$invNum];
+                    }
+                    $sale->save();
+
+                    foreach ($sale->products as $product) {
+                        $calc = $this->calculateBoxAndLayer($product->product_id, $product->quantity);
+                        $this->decreaseStockDB($product->product_id, $product->quantity, $calc['box'], $calc['layer'], $calc['pallet']);
+                    }
+                }
+            }
+
+            DB::commit();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error in importFormalSalesFromSpreadsheet: ' . $e->getMessage());
+        } finally {
+            DB::statement('PRAGMA foreign_keys = ON');
+        }
+    }
+
+    // ============================================================
+    //  متدهای کمکی موجودی (با استفاده از DB)
+    // ============================================================
+
+    private function calculateBoxAndLayer($productId, $quantity)
+    {
+        $product = Product::find($productId);
+        if (!$product) {
+            return ['box' => 0, 'layer' => 0, 'pallet' => 0];
+        }
+
+        $box = 0;
+        $layer = 0;
+        $pallet = 0;
+
+        if ($product->per_box && $product->per_box > 0) {
+            $box = intval($quantity / $product->per_box);
+        }
+        if ($product->layers_per_box && $product->layers_per_box > 0 && $product->per_box > 0) {
+            $perLayer = $product->per_box * $product->layers_per_box;
+            $layer = intval($quantity / $perLayer);
+        }
+        if ($product->per_pallet && $product->per_pallet > 0) {
+            $pallet = intval($quantity / $product->per_pallet);
+        }
+
+        return ['box' => $box, 'layer' => $layer, 'pallet' => $pallet];
+    }
+
+    private function decreaseStockDB($productId, $quantity, $box, $layer, $pallet)
+    {
+        $existing = DB::table('inventories')->where('product_id', $productId)->first();
+
+        if ($existing) {
+            DB::table('inventories')
+                ->where('product_id', $productId)
+                ->update([
+                    'quantity' => max(0, $existing->quantity - $quantity),
+                    'box' => max(0, $existing->box - $box),
+                    'layer' => max(0, $existing->layer - $layer),
+                    'pallet' => max(0, $existing->pallet - $pallet),
+                    'updated_at' => now(),
+                ]);
+        } else {
+            DB::table('inventories')->insert([
+                'product_id' => $productId,
+                'quantity' => 0,
+                'box' => 0,
+                'layer' => 0,
+                'pallet' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    // ============================================================
+    //  متدهای کمکی دیگر
     // ============================================================
 
     private $operatorsCache = [];
@@ -620,12 +1181,18 @@ class ImportController extends Controller
         return $product;
     }
 
-    private function findProductForSale($name)
+    private function findProduct($name)
     {
         $cleanName = trim($name);
 
         if (isset($this->productsCache[$cleanName])) {
             return $this->productsCache[$cleanName];
+        }
+
+        $product = Product::where('name', $cleanName)->first();
+        if ($product) {
+            $this->productsCache[$cleanName] = $product;
+            return $product;
         }
 
         $alias = ProductAlias::where('alias', $cleanName)->first();
@@ -635,46 +1202,7 @@ class ImportController extends Controller
             return $product;
         }
 
-        $product = Product::where('name', $cleanName)->first();
-        if ($product) {
-            $this->productsCache[$cleanName] = $product;
-            return $product;
-        }
-
-        $product = Product::create([
-            'code' => 'SALE-' . time() . '-' . rand(100, 999),
-            'name' => $cleanName,
-            'unit_id' => 1,
-            'status' => 1,
-            'cavities' => 0,
-            'weight' => 0,
-            'per_box' => 0,
-            'layers_per_box' => 0,
-            'firing_process' => 'tonneli',
-        ]);
-
-        $this->productsCache[$cleanName] = $product;
-        return $product;
-    }
-
-    private function getOrCreateCustomer($name)
-    {
-        $cleanName = trim($name);
-        if (empty($cleanName)) {
-            $cleanName = 'مشتری ناشناس';
-        }
-
-        if (isset($this->customersCache[$cleanName])) {
-            return $this->customersCache[$cleanName];
-        }
-
-        $customer = Customer::firstOrCreate(
-            ['name' => $cleanName],
-            ['status' => 1]
-        );
-
-        $this->customersCache[$cleanName] = $customer;
-        return $customer;
+        return null;
     }
 
     private function getOrCreatePress($number)
@@ -746,7 +1274,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  متدهای واردات از مسیر (برای importFromPath)
+    //  متدهای واردات از مسیر برای برگه‌های دیگر
     // ============================================================
 
     private function importProductionsFromSpreadsheet($spreadsheet)
@@ -781,11 +1309,14 @@ class ImportController extends Controller
                     $product = $this->findOrCreateProduct($productName);
                     $press = !empty($pressNumber) ? $this->getOrCreatePress($pressNumber) : null;
 
+                    $productWeight = $product ? $product->weight : null;
+
                     $production = Production::create([
                         'date' => $dateStr,
                         'operator_id' => $operator->id,
                         'press_id' => $press?->id,
                         'product_id' => $product->id,
+                        'product_weight' => $productWeight,
                         'stage' => 'تولید',
                         'quantity' => $quantity,
                         'time_hours' => $timeHours,

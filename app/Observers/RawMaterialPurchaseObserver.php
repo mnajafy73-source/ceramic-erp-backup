@@ -6,11 +6,10 @@ use App\Models\RawMaterialPurchase;
 
 class RawMaterialPurchaseObserver
 {
-    /**
-     * قبل از حذف خرید، موجودی مواد اولیه را برگردان.
-     */
     public function deleting(RawMaterialPurchase $purchase)
     {
+        $purchase->load('items.rawMaterial');
+
         foreach ($purchase->items as $item) {
             $rawMaterial = $item->rawMaterial;
             if ($rawMaterial) {

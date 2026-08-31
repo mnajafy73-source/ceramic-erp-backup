@@ -70,13 +70,28 @@
         </div>
     </div>
 
-    <!-- واردات فروش غیررسمی (جدید) -->
+    <!-- واردات فروش غیررسمی -->
     <div class="col-md-4 mt-4">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
                 <h5 class="card-title">🧾 فروش غیررسمی</h5>
                 <p class="text-muted small">برگه: غیر رسمی</p>
                 <form action="{{ route('import.informal-sales') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <input type="file" name="file" class="form-control mb-2" accept=".xlsx,.xls" required>
+                    <button type="submit" class="btn btn-primary w-100">واردات</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ واردات فروش رسمی (جدید) -->
+    <div class="col-md-4 mt-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title">📄 فروش رسمی</h5>
+                <p class="text-muted small">برگه: رسمی</p>
+                <form action="{{ route('import.formal-sales') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <input type="file" name="file" class="form-control mb-2" accept=".xlsx,.xls" required>
                     <button type="submit" class="btn btn-primary w-100">واردات</button>
@@ -118,6 +133,7 @@
     <a href="{{ route('tonneli.index') }}" class="btn btn-secondary">مشاهده تونلی</a>
     <a href="{{ route('shuttle.index') }}" class="btn btn-secondary">مشاهده شاتل</a>
     <a href="{{ route('informal-sales.index') }}" class="btn btn-secondary">مشاهده فروش غیررسمی</a>
+    <a href="{{ route('sales.index') }}" class="btn btn-secondary">مشاهده فروش رسمی</a>
     <a href="{{ route('inventory.raw') }}" class="btn btn-secondary">موجودی خام</a>
     <a href="{{ route('inventory.warehouse') }}" class="btn btn-secondary">موجودی انبار</a>
 </div>

@@ -16,6 +16,22 @@
             <a href="{{ route('productions.create') }}" class="btn btn-primary">ثبت تولید جدید</a>
         </div>
 
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+        @if($errors->any())
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         @if($productions->count())
             <div class="table-responsive">
                 <table class="table table-bordered table-hover">
@@ -33,6 +49,12 @@
                     </thead>
                     <tbody>
                         @foreach($productions as $index => $group)
+                            @php
+                                $dateParts = explode('/', $group->date);
+                                $year = $dateParts[0] ?? '';
+                                $month = $dateParts[1] ?? '';
+                                $day = $dateParts[2] ?? '';
+                            @endphp
                             <tr>
                                 <td>{{ $productions->firstItem() + $index }}</td>
                                 <td>
@@ -55,6 +77,18 @@
                                     <a href="{{ route('productions.show-by-date', ['date' => $group->date]) }}" class="btn btn-sm btn-info">
                                         <i class="fas fa-eye"></i> جزئیات
                                     </a>
+
+                                    {{-- ✅ دکمه حذف گروه با سه پارامتر --}}
+                                    @if($year && $month && $day)
+                                        <form action="{{ route('productions.destroy-group', ['year' => $year, 'month' => $month, 'day' => $day]) }}" method="POST" class="d-inline" 
+                                              onsubmit="return confirm('آیا از حذف تمام تولیدات تاریخ {{ $group->date }} مطمئن هستید؟');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                <i class="fas fa-trash"></i> حذف گروه
+                                            </button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

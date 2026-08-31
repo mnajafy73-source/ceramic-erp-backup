@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\HasUndo;
 
 class RawMaterialPurchase extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUndo;
 
     protected $fillable = [
         'purchase_date',

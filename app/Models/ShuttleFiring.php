@@ -46,7 +46,8 @@ class ShuttleFiring extends Model
 
     /**
      * محاسبه موجودی خام
-     * فقط ورودی تونلی از موجودی خام کم می‌شود (برای بلسن)
+     * برای بلسن: تولید - ورودی تونلی - مصرف فرزندان
+     * برای سایر محصولات: تولید - ورودی تونلی - خروجی شاتل - مصرف فرزندان
      */
     public static function getRawStock($productId)
     {
@@ -59,10 +60,13 @@ class ShuttleFiring extends Model
             ->whereNotNull('press_id')
             ->sum('quantity');
 
+        if ($production == 0) {
+            return 0;
+        }
+
         $tonneliInput = TonneliFiringItem::where('product_id', $productId)
             ->sum('input_quantity');
 
-        // خروجی شاتل (فقط برای محصولات غیر از بلسن)
         $shuttleOutput = 0;
         if ($product->name !== 'بلسن') {
             $shuttleOutput = self::where('product_id', $productId)
@@ -70,7 +74,6 @@ class ShuttleFiring extends Model
                 ->sum('output_quantity');
         }
 
-        // خروجی فرزندان
         $childOutput = 0;
         foreach ($product->children as $child) {
             $childOutput += TonneliFiringItem::where('product_id', $child->id)
@@ -121,28 +124,35 @@ class ShuttleFiring extends Model
     }
 
     /**
-     * محاسبه موجودی انبار
-     * ✅ خروجی‌های تونلی بسته‌بندی‌شده + خروجی‌های شاتل بسته‌بندی‌شده
-     * ✅ بدون نیاز به رکوردهای packaging اضافی در shuttle_firings
+     * ✅ محاسبه موجودی انبار (اصلاح‌شده)
+     * 
+     * فرمول:
+     * موجودی انبار = موجودی اول دوره + خروجی تونلی بسته‌بندی‌شده + خروجی شاتل بسته‌بندی‌شده - فروش رسمی - فروش غیررسمی
      */
     public static function getWarehouseStock($productId)
     {
+        // ۱. موجودی اول دوره از جدول opening_inventories
         $opening = OpeningInventory::where('product_id', $productId)->sum('quantity');
 
-        // خروجی‌های بسته‌بندی‌شده از کوره شاتل
-        $packagedShuttle = self::where('product_id', $productId)
-            ->where('is_packaged', 1)
-            ->sum('output_quantity');
-
-        // ✅ خروجی‌های بسته‌بندی‌شده از کوره تونلی (مستقیماً از tonneli_firing_items)
+        // ۲. خروجی‌های بسته‌بندی‌شده از کوره تونلی (is_packaged = 1)
         $packagedTonneli = TonneliFiringItem::where('product_id', $productId)
             ->where('is_packaged', 1)
             ->sum('output_quantity');
 
-        // فروش
-        $sales = Sale::where('product_id', $productId)->sum('quantity');
+        // ۳. خروجی‌های بسته‌بندی‌شده از کوره شاتل (is_packaged = 1)
+        $packagedShuttle = self::where('product_id', $productId)
+            ->where('is_packaged', 1)
+            ->sum('output_quantity');
+
+        // ۴. فروش رسمی (از جدول sale_products)
+        $sales = SaleProduct::where('product_id', $productId)->sum('quantity');
+
+        // ۵. فروش غیررسمی (از جدول informal_sale_products)
         $informalSales = InformalSaleProduct::where('product_id', $productId)->sum('quantity');
 
-        return $opening + $packagedShuttle + $packagedTonneli - $sales - $informalSales;
+        // ============================================================
+        // محاسبه نهایی موجودی انبار
+        // ============================================================
+        return $opening + $packagedTonneli + $packagedShuttle - $sales - $informalSales;
     }
 }

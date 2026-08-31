@@ -53,6 +53,18 @@ class Product extends Model
         return $this->hasMany(ProductAlias::class);
     }
 
+    // ========== ارتباط با موجودی موم (جدید) ==========
+    public function waxInventory()
+    {
+        return $this->hasOne(WaxInventory::class);
+    }
+
+    // ========== ارتباط با موجودی ۱۳۰۰ درجه (جدید) ==========
+    public function glaze1300Inventory()
+    {
+        return $this->hasOne(Glaze1300Inventory::class);
+    }
+
     // ========== سایر روابط ==========
     public function unit()
     {

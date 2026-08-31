@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Production;
 use App\Models\DashboardProduct;
+use App\Models\ShuttleFiring;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
@@ -27,12 +28,15 @@ class DashboardController extends Controller
             ->get();
 
         foreach ($allProducts as $product) {
-            // جمع تولیدات
+            // ✅ موجودی خام دقیقاً از همان متد موجودی خام (منوی موجودی خام)
+            $stock = ShuttleFiring::getRawStock($product->id);
+
+            // جمع تولیدات (برای نمایش در کارت)
             $productionSum = Production::where('product_id', $product->id)
                 ->where('stage', 'production')
                 ->sum('quantity');
 
-            // جمع تونلی
+            // جمع تونلی (برای نمایش)
             $tonneliSum = 0;
             if (Schema::hasTable('tonneli_firing_items')) {
                 $tonneliSum = DB::table('tonneli_firing_items')
@@ -40,7 +44,7 @@ class DashboardController extends Controller
                     ->sum('input_quantity') ?? 0;
             }
 
-            // جمع شاتل
+            // جمع شاتل (برای نمایش)
             $shuttleSum = 0;
             if (Schema::hasTable('shuttle_firings')) {
                 $shuttleSum = DB::table('shuttle_firings')
@@ -48,10 +52,7 @@ class DashboardController extends Controller
                     ->sum('output_quantity') ?? 0;
             }
 
-            // موجودی فعلی
-            $stock = $productionSum - $tonneliSum - $shuttleSum;
-
-            // محاسبه زمان پخت تونلی بر اساس موجودی و خوراک
+            // محاسبه زمان پخت تونلی بر اساس موجودی خام و خوراک
             $tonneliTime = null;
             if ($product->tonneli_feed_rate && $product->tonneli_feed_rate > 0 && $stock > 0) {
                 $tonneliTime = round($stock / $product->tonneli_feed_rate, 1);
@@ -61,8 +62,8 @@ class DashboardController extends Controller
             $product->production_sum = $productionSum;
             $product->tonneli_sum = $tonneliSum;
             $product->shuttle_sum = $shuttleSum;
-            $product->stock = $stock;
-            $product->tonneli_time = $tonneliTime; // زمان پخت به ساعت
+            $product->stock = $stock; // ✅ موجودی خام هماهنگ با منوی موجودی خام
+            $product->tonneli_time = $tonneliTime;
         }
 
         // لیست کامل محصولات برای کشوی انتخاب

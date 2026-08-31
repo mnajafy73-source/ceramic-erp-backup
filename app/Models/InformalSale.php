@@ -14,7 +14,7 @@ class InformalSale extends Model
         'year',
         'number',
         'date',
-        'customer_id',
+        'customer_id',        // ✅ اضافه شد
         'customer_name',
         'total_price',
         'status',
