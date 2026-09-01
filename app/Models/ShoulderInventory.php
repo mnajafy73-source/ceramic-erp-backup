@@ -5,11 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Glaze1300Inventory extends Model
+class ShoulderInventory extends Model
 {
     use HasFactory;
 
-    protected $table = 'glaze_1300_inventories';
+    protected $table = 'shoulder_inventories';
 
     protected $fillable = [
         'product_id',

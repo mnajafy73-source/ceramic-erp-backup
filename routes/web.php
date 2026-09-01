@@ -1,188 +1,149 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-use Morilog\Jalali\Jalalian;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\OperatorController;
-use App\Http\Controllers\PressController;
-use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProductionController;
-use App\Http\Controllers\ProductLogController;
 use App\Http\Controllers\TonneliFiringController;
 use App\Http\Controllers\ShuttleFiringController;
-use App\Http\Controllers\UndoController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\InformalSaleController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\OperatorController;
+use App\Http\Controllers\PressController;
 use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\FormulaController;
 use App\Http\Controllers\PackagingController;
 use App\Http\Controllers\RawMaterialPurchaseController;
 use App\Http\Controllers\PackagingPurchaseController;
-use App\Http\Controllers\OpeningInventoryController;
 use App\Http\Controllers\InventoryController;
-use App\Http\Controllers\CostPriceController;
-use App\Http\Controllers\ReportController;
+use App\Http\Controllers\OpeningInventoryController;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\UndoController;
+use App\Http\Controllers\ProductLogController;
+use App\Http\Controllers\CostPriceController;
 use App\Http\Controllers\TestController;
 
-Route::get('/', function () { return view('welcome'); });
+Route::get('/', function () {
+    return redirect()->route('dashboard');
+});
 
-// ==================== داشبورد ====================
-Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
-Route::post('/dashboard/add-product', [DashboardController::class, 'addProduct'])->name('dashboard.add-product')->middleware('auth');
-Route::post('/dashboard/remove-product', [DashboardController::class, 'removeProduct'])->name('dashboard.remove-product')->middleware('auth');
+Route::middleware(['auth'])->group(function () {
 
-// ==================== تولید ====================
-Route::get('/productions', [ProductionController::class, 'index'])->name('productions.index')->middleware('auth');
-Route::get('/productions/create', [ProductionController::class, 'create'])->name('productions.create')->middleware('auth');
-Route::post('/productions', [ProductionController::class, 'store'])->name('productions.store')->middleware('auth');
-Route::get('/productions/show-by-date', [ProductionController::class, 'showByDate'])->name('productions.show-by-date')->middleware('auth');
-Route::get('/productions/{production}', [ProductionController::class, 'show'])->name('productions.show')->middleware('auth');
-Route::get('/productions/{production}/edit', [ProductionController::class, 'edit'])->name('productions.edit')->middleware('auth');
-Route::put('/productions/{production}', [ProductionController::class, 'update'])->name('productions.update')->middleware('auth');
-Route::delete('/productions/{production}', [ProductionController::class, 'destroy'])->name('productions.destroy')->middleware('auth');
+    // Dashboard
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/dashboard/add-product', [DashboardController::class, 'addProduct'])->name('dashboard.add-product');
+    Route::post('/dashboard/remove-product', [DashboardController::class, 'removeProduct'])->name('dashboard.remove-product');
 
-// ✅ حذف گروهی بر اساس تاریخ (اصلاح‌شده با سه پارامتر)
-Route::delete('/productions/group/{year}/{month}/{day}', [ProductionController::class, 'destroyGroup'])->name('productions.destroy-group')->middleware('auth');
+    // تولید
+    Route::resource('productions', ProductionController::class);
+    Route::get('/productions/by-date', [ProductionController::class, 'showByDate'])->name('productions.by-date');
+    Route::delete('/productions/group/{year}/{month}/{day}', [ProductionController::class, 'destroyGroup'])->name('productions.destroy-group');
 
-// ==================== کوره تونلی ====================
-Route::get('/tonneli', [TonneliFiringController::class, 'index'])->name('tonneli.index')->middleware('auth');
-Route::get('/tonneli/create', [TonneliFiringController::class, 'create'])->name('tonneli.create')->middleware('auth');
-Route::post('/tonneli', [TonneliFiringController::class, 'store'])->name('tonneli.store')->middleware('auth');
-Route::delete('/tonneli/{tonneli}', [TonneliFiringController::class, 'destroy'])->name('tonneli.destroy')->middleware('auth');
-Route::get('/tonneli/{tonneli}', [TonneliFiringController::class, 'show'])->name('tonneli.show')->middleware('auth');
-Route::get('/tonneli/{tonneli}/edit', [TonneliFiringController::class, 'edit'])->name('tonneli.edit')->middleware('auth');
-Route::put('/tonneli/{tonneli}', [TonneliFiringController::class, 'update'])->name('tonneli.update')->middleware('auth');
+    // کوره تونلی
+    Route::resource('tonneli', TonneliFiringController::class);
 
-// ==================== کوره شاتل ====================
-Route::get('/shuttle', [ShuttleFiringController::class, 'index'])->name('shuttle.index')->middleware('auth');
-Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create')->middleware('auth');
-Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store')->middleware('auth');
-Route::get('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show')->middleware('auth');
-Route::get('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit')->middleware('auth');
-Route::put('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update')->middleware('auth');
-Route::delete('/shuttle/batch/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy')->middleware('auth');
+    // کوره شاتل
+    Route::get('/shuttle', [ShuttleFiringController::class, 'index'])->name('shuttle.index');
+    Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create');
+    Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store');
+    Route::get('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show');
+    Route::get('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit');
+    Route::put('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update');
+    Route::delete('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy');
 
-// ==================== فروش رسمی ====================
-Route::resource('sales', SaleController::class)->middleware('auth');
-Route::post('/sales/{sale}/mark-paid', [SaleController::class, 'markAsPaid'])->name('sales.paid')->middleware('auth');
-Route::post('/sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sales.cancel')->middleware('auth');
+    // فروش رسمی
+    Route::resource('sales', SaleController::class);
+    Route::post('/sales/{sale}/mark-paid', [SaleController::class, 'markAsPaid'])->name('sales.mark-paid');
+    Route::post('/sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sales.cancel');
 
-// ==================== فروش غیررسمی ====================
-Route::resource('informal-sales', InformalSaleController::class)->middleware('auth');
-Route::post('/informal-sales/{informal_sale}/mark-paid', [InformalSaleController::class, 'markAsPaid'])->name('informal-sales.paid')->middleware('auth');
-Route::post('/informal-sales/{informal_sale}/cancel', [InformalSaleController::class, 'cancel'])->name('informal-sales.cancel')->middleware('auth');
+    // فروش غیررسمی
+    Route::resource('informal-sales', InformalSaleController::class);
+    Route::post('/informal-sales/{informalSale}/mark-paid', [InformalSaleController::class, 'markAsPaid'])->name('informal-sales.mark-paid');
+    Route::post('/informal-sales/{informalSale}/cancel', [InformalSaleController::class, 'cancel'])->name('informal-sales.cancel');
 
-// ==================== مشتریان ====================
-Route::resource('customers', CustomerController::class)->middleware('auth');
-Route::patch('/customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->name('customers.toggle-status')->middleware('auth');
+    // مشتریان
+    Route::resource('customers', CustomerController::class);
+    Route::post('/customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->name('customers.toggle-status');
 
-// ==================== اپراتورها ====================
-Route::resource('operators', OperatorController::class)->middleware('auth');
+    // محصولات
+    Route::resource('products', ProductController::class);
+    Route::post('/products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->name('products.toggle-status');
+    Route::post('/products/{product}/toggle-production', [ProductController::class, 'toggleInProduction'])->name('products.toggle-production');
 
-// ==================== پرس‌ها ====================
-Route::resource('presses', PressController::class)->middleware('auth');
+    // اپراتورها
+    Route::resource('operators', OperatorController::class);
+    Route::post('/operators/{operator}/toggle-status', [OperatorController::class, 'toggleStatus'])->name('operators.toggle-status');
 
-// ==================== محصولات ====================
-Route::resource('products', ProductController::class)->middleware('auth');
+    // پرس‌ها
+    Route::resource('presses', PressController::class);
+    Route::post('/presses/{press}/toggle-status', [PressController::class, 'toggleStatus'])->name('presses.toggle-status');
 
-// ==================== لاگ محصولات ====================
-Route::resource('product_logs', ProductLogController::class)->only(['index'])->middleware('auth');
+    // مواد اولیه
+    Route::resource('raw-materials', RawMaterialController::class);
 
-// ==================== Undo ====================
-Route::get('/undo/restore', [UndoController::class, 'restore'])->name('undo.restore')->middleware('auth');
-Route::get('/undo/discard', [UndoController::class, 'discard'])->name('undo.discard')->middleware('auth');
+    // فرمول‌ها
+    Route::resource('formulas', FormulaController::class);
 
-// ==================== Toggle های دیگر ====================
-Route::patch('/products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->name('products.toggle-status')->middleware('auth');
-Route::patch('/products/{product}/toggle-in-production', [ProductController::class, 'toggleInProduction'])->name('products.toggle-in-production')->middleware('auth');
-Route::patch('/operators/{operator}/toggle-status', [OperatorController::class, 'toggleStatus'])->name('operators.toggle-status')->middleware('auth');
-Route::patch('/presses/{press}/toggle-status', [PressController::class, 'toggleStatus'])->name('presses.toggle-status')->middleware('auth');
+    // کارتن و لایه
+    Route::resource('packagings', PackagingController::class);
 
-// ==================== مواد اولیه (تنظیمات) ====================
-Route::resource('raw-materials', RawMaterialController::class)->middleware('auth');
+    // خرید مواد اولیه
+    Route::resource('raw-material-purchases', RawMaterialPurchaseController::class);
 
-// ==================== فرمول‌ها (تنظیمات) ====================
-Route::resource('formulas', FormulaController::class)->middleware('auth');
+    // خرید کارتن و لایه
+    Route::resource('packaging-purchases', PackagingPurchaseController::class);
 
-// ==================== کارتن و لایه (تنظیمات) ====================
-Route::resource('packagings', PackagingController::class)->middleware('auth');
+    // موجودی
+    Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+    Route::get('/inventory/raw-materials', [InventoryController::class, 'rawMaterialsStock'])->name('inventory.raw-materials');
+    Route::get('/inventory/raw', [InventoryController::class, 'raw'])->name('inventory.raw');
+    Route::get('/inventory/mum', [InventoryController::class, 'mum'])->name('inventory.mum');
+    Route::get('/inventory/glaze1300', [InventoryController::class, 'glaze1300'])->name('inventory.glaze1300');
+    Route::get('/inventory/packaging-stock', [InventoryController::class, 'packagingStock'])->name('inventory.packaging-stock');
+    Route::get('/inventory/warehouse', [InventoryController::class, 'warehouse'])->name('inventory.warehouse');
+    Route::get('/inventory/shoulder', [InventoryController::class, 'shoulder'])->name('inventory.shoulder');
+    Route::get('/inventory/all-stocks', [InventoryController::class, 'allStocks'])->name('inventory.all-stocks');
 
-// ==================== خرید مواد اولیه ====================
-Route::resource('raw-material-purchases', RawMaterialPurchaseController::class)->middleware('auth');
+    // موجودی اول دوره
+    Route::resource('opening-inventories', OpeningInventoryController::class);
 
-// ==================== خرید کارتن و لایه ====================
-Route::resource('packaging-purchases', PackagingPurchaseController::class)->middleware('auth');
+    // واردات
+    Route::get('/import', [ImportController::class, 'index'])->name('import.index');
+    Route::post('/import/from-path', [ImportController::class, 'importFromPath'])->name('import.from-path');
+    Route::post('/import/productions', [ImportController::class, 'importProductions'])->name('import.productions');
+    Route::post('/import/tonneli', [ImportController::class, 'importTonneli'])->name('import.tonneli');
+    Route::post('/import/shuttle', [ImportController::class, 'importShuttle'])->name('import.shuttle');
+    Route::post('/import/informal-sales', [ImportController::class, 'importInformalSales'])->name('import.informal-sales');
+    Route::post('/import/formal-sales', [ImportController::class, 'importFormalSales'])->name('import.formal-sales');
+    Route::post('/import/shoulder', [ImportController::class, 'importShoulder'])->name('import.shoulder');
 
-// ==================== موجودی اول دوره ====================
-Route::resource('opening-inventories', OpeningInventoryController::class)->middleware('auth');
+    // گزارشات
+    Route::get('/reports/production', [ReportController::class, 'production'])->name('reports.production');
+    Route::get('/reports/production/export', [ReportController::class, 'exportProductionCSV'])->name('reports.production.export');
+    Route::get('/reports/firing', [ReportController::class, 'firing'])->name('reports.firing');
+    Route::get('/reports/annual', [ReportController::class, 'annual'])->name('reports.annual');
 
-// ==================== قیمت تمام شده ====================
-Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-price.index')->middleware('auth');
+    // قیمت تمام شده
+    Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-price.index');
 
-// ==================== گزارشات ====================
-Route::get('/reports/production', [ReportController::class, 'production'])->name('reports.production')->middleware('auth');
-Route::get('/reports/production/export', [ReportController::class, 'exportProductionCSV'])->name('reports.production.export')->middleware('auth');
-Route::get('/reports/firing', [ReportController::class, 'firing'])->name('reports.firing')->middleware('auth');
-Route::get('/reports/annual', [ReportController::class, 'annual'])->name('reports.annual')->middleware('auth');
+    // تاریخچه تغییرات محصولات
+    Route::get('/product-logs', [ProductLogController::class, 'index'])->name('product_logs.index');
 
-// ==================== موجودی‌ها ====================
-Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index')->middleware('auth');
-Route::get('/inventory/raw-materials', [InventoryController::class, 'rawMaterialsStock'])->name('inventory.raw-materials')->middleware('auth');
-Route::get('/inventory/raw', [InventoryController::class, 'raw'])->name('inventory.raw')->middleware('auth');
-Route::get('/inventory/mum', [InventoryController::class, 'mum'])->name('inventory.mum')->middleware('auth');
-Route::get('/inventory/glaze1300', [InventoryController::class, 'glaze1300'])->name('inventory.glaze1300')->middleware('auth');
-Route::get('/inventory/packaging-stock', [InventoryController::class, 'packagingStock'])->name('inventory.packaging-stock')->middleware('auth');
-Route::get('/inventory/warehouse', [InventoryController::class, 'warehouse'])->name('inventory.warehouse')->middleware('auth');
+    // Undo (بازگرداندن)
+    Route::get('/undo/restore', [UndoController::class, 'restore'])->name('undo.restore');
+    Route::get('/undo/discard', [UndoController::class, 'discard'])->name('undo.discard');
 
-// ==================== واردات از اکسل ====================
-Route::get('/import', [ImportController::class, 'index'])->name('import.index')->middleware('auth');
-Route::post('/import/productions', [ImportController::class, 'importProductions'])->name('import.productions')->middleware('auth');
-Route::post('/import/tonneli', [ImportController::class, 'importTonneli'])->name('import.tonneli')->middleware('auth');
-Route::post('/import/shuttle', [ImportController::class, 'importShuttle'])->name('import.shuttle')->middleware('auth');
-Route::get('/import/from-path', [ImportController::class, 'importFromPath'])->name('import.from-path')->middleware('auth');
+    // تست (در صورت نیاز)
+    Route::get('/test', [TestController::class, 'index'])->name('test.index');
+    Route::post('/test', [TestController::class, 'store'])->name('test.store');
 
-// ===== مسیر واردات فروش غیررسمی =====
-Route::post('/import/informal-sales', [ImportController::class, 'importInformalSales'])->name('import.informal-sales')->middleware('auth');
-
-// ===== مسیر واردات فروش رسمی =====
-Route::post('/import/formal-sales', [ImportController::class, 'importFormalSales'])->name('import.formal-sales')->middleware('auth');
-
-// ===== مسیر تست (فقط برای عیب‌یابی) =====
-Route::get('/test', [TestController::class, 'index'])->name('test.index')->middleware('auth');
-Route::post('/test', [TestController::class, 'store'])->name('test.store')->middleware('auth');
-
-Route::get('/test-informal-sale-simple', function () {
-    try {
-        $customer = App\Models\Customer::firstOrCreate(['name' => 'تست سریع'], ['status' => 1]);
-        $product = App\Models\Product::firstOrCreate(['name' => 'محصول سریع'], ['code' => 'FAST001', 'status' => 1, 'cavities' => 0, 'weight' => 0, 'per_box' => 0, 'layers_per_box' => 0, 'firing_process' => 'tonneli']);
-
-        $jalali = Morilog\Jalali\Jalalian::fromFormat('Y/m/d', '1405/06/01');
-        $gregorian = $jalali->toCarbon();
-
-        $sale = App\Models\InformalSale::create([
-            'year' => 1405,
-            'number' => 1000,
-            'date' => $gregorian,
-            'customer_id' => $customer->id,
-            'customer_name' => $customer->name,
-            'total_price' => 500000,
-            'status' => 'unpaid',
-        ]);
-
-        App\Models\InformalSaleProduct::create([
-            'informal_sale_id' => $sale->id,
-            'product_id' => $product->id,
-            'quantity' => 5,
-            'unit_price' => 100000,
-        ]);
-
-        return "✅ ثبت شد. ID: " . $sale->id . " - تاریخ شمسی: 1405/06/01";
-    } catch (\Exception $e) {
-        return "❌ خطا: " . $e->getMessage();
-    }
+    // پروفایل کاربر
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 require __DIR__.'/auth.php';

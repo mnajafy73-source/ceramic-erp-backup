@@ -17,6 +17,8 @@ use App\Models\InformalSale;
 use App\Models\InformalSaleProduct;
 use App\Models\Sale;
 use App\Models\SaleProduct;
+use App\Models\ShoulderRecord;
+use App\Models\WasteMumRecord;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
@@ -34,7 +36,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  واردات خودکار از مسیر (دکمه) - ✅ با اجرای خودکار fix-stock
+    //  ✅ واردات خودکار از مسیر (اصلاح‌شده)
     // ============================================================
     public function importFromPath()
     {
@@ -45,9 +47,13 @@ class ImportController extends Controller
                 ->withErrors(['file' => 'مسیر فایل اکسل در فایل .env تنظیم نشده یا فایل وجود ندارد.']);
         }
 
+        $errors = [];
+        $anySuccess = false;
+
         try {
             set_time_limit(0);
 
+            // حذف رکوردهای قبلی
             DB::statement('DELETE FROM production_stops');
             DB::statement('DELETE FROM productions');
             DB::statement('DELETE FROM tonneli_firing_items');
@@ -58,27 +64,91 @@ class ImportController extends Controller
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($filePath);
 
-            $this->importProductionsFromSpreadsheet($spreadsheet);
-            $this->importTonneliFromSpreadsheet($spreadsheet);
-            $this->importShuttleFromSpreadsheet($spreadsheet);
-            $this->importInformalSalesFromSpreadsheet($spreadsheet);
-            $this->importFormalSalesFromSpreadsheet($spreadsheet);
+            // ---- هر برگه با try-catch جداگانه ----
+            try {
+                $this->importProductionsFromSpreadsheet($spreadsheet);
+                $anySuccess = true;
+            } catch (\Exception $e) {
+                $errors[] = 'خطا در برگه تولید: ' . $e->getMessage();
+                \Log::error('importProductionsFromSpreadsheet failed: ' . $e->getMessage());
+            }
 
-            // ✅ اجرای خودکار دستورات fix-stock بعد از واردات
+            try {
+                $this->importTonneliFromSpreadsheet($spreadsheet);
+                $anySuccess = true;
+            } catch (\Exception $e) {
+                $errors[] = 'خطا در برگه کوره تونلی: ' . $e->getMessage();
+                \Log::error('importTonneliFromSpreadsheet failed: ' . $e->getMessage());
+            }
+
+            try {
+                $this->importShuttleFromSpreadsheet($spreadsheet);
+                $anySuccess = true;
+            } catch (\Exception $e) {
+                $errors[] = 'خطا در برگه کوره شاتل: ' . $e->getMessage();
+                \Log::error('importShuttleFromSpreadsheet failed: ' . $e->getMessage());
+            }
+
+            try {
+                $this->importInformalSalesFromSpreadsheet($spreadsheet);
+                $anySuccess = true;
+            } catch (\Exception $e) {
+                $errors[] = 'خطا در برگه فروش غیررسمی: ' . $e->getMessage();
+                \Log::error('importInformalSalesFromSpreadsheet failed: ' . $e->getMessage());
+            }
+
+            try {
+                $this->importFormalSalesFromSpreadsheet($spreadsheet);
+                $anySuccess = true;
+            } catch (\Exception $e) {
+                $errors[] = 'خطا در برگه فروش رسمی: ' . $e->getMessage();
+                \Log::error('importFormalSalesFromSpreadsheet failed: ' . $e->getMessage());
+            }
+
+            // ⭐ برگه شانه زنی (که قبلاً فراموش شده بود)
+            try {
+                $this->importShoulderFromSpreadsheet($spreadsheet);
+                $anySuccess = true;
+            } catch (\Exception $e) {
+                $errors[] = 'خطا در برگه شانه زنی: ' . $e->getMessage();
+                \Log::error('importShoulderFromSpreadsheet failed: ' . $e->getMessage());
+            }
+
+        } catch (\Exception $e) {
+            // خطای عمومی (مثل بارگذاری فایل)
+            return redirect()->route('import.index')
+                ->withErrors(['file' => 'خطا در خواندن فایل: ' . $e->getMessage()]);
+        }
+
+        // ---- به‌روزرسانی موجودی‌ها در هر صورت (حتی اگر برخی برگه‌ها خطا داشته باشند) ----
+        try {
             Artisan::call('raw-material:fix-stock');
             Artisan::call('wax:fix-stock');
             Artisan::call('glaze1300:fix-stock');
-
-            return redirect()->route('import.index')
-                ->with('success', '✅ تمام برگه‌ها با موفقیت از مسیر وارد شدند و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.');
+            Artisan::call('warehouse:fix-stock');
+            Artisan::call('shoulder:fix-stock');
+            Artisan::call('wastemum:fix-stock');
+            Artisan::call('wax:fix-stock'); // دوباره برای اطمینان
         } catch (\Exception $e) {
+            $errors[] = 'خطا در به‌روزرسانی موجودی‌ها: ' . $e->getMessage();
+            \Log::error('Artisan commands failed: ' . $e->getMessage());
+        }
+
+        // ---- ساخت پیام نهایی ----
+        if ($anySuccess) {
+            $message = '✅ واردات خودکار با موفقیت انجام شد.';
+            if (!empty($errors)) {
+                $message .= ' ⚠️ اما برخی خطاها رخ داد: ' . implode(' | ', $errors);
+            }
+            return redirect()->route('import.index')->with('success', $message);
+        } else {
             return redirect()->route('import.index')
-                ->withErrors(['file' => 'خطا در خواندن فایل: ' . $e->getMessage()]);
+                ->withErrors(['file' => '❌ هیچ برگه‌ای با موفقیت وارد نشد. خطاها: ' . implode(' | ', $errors)]);
         }
     }
 
     // ============================================================
-    //  برگه تولید (آپلود دستی) - ✅ با اجرای خودکار fix-stock
+    //  برگه تولید (آپلود دستی) - بدون تغییر
     // ============================================================
     public function importProductions(Request $request)
     {
@@ -170,12 +240,15 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در حین ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        // ✅ اجرای خودکار fix-stock بعد از واردات
         Artisan::call('raw-material:fix-stock');
         Artisan::call('wax:fix-stock');
         Artisan::call('glaze1300:fix-stock');
+        Artisan::call('warehouse:fix-stock');
+        Artisan::call('shoulder:fix-stock');
+        Artisan::call('wastemum:fix-stock');
+        Artisan::call('wax:fix-stock');
 
-        $message = "✅ {$count} رکورد تولید با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
+        $message = "✅ {$count} رکورد تولید با موفقیت وارد شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
@@ -185,7 +258,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه کوره تونلی (آپلود دستی) - ✅ با اجرای خودکار fix-stock
+    //  برگه کوره تونلی (آپلود دستی) - بدون تغییر
     // ============================================================
     public function importTonneli(Request $request)
     {
@@ -277,12 +350,15 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در حین ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        // ✅ اجرای خودکار fix-stock بعد از واردات
         Artisan::call('raw-material:fix-stock');
         Artisan::call('wax:fix-stock');
         Artisan::call('glaze1300:fix-stock');
+        Artisan::call('warehouse:fix-stock');
+        Artisan::call('shoulder:fix-stock');
+        Artisan::call('wastemum:fix-stock');
+        Artisan::call('wax:fix-stock');
 
-        $message = "✅ {$count} رکورد کوره تونلی با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
+        $message = "✅ {$count} رکورد کوره تونلی با موفقیت وارد شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
@@ -292,7 +368,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه کوره شاتل (آپلود دستی) - ✅ با اجرای خودکار fix-stock
+    //  برگه کوره شاتل (آپلود دستی) - بدون تغییر
     // ============================================================
     public function importShuttle(Request $request)
     {
@@ -429,12 +505,15 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در حین ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        // ✅ اجرای خودکار fix-stock بعد از واردات
         Artisan::call('raw-material:fix-stock');
         Artisan::call('wax:fix-stock');
         Artisan::call('glaze1300:fix-stock');
+        Artisan::call('warehouse:fix-stock');
+        Artisan::call('shoulder:fix-stock');
+        Artisan::call('wastemum:fix-stock');
+        Artisan::call('wax:fix-stock');
 
-        $message = "✅ {$count} رکورد کوره شاتل در " . count($groups) . " پخت با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
+        $message = "✅ {$count} رکورد کوره شاتل در " . count($groups) . " پخت با موفقیت وارد شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) $message .= " و " . (count($errors) - 5) . " خطای دیگر.";
@@ -444,7 +523,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه فروش غیررسمی (آپلود دستی) - ✅ با اجرای خودکار fix-stock
+    //  برگه فروش غیررسمی (آپلود دستی) - بدون تغییر
     // ============================================================
     public function importInformalSales(Request $request)
     {
@@ -581,12 +660,15 @@ class ImportController extends Controller
             return back()->withErrors(['file' => 'خطا در ذخیره‌سازی: ' . $e->getMessage()]);
         }
 
-        // ✅ اجرای خودکار fix-stock بعد از واردات
         Artisan::call('raw-material:fix-stock');
         Artisan::call('wax:fix-stock');
         Artisan::call('glaze1300:fix-stock');
+        Artisan::call('warehouse:fix-stock');
+        Artisan::call('shoulder:fix-stock');
+        Artisan::call('wastemum:fix-stock');
+        Artisan::call('wax:fix-stock');
 
-        $message = "✅ {$count} آیتم فروش غیررسمی با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
+        $message = "✅ {$count} آیتم فروش غیررسمی با موفقیت وارد شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) {
@@ -598,7 +680,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه فروش رسمی (آپلود دستی) - ✅ با اجرای خودکار fix-stock
+    //  برگه فروش رسمی (آپلود دستی) - بدون تغییر
     // ============================================================
     public function importFormalSales(Request $request)
     {
@@ -635,7 +717,6 @@ class ImportController extends Controller
         }
 
         DB::statement('PRAGMA foreign_keys = OFF');
-
         DB::statement('DELETE FROM sale_products');
         DB::statement('DELETE FROM sales');
 
@@ -774,12 +855,15 @@ class ImportController extends Controller
             DB::statement('PRAGMA foreign_keys = ON');
         }
 
-        // ✅ اجرای خودکار fix-stock بعد از واردات
         Artisan::call('raw-material:fix-stock');
         Artisan::call('wax:fix-stock');
         Artisan::call('glaze1300:fix-stock');
+        Artisan::call('warehouse:fix-stock');
+        Artisan::call('shoulder:fix-stock');
+        Artisan::call('wastemum:fix-stock');
+        Artisan::call('wax:fix-stock');
 
-        $message = "✅ {$count} آیتم فروش رسمی با موفقیت وارد شد و موجودی مواد اولیه، موم و ۱۳۰۰ درجه به‌روز شد.";
+        $message = "✅ {$count} آیتم فروش رسمی با موفقیت وارد شد.";
         if (!empty($errors)) {
             $message .= " ⚠️ خطاها: " . implode(' | ', array_slice($errors, 0, 5));
             if (count($errors) > 5) {
@@ -791,8 +875,152 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  ✅ واردات فروش غیررسمی از مسیر (بدون تغییر)
+    //  ✅ برگه شانه زنی (آپلود دستی) - بدون تغییر
     // ============================================================
+    public function importShoulder(Request $request)
+    {
+        set_time_limit(0);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:10240',
+        ]);
+
+        $reader = IOFactory::createReaderForFile($request->file('file')->getPathname());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($request->file('file')->getPathname());
+
+        $sheet = $spreadsheet->getSheetByName('شانه زنی');
+        if (!$sheet) {
+            return back()->withErrors(['file' => 'برگه "شانه زنی" در فایل یافت نشد.']);
+        }
+
+        $rows = $sheet->toArray();
+        array_shift($rows);
+
+        DB::beginTransaction();
+        try {
+            ShoulderRecord::truncate();
+            WasteMumRecord::truncate();
+
+            foreach ($rows as $row) {
+                if (empty(array_filter($row))) continue;
+
+                $year = (int) trim($row[0] ?? 0);
+                $month = (int) trim($row[1] ?? 0);
+                $day = (int) trim($row[2] ?? 0);
+                $name = trim($row[3] ?? '');
+                $productName = trim($row[4] ?? '');
+                $cartonCount = (int) str_replace(',', '', trim($row[5] ?? 0));
+                $perCarton = (int) str_replace(',', '', trim($row[6] ?? 0));
+                $total = (int) str_replace(',', '', trim($row[7] ?? 0));
+                $shoulder = (int) str_replace(',', '', trim($row[8] ?? 0));
+
+                if (empty($productName)) continue;
+
+                if ($name == 'ضایعات موم') {
+                    WasteMumRecord::create([
+                        'year' => $year,
+                        'month' => $month,
+                        'day' => $day,
+                        'product_name' => $productName,
+                        'amount' => $total,
+                    ]);
+                } else {
+                    if ($total <= 0) continue;
+                    ShoulderRecord::create([
+                        'year' => $year,
+                        'month' => $month,
+                        'day' => $day,
+                        'name' => $name,
+                        'product_name' => $productName,
+                        'carton_count' => $cartonCount,
+                        'per_carton' => $perCarton,
+                        'total' => $total,
+                        'shoulder' => $shoulder,
+                    ]);
+                }
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['file' => 'خطا در ذخیره‌سازی: ' . $e->getMessage()]);
+        }
+
+        Artisan::call('shoulder:fix-stock');
+        Artisan::call('wastemum:fix-stock');
+        Artisan::call('wax:fix-stock');
+
+        return redirect()->route('import.index')
+            ->with('success', '✅ برگه شانه زنی با موفقیت وارد شد و موجودی‌ها به‌روز شد.');
+    }
+
+    // ============================================================
+    //  متدهای خصوصی
+    // ============================================================
+
+    // ---- متد جدید برای واردات شانه زنی در خودکار ----
+    private function importShoulderFromSpreadsheet($spreadsheet)
+    {
+        $sheet = $spreadsheet->getSheetByName('شانه زنی');
+        if (!$sheet) {
+            return; // اگر برگه وجود نداشت، بدون خطا برگرد
+        }
+
+        $rows = $sheet->toArray();
+        array_shift($rows);
+
+        DB::beginTransaction();
+        try {
+            ShoulderRecord::truncate();
+            WasteMumRecord::truncate();
+
+            foreach ($rows as $row) {
+                if (empty(array_filter($row))) continue;
+
+                $year = (int) trim($row[0] ?? 0);
+                $month = (int) trim($row[1] ?? 0);
+                $day = (int) trim($row[2] ?? 0);
+                $name = trim($row[3] ?? '');
+                $productName = trim($row[4] ?? '');
+                $cartonCount = (int) str_replace(',', '', trim($row[5] ?? 0));
+                $perCarton = (int) str_replace(',', '', trim($row[6] ?? 0));
+                $total = (int) str_replace(',', '', trim($row[7] ?? 0));
+                $shoulder = (int) str_replace(',', '', trim($row[8] ?? 0));
+
+                if (empty($productName)) continue;
+
+                if ($name == 'ضایعات موم') {
+                    WasteMumRecord::create([
+                        'year' => $year,
+                        'month' => $month,
+                        'day' => $day,
+                        'product_name' => $productName,
+                        'amount' => $total,
+                    ]);
+                } else {
+                    if ($total <= 0) continue;
+                    ShoulderRecord::create([
+                        'year' => $year,
+                        'month' => $month,
+                        'day' => $day,
+                        'name' => $name,
+                        'product_name' => $productName,
+                        'carton_count' => $cartonCount,
+                        'per_carton' => $perCarton,
+                        'total' => $total,
+                        'shoulder' => $shoulder,
+                    ]);
+                }
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e; // برای مدیریت توسط try-catch بالاتر
+        }
+    }
+
+    // ---- سایر متدهای خصوصی (بدون تغییر) ----
     private function importInformalSalesFromSpreadsheet($spreadsheet)
     {
         $sheetNames = ['غیر رسمی', 'غیررسمی', 'غیر رسمی فروش', 'غیررسمی فروش'];
@@ -819,14 +1047,11 @@ class ImportController extends Controller
         DB::beginTransaction();
 
         try {
-            foreach ($rows as $rowIndex => $row) {
+            foreach ($rows as $row) {
                 try {
-                    if (empty(array_filter($row))) {
-                        continue;
-                    }
+                    if (empty(array_filter($row))) continue;
 
                     $row = array_pad($row, 10, '');
-
                     $year = (int) trim($row[0]);
                     $month = (int) trim($row[1]);
                     $day = (int) trim($row[2]);
@@ -911,9 +1136,6 @@ class ImportController extends Controller
         }
     }
 
-    // ============================================================
-    //  ✅ واردات فروش رسمی از مسیر (بدون تغییر)
-    // ============================================================
     private function importFormalSalesFromSpreadsheet($spreadsheet)
     {
         $sheetNames = ['رسمی', 'فروش رسمی', 'رسمی فروش'];
@@ -935,7 +1157,6 @@ class ImportController extends Controller
         }
 
         DB::statement('PRAGMA foreign_keys = OFF');
-
         DB::statement('DELETE FROM sale_products');
         DB::statement('DELETE FROM sales');
 
@@ -947,14 +1168,11 @@ class ImportController extends Controller
             $invoiceWithTaxTotals = [];
             $invoiceStatus = [];
 
-            foreach ($rows as $rowIndex => $row) {
+            foreach ($rows as $row) {
                 try {
-                    if (empty(array_filter($row))) {
-                        continue;
-                    }
+                    if (empty(array_filter($row))) continue;
 
                     $col = array_pad($row, 14, '');
-
                     $year = (int) trim($col[0]);
                     $month = (int) trim($col[1]);
                     $day = (int) trim($col[2]);
@@ -1066,216 +1284,6 @@ class ImportController extends Controller
             DB::statement('PRAGMA foreign_keys = ON');
         }
     }
-
-    // ============================================================
-    //  متدهای کمکی موجودی (با استفاده از DB)
-    // ============================================================
-
-    private function calculateBoxAndLayer($productId, $quantity)
-    {
-        $product = Product::find($productId);
-        if (!$product) {
-            return ['box' => 0, 'layer' => 0, 'pallet' => 0];
-        }
-
-        $box = 0;
-        $layer = 0;
-        $pallet = 0;
-
-        if ($product->per_box && $product->per_box > 0) {
-            $box = intval($quantity / $product->per_box);
-        }
-        if ($product->layers_per_box && $product->layers_per_box > 0 && $product->per_box > 0) {
-            $perLayer = $product->per_box * $product->layers_per_box;
-            $layer = intval($quantity / $perLayer);
-        }
-        if ($product->per_pallet && $product->per_pallet > 0) {
-            $pallet = intval($quantity / $product->per_pallet);
-        }
-
-        return ['box' => $box, 'layer' => $layer, 'pallet' => $pallet];
-    }
-
-    private function decreaseStockDB($productId, $quantity, $box, $layer, $pallet)
-    {
-        $existing = DB::table('inventories')->where('product_id', $productId)->first();
-
-        if ($existing) {
-            DB::table('inventories')
-                ->where('product_id', $productId)
-                ->update([
-                    'quantity' => max(0, $existing->quantity - $quantity),
-                    'box' => max(0, $existing->box - $box),
-                    'layer' => max(0, $existing->layer - $layer),
-                    'pallet' => max(0, $existing->pallet - $pallet),
-                    'updated_at' => now(),
-                ]);
-        } else {
-            DB::table('inventories')->insert([
-                'product_id' => $productId,
-                'quantity' => 0,
-                'box' => 0,
-                'layer' => 0,
-                'pallet' => 0,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-    }
-
-    // ============================================================
-    //  متدهای کمکی دیگر
-    // ============================================================
-
-    private $operatorsCache = [];
-    private $productsCache = [];
-    private $pressesCache = [];
-    private $customersCache = [];
-
-    private function getOrCreateOperator($name)
-    {
-        $cleanName = trim($name);
-        if (!isset($this->operatorsCache[$cleanName])) {
-            $this->operatorsCache[$cleanName] = Operator::firstOrCreate(
-                ['name' => $cleanName],
-                ['status' => 1]
-            );
-        }
-        return $this->operatorsCache[$cleanName];
-    }
-
-    private function findOrCreateProduct($name)
-    {
-        $cleanName = trim($name);
-
-        if (isset($this->productsCache[$cleanName])) {
-            return $this->productsCache[$cleanName];
-        }
-
-        $product = Product::where('name', $cleanName)->first();
-        if ($product) {
-            $this->productsCache[$cleanName] = $product;
-            return $product;
-        }
-
-        $alias = ProductAlias::where('alias', $cleanName)->first();
-        if ($alias) {
-            $product = $alias->product;
-            $this->productsCache[$cleanName] = $product;
-            return $product;
-        }
-
-        $product = Product::create([
-            'code' => 'IMP-' . time() . '-' . rand(100, 999),
-            'name' => $cleanName,
-            'unit_id' => 1,
-            'status' => 1,
-            'cavities' => 0,
-            'weight' => 0,
-            'per_box' => 0,
-            'layers_per_box' => 0,
-            'firing_process' => 'tonneli',
-        ]);
-
-        $this->productsCache[$cleanName] = $product;
-        return $product;
-    }
-
-    private function findProduct($name)
-    {
-        $cleanName = trim($name);
-
-        if (isset($this->productsCache[$cleanName])) {
-            return $this->productsCache[$cleanName];
-        }
-
-        $product = Product::where('name', $cleanName)->first();
-        if ($product) {
-            $this->productsCache[$cleanName] = $product;
-            return $product;
-        }
-
-        $alias = ProductAlias::where('alias', $cleanName)->first();
-        if ($alias) {
-            $product = $alias->product;
-            $this->productsCache[$cleanName] = $product;
-            return $product;
-        }
-
-        return null;
-    }
-
-    private function getOrCreatePress($number)
-    {
-        $name = 'پرس ' . trim($number);
-        if (!isset($this->pressesCache[$name])) {
-            $this->pressesCache[$name] = Press::firstOrCreate(
-                ['name' => $name],
-                ['status' => 1]
-            );
-        }
-        return $this->pressesCache[$name];
-    }
-
-    private function mapKilnNumberToType($kilnNumber, $firingType = null)
-    {
-        $kilnNumber = trim($kilnNumber);
-        if (is_numeric($kilnNumber)) {
-            $num = (int)$kilnNumber;
-            if ($num >= 1 && $num <= 4) {
-                return 'kiln_' . $num;
-            }
-        }
-        if (strtolower($kilnNumber) === 'بسته‌بندی' || strtolower($kilnNumber) === 'packaging') {
-            return 'packaging';
-        }
-        if ($firingType) {
-            if (strpos($firingType, 'معمولی') !== false) return 'kiln_1';
-            if (strpos($firingType, '1300') !== false) return 'kiln_2';
-            if (strpos($firingType, 'لعاب') !== false || strpos($firingType, 'موم') !== false) return 'kiln_3';
-        }
-        return 'kiln_1';
-    }
-
-    private function subtractPackagingForTonneli($product, $quantity)
-    {
-        if ($quantity <= 0) return;
-
-        if ($product->carton_packaging_id && $product->per_box > 0) {
-            $cartonCount = ceil($quantity / $product->per_box);
-            $carton = Packaging::find($product->carton_packaging_id);
-            if ($carton) {
-                $carton->stock -= $cartonCount;
-                $carton->save();
-            }
-        }
-
-        if ($product->layer_packaging_id && $product->layers_per_box > 0 && $product->per_box > 0) {
-            $cartonCount = ceil($quantity / $product->per_box);
-            $layerCount = $cartonCount * $product->layers_per_box;
-            $layer = Packaging::find($product->layer_packaging_id);
-            if ($layer) {
-                $layer->stock -= $layerCount;
-                $layer->save();
-            }
-        }
-    }
-
-    private function detectStopType($reason)
-    {
-        $reason = trim($reason);
-        if (strpos($reason, 'قالب') !== false || strpos($reason, 'تعویض') !== false) {
-            return 'تعویض قالب';
-        }
-        if (strpos($reason, 'خرابی') !== false || strpos($reason, 'ماشین') !== false) {
-            return 'خرابی ماشین';
-        }
-        return 'سایر';
-    }
-
-    // ============================================================
-    //  متدهای واردات از مسیر برای برگه‌های دیگر
-    // ============================================================
 
     private function importProductionsFromSpreadsheet($spreadsheet)
     {
@@ -1514,5 +1522,207 @@ class ImportController extends Controller
             DB::rollBack();
             throw $e;
         }
+    }
+
+    // ============================================================
+    //  متدهای کمکی (بدون تغییر)
+    // ============================================================
+
+    private function calculateBoxAndLayer($productId, $quantity)
+    {
+        $product = Product::find($productId);
+        if (!$product) {
+            return ['box' => 0, 'layer' => 0, 'pallet' => 0];
+        }
+
+        $box = 0;
+        $layer = 0;
+        $pallet = 0;
+
+        if ($product->per_box && $product->per_box > 0) {
+            $box = intval($quantity / $product->per_box);
+        }
+        if ($product->layers_per_box && $product->layers_per_box > 0 && $product->per_box > 0) {
+            $perLayer = $product->per_box * $product->layers_per_box;
+            $layer = intval($quantity / $perLayer);
+        }
+        if ($product->per_pallet && $product->per_pallet > 0) {
+            $pallet = intval($quantity / $product->per_pallet);
+        }
+
+        return ['box' => $box, 'layer' => $layer, 'pallet' => $pallet];
+    }
+
+    private function decreaseStockDB($productId, $quantity, $box, $layer, $pallet)
+    {
+        $existing = DB::table('inventories')->where('product_id', $productId)->first();
+
+        if ($existing) {
+            DB::table('inventories')
+                ->where('product_id', $productId)
+                ->update([
+                    'quantity' => max(0, $existing->quantity - $quantity),
+                    'box' => max(0, $existing->box - $box),
+                    'layer' => max(0, $existing->layer - $layer),
+                    'pallet' => max(0, $existing->pallet - $pallet),
+                    'updated_at' => now(),
+                ]);
+        } else {
+            DB::table('inventories')->insert([
+                'product_id' => $productId,
+                'quantity' => 0,
+                'box' => 0,
+                'layer' => 0,
+                'pallet' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    private $operatorsCache = [];
+    private $productsCache = [];
+    private $pressesCache = [];
+    private $customersCache = [];
+
+    private function getOrCreateOperator($name)
+    {
+        $cleanName = trim($name);
+        if (!isset($this->operatorsCache[$cleanName])) {
+            $this->operatorsCache[$cleanName] = Operator::firstOrCreate(
+                ['name' => $cleanName],
+                ['status' => 1]
+            );
+        }
+        return $this->operatorsCache[$cleanName];
+    }
+
+    private function findOrCreateProduct($name)
+    {
+        $cleanName = trim($name);
+
+        if (isset($this->productsCache[$cleanName])) {
+            return $this->productsCache[$cleanName];
+        }
+
+        $product = Product::where('name', $cleanName)->first();
+        if ($product) {
+            $this->productsCache[$cleanName] = $product;
+            return $product;
+        }
+
+        $alias = ProductAlias::where('alias', $cleanName)->first();
+        if ($alias) {
+            $product = $alias->product;
+            $this->productsCache[$cleanName] = $product;
+            return $product;
+        }
+
+        $product = Product::create([
+            'code' => 'IMP-' . time() . '-' . rand(100, 999),
+            'name' => $cleanName,
+            'unit_id' => 1,
+            'status' => 1,
+            'cavities' => 0,
+            'weight' => 0,
+            'per_box' => 0,
+            'layers_per_box' => 0,
+            'firing_process' => 'tonneli',
+        ]);
+
+        $this->productsCache[$cleanName] = $product;
+        return $product;
+    }
+
+    private function findProduct($name)
+    {
+        $cleanName = trim($name);
+
+        if (isset($this->productsCache[$cleanName])) {
+            return $this->productsCache[$cleanName];
+        }
+
+        $product = Product::where('name', $cleanName)->first();
+        if ($product) {
+            $this->productsCache[$cleanName] = $product;
+            return $product;
+        }
+
+        $alias = ProductAlias::where('alias', $cleanName)->first();
+        if ($alias) {
+            $product = $alias->product;
+            $this->productsCache[$cleanName] = $product;
+            return $product;
+        }
+
+        return null;
+    }
+
+    private function getOrCreatePress($number)
+    {
+        $name = 'پرس ' . trim($number);
+        if (!isset($this->pressesCache[$name])) {
+            $this->pressesCache[$name] = Press::firstOrCreate(
+                ['name' => $name],
+                ['status' => 1]
+            );
+        }
+        return $this->pressesCache[$name];
+    }
+
+    private function mapKilnNumberToType($kilnNumber, $firingType = null)
+    {
+        $kilnNumber = trim($kilnNumber);
+        if (is_numeric($kilnNumber)) {
+            $num = (int)$kilnNumber;
+            if ($num >= 1 && $num <= 4) {
+                return 'kiln_' . $num;
+            }
+        }
+        if (strtolower($kilnNumber) === 'بسته‌بندی' || strtolower($kilnNumber) === 'packaging') {
+            return 'packaging';
+        }
+        if ($firingType) {
+            if (strpos($firingType, 'معمولی') !== false) return 'kiln_1';
+            if (strpos($firingType, '1300') !== false) return 'kiln_2';
+            if (strpos($firingType, 'لعاب') !== false || strpos($firingType, 'موم') !== false) return 'kiln_3';
+        }
+        return 'kiln_1';
+    }
+
+    private function subtractPackagingForTonneli($product, $quantity)
+    {
+        if ($quantity <= 0) return;
+
+        if ($product->carton_packaging_id && $product->per_box > 0) {
+            $cartonCount = ceil($quantity / $product->per_box);
+            $carton = Packaging::find($product->carton_packaging_id);
+            if ($carton) {
+                $carton->stock -= $cartonCount;
+                $carton->save();
+            }
+        }
+
+        if ($product->layer_packaging_id && $product->layers_per_box > 0 && $product->per_box > 0) {
+            $cartonCount = ceil($quantity / $product->per_box);
+            $layerCount = $cartonCount * $product->layers_per_box;
+            $layer = Packaging::find($product->layer_packaging_id);
+            if ($layer) {
+                $layer->stock -= $layerCount;
+                $layer->save();
+            }
+        }
+    }
+
+    private function detectStopType($reason)
+    {
+        $reason = trim($reason);
+        if (strpos($reason, 'قالب') !== false || strpos($reason, 'تعویض') !== false) {
+            return 'تعویض قالب';
+        }
+        if (strpos($reason, 'خرابی') !== false || strpos($reason, 'ماشین') !== false) {
+            return 'خرابی ماشین';
+        }
+        return 'سایر';
     }
 }

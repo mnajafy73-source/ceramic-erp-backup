@@ -114,7 +114,6 @@
             color: var(--primary);
             cursor: pointer;
         }
-        /* ✅ استایل بخش Undo */
         .alert-undo {
             background: #e8f5fe;
             border: 1px solid #b8dfff;
@@ -206,6 +205,7 @@
                 <a href="{{ route('inventory.glaze1300') }}"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a>
                 <a href="{{ route('inventory.packaging-stock') }}"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="{{ route('inventory.warehouse') }}"><i class="fas fa-warehouse"></i> موجودی انبار</a>
+                <a href="{{ route('inventory.all-stocks') }}"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a> <!-- ✅ اضافه شد -->
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
@@ -262,9 +262,7 @@
         </div>
         <div class="p-3 p-md-4">
 
-            {{-- ============================================================ --}}
-            {{--  ✅ بخش Undo (بازگرداندن) - مستقل از سایر پیام‌ها  --}}
-            {{-- ============================================================ --}}
+            {{-- بخش Undo --}}
             @if(session('undo_record'))
                 <div class="alert-undo">
                     <span>
@@ -282,9 +280,7 @@
                 </div>
             @endif
 
-            {{-- ============================================================ --}}
-            {{--  نمایش پیام‌های موفقیت و خطا  --}}
-            {{-- ============================================================ --}}
+            {{-- پیام‌های موفقیت و خطا --}}
             @if(session('success'))
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     {{ session('success') }}

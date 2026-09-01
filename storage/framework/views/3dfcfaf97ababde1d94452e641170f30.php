@@ -114,7 +114,6 @@
             color: var(--primary);
             cursor: pointer;
         }
-        /* ✅ استایل بخش Undo */
         .alert-undo {
             background: #e8f5fe;
             border: 1px solid #b8dfff;
@@ -206,6 +205,7 @@
                 <a href="<?php echo e(route('inventory.glaze1300')); ?>"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a>
                 <a href="<?php echo e(route('inventory.packaging-stock')); ?>"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="<?php echo e(route('inventory.warehouse')); ?>"><i class="fas fa-warehouse"></i> موجودی انبار</a>
+                <a href="<?php echo e(route('inventory.all-stocks')); ?>"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a> <!-- ✅ اضافه شد -->
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
@@ -263,8 +263,6 @@
         <div class="p-3 p-md-4">
 
             
-            
-            
             <?php if(session('undo_record')): ?>
                 <div class="alert-undo">
                     <span>
@@ -282,8 +280,6 @@
                 </div>
             <?php endif; ?>
 
-            
-            
             
             <?php if(session('success')): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">

@@ -8,6 +8,10 @@ use App\Models\Packaging;
 use App\Models\RawMaterial;
 use App\Models\WaxInventory;
 use App\Models\Glaze1300Inventory;
+use App\Models\WarehouseInventory;
+use App\Models\ShoulderInventory;
+use App\Models\WasteMumInventory;
+use App\Models\OpeningInventory;
 use Illuminate\Http\Request;
 
 class InventoryController extends Controller
@@ -17,18 +21,12 @@ class InventoryController extends Controller
         return view('inventory.index');
     }
 
-    /**
-     * موجودی مواد اولیه
-     */
     public function rawMaterialsStock()
     {
         $materials = RawMaterial::orderBy('name')->get();
         return view('inventory.raw-materials', compact('materials'));
     }
 
-    /**
-     * ✅ موجودی خام (فقط محصولات والد - بدون فرزندان)
-     */
     public function raw(Request $request)
     {
         $query = Product::where('status', 1)
@@ -51,9 +49,6 @@ class InventoryController extends Controller
         return view('inventory.raw', compact('inventories'));
     }
 
-    /**
-     * موجودی موم (۹۰۰ درجه) - فقط محصولات با موجودی > ۰
-     */
     public function mum(Request $request)
     {
         $query = Product::where('status', 1)
@@ -78,9 +73,6 @@ class InventoryController extends Controller
         return view('inventory.mum', compact('inventories'));
     }
 
-    /**
-     * موجودی ۱۳۰۰ درجه - فقط محصولات با موجودی > ۰
-     */
     public function glaze1300(Request $request)
     {
         $query = Product::where('status', 1)
@@ -105,18 +97,12 @@ class InventoryController extends Controller
         return view('inventory.glaze1300', compact('inventories'));
     }
 
-    /**
-     * موجودی کارتن و لایه
-     */
     public function packagingStock()
     {
         $packagings = Packaging::orderBy('type')->orderBy('name')->get();
         return view('inventory.packaging-stock', compact('packagings'));
     }
 
-    /**
-     * موجودی انبار
-     */
     public function warehouse(Request $request)
     {
         $query = Product::where('status', 1);
@@ -129,12 +115,60 @@ class InventoryController extends Controller
         $inventories = [];
 
         foreach ($products as $product) {
+            $warehouse = WarehouseInventory::where('product_id', $product->id)->first();
+            $stock = $warehouse ? $warehouse->stock : 0;
+
             $inventories[] = [
                 'product' => $product,
-                'stock' => ShuttleFiring::getWarehouseStock($product->id),
+                'stock' => $stock,
             ];
         }
 
         return view('inventory.warehouse', compact('inventories'));
+    }
+
+    public function shoulder(Request $request)
+    {
+        $query = Product::where('status', 1);
+
+        if ($request->filled('search')) {
+            $query->where('id', $request->search);
+        }
+
+        $products = $query->orderBy('name')->get();
+        $inventories = [];
+
+        foreach ($products as $product) {
+            $shoulder = ShoulderInventory::where('product_id', $product->id)->first();
+            $stock = $shoulder ? $shoulder->stock : 0;
+
+            $inventories[] = [
+                'product' => $product,
+                'stock' => $stock,
+            ];
+        }
+
+        return view('inventory.shoulder', compact('inventories'));
+    }
+
+    public function allStocks()
+    {
+        $products = Product::where('status', 1)->orderBy('name')->get();
+        $stocks = collect();
+
+        foreach ($products as $product) {
+            $stocks->push((object) [
+                'product' => $product,
+                'opening' => OpeningInventory::where('product_id', $product->id)->sum('quantity'),
+                'raw' => ShuttleFiring::getRawStock($product->id),
+                'wax' => $product->waxInventory->stock ?? 0,
+                'glaze1300' => $product->glaze1300Inventory->stock ?? 0,
+                'warehouse' => $product->warehouseInventory->stock ?? 0,
+                'shoulder' => $product->shoulderInventory->stock ?? 0,
+                'waste_mum' => $product->wasteMumInventory->stock ?? 0,
+            ]);
+        }
+
+        return view('inventory.all-stocks', compact('stocks'));
     }
 }

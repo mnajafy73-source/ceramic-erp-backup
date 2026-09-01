@@ -85,13 +85,28 @@
         </div>
     </div>
 
-    <!-- ✅ واردات فروش رسمی (جدید) -->
+    <!-- واردات فروش رسمی -->
     <div class="col-md-4 mt-4">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
                 <h5 class="card-title">📄 فروش رسمی</h5>
                 <p class="text-muted small">برگه: رسمی</p>
                 <form action="{{ route('import.formal-sales') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <input type="file" name="file" class="form-control mb-2" accept=".xlsx,.xls" required>
+                    <button type="submit" class="btn btn-primary w-100">واردات</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ واردات شانه زنی (نام برگه اصلاح شد) -->
+    <div class="col-md-4 mt-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title">📦 شانه زنی</h5>
+                <p class="text-muted small">برگه: شانه زنی</p>
+                <form action="{{ route('import.shoulder') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <input type="file" name="file" class="form-control mb-2" accept=".xlsx,.xls" required>
                     <button type="submit" class="btn btn-primary w-100">واردات</button>
@@ -106,7 +121,7 @@
     <div class="col-12">
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                     <div>
                         <h5 class="card-title mb-1">📂 واردات خودکار از مسیر</h5>
                         <p class="text-muted small mb-0">
@@ -114,9 +129,12 @@
                             <code>{{ env('EXCEL_FILE_PATH', 'تنظیم نشده') }}</code>
                         </p>
                     </div>
-                    <a href="{{ route('import.from-path') }}" class="btn btn-success">
-                        <i class="fas fa-sync-alt me-1"></i> واردات خودکار
-                    </a>
+                    <form action="{{ route('import.from-path') }}" method="POST">
+                        @csrf
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-sync-alt me-1"></i> واردات خودکار
+                        </button>
+                    </form>
                 </div>
                 <p class="text-muted small mt-2 mb-0">
                     <i class="fas fa-info-circle me-1"></i>
