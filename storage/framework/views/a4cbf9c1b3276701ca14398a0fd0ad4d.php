@@ -401,6 +401,32 @@ endif;
 unset($__errorArgs, $__bag); ?>
                 </div>
 
+                <!-- ✅ نوع محصول (جدید) -->
+                <div class="col-md-3">
+                    <label class="form-label">نوع محصول</label>
+                    <select name="product_type" class="form-select <?php $__errorArgs = ['product_type'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>">
+                        <option value="normal" <?php echo e(old('product_type', $product->product_type ?? 'normal') == 'normal' ? 'selected' : ''); ?>>معمولی</option>
+                        <option value="injection" <?php echo e(old('product_type', $product->product_type ?? '') == 'injection' ? 'selected' : ''); ?>>تزریق</option>
+                    </select>
+                    <?php $__errorArgs = ['product_type'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                        <div class="invalid-feedback"><?php echo e($message); ?></div>
+                    <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                </div>
+
                 <!-- ===== والد (محصول خام) ===== -->
                 <div class="col-md-3">
                     <label class="form-label">محصول خام (والد)</label>

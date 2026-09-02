@@ -157,6 +157,21 @@ class InventoryController extends Controller
         $stocks = collect();
 
         foreach ($products as $product) {
+            // محاسبه موجودی بسته بندی نشده
+            $unpackaged = ShuttleFiring::where('kiln_type', 'kiln_3')
+                ->where('firing_subtype', 'glaze')
+                ->where('is_packaged', 0)
+                ->where('product_id', $product->id)
+                ->sum('output_quantity')
+                -
+                ShuttleFiring::where('kiln_type', 'kiln_4')
+                ->where('is_packaged', 1)
+                ->where('product_id', $product->id)
+                ->sum('output_quantity');
+
+            // جلوگیری از منفی شدن
+            $unpackaged = max(0, $unpackaged);
+
             $stocks->push((object) [
                 'product' => $product,
                 'opening' => OpeningInventory::where('product_id', $product->id)->sum('quantity'),
@@ -166,6 +181,7 @@ class InventoryController extends Controller
                 'warehouse' => $product->warehouseInventory->stock ?? 0,
                 'shoulder' => $product->shoulderInventory->stock ?? 0,
                 'waste_mum' => $product->wasteMumInventory->stock ?? 0,
+                'unpackaged' => $unpackaged,
             ]);
         }
 

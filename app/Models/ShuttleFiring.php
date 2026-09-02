@@ -45,7 +45,7 @@ class ShuttleFiring extends Model
     }
 
     /**
-     * محاسبه موجودی خام
+     * محاسبه موجودی خام بر اساس نوع محصول
      */
     public static function getRawStock($productId)
     {
@@ -62,6 +62,18 @@ class ShuttleFiring extends Model
             return 0;
         }
 
+        // ✅ اگر محصول از نوع تزریق باشد
+        if ($product->isInjection()) {
+            // فقط خروجی شاتل کوره ۳ موم از تولید کم می‌شود
+            $shuttleMum = self::where('product_id', $productId)
+                ->where('kiln_type', 'kiln_3')
+                ->where('firing_subtype', 'mum')
+                ->sum('output_quantity');
+
+            return max(0, $production - $shuttleMum);
+        }
+
+        // محصول معمولی: فرمول قبلی
         $tonneliInput = TonneliFiringItem::where('product_id', $productId)
             ->sum('input_quantity');
 
@@ -85,7 +97,7 @@ class ShuttleFiring extends Model
             }
         }
 
-        return $production - $tonneliInput - $shuttleOutput - $childOutput;
+        return max(0, $production - $tonneliInput - $shuttleOutput - $childOutput);
     }
 
     /**
@@ -106,7 +118,7 @@ class ShuttleFiring extends Model
         // ۳. ضایعات موم
         $wasteMum = \App\Models\WasteMumInventory::where('product_id', $productId)->value('stock') ?? 0;
 
-        return $mumProduction - $shoulderStock - $wasteMum;
+        return max(0, $mumProduction - $shoulderStock - $wasteMum);
     }
 
     /**
@@ -128,7 +140,7 @@ class ShuttleFiring extends Model
             ->where('is_packaged', 1)
             ->sum('output_quantity');
 
-        return $glazeProduction - $packagedFromKiln2 - $packagedFromKiln4;
+        return max(0, $glazeProduction - $packagedFromKiln2 - $packagedFromKiln4);
     }
 
     /**
@@ -151,6 +163,6 @@ class ShuttleFiring extends Model
 
         $informalSales = InformalSaleProduct::where('product_id', $productId)->sum('quantity');
 
-        return $opening + $packagedTonneli + $packagedShuttle - $sales - $informalSales;
+        return max(0, $opening + $packagedTonneli + $packagedShuttle - $sales - $informalSales);
     }
 }

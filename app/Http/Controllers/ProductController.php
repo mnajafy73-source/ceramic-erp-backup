@@ -60,10 +60,14 @@ class ProductController extends Controller
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
             'firing_process' => 'nullable|in:tonneli,shuttle,both',
             'parent_product_id' => 'nullable|exists:products,id',
+            'product_type'  => 'nullable|in:normal,injection', // ✅ اضافه شد
         ]);
 
         if (empty($validated['firing_process'])) {
             $validated['firing_process'] = 'tonneli';
+        }
+        if (empty($validated['product_type'])) {
+            $validated['product_type'] = 'normal'; // مقدار پیش‌فرض
         }
 
         $validated['status'] = $request->has('status');
@@ -130,10 +134,14 @@ class ProductController extends Controller
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
             'firing_process' => 'nullable|in:tonneli,shuttle,both',
             'parent_product_id' => 'nullable|exists:products,id',
+            'product_type'  => 'nullable|in:normal,injection', // ✅ اضافه شد
         ]);
 
         if (empty($validated['firing_process'])) {
             $validated['firing_process'] = $product->firing_process ?? 'tonneli';
+        }
+        if (empty($validated['product_type'])) {
+            $validated['product_type'] = $product->product_type ?? 'normal';
         }
 
         unset($validated['code']);

@@ -26,64 +26,56 @@ class Product extends Model
         'status',
         'in_production',
         'firing_process',
+        'product_type', // ✅ اضافه شد
         'parent_product_id',
     ];
 
-    // ========== ارتباط با لاگ‌های محصول ==========
+    // ========== ارتباطات ==========
     public function logs()
     {
         return $this->hasMany(ProductLog::class);
     }
 
-    // ========== ارتباط با والد (محصول خام) ==========
     public function parent()
     {
         return $this->belongsTo(Product::class, 'parent_product_id');
     }
 
-    // ========== ارتباط با فرزندان (محصولات فرآوری‌شده) ==========
     public function children()
     {
         return $this->hasMany(Product::class, 'parent_product_id');
     }
 
-    // ========== ارتباط با نام‌های مستعار ==========
     public function aliases()
     {
         return $this->hasMany(ProductAlias::class);
     }
 
-    // ========== ارتباط با موجودی موم ==========
     public function waxInventory()
     {
         return $this->hasOne(WaxInventory::class);
     }
 
-    // ========== ارتباط با موجودی ۱۳۰۰ درجه ==========
     public function glaze1300Inventory()
     {
         return $this->hasOne(Glaze1300Inventory::class);
     }
 
-    // ========== ارتباط با موجودی انبار ==========
     public function warehouseInventory()
     {
         return $this->hasOne(WarehouseInventory::class);
     }
 
-    // ========== ارتباط با موجودی شانه شده ==========
     public function shoulderInventory()
     {
         return $this->hasOne(ShoulderInventory::class);
     }
 
-    // ========== ارتباط با ضایعات موم ==========
     public function wasteMumInventory()
     {
         return $this->hasOne(WasteMumInventory::class);
     }
 
-    // ========== سایر روابط ==========
     public function unit()
     {
         return $this->belongsTo(Unit::class);
@@ -102,5 +94,16 @@ class Product extends Model
     public function layerPackaging()
     {
         return $this->belongsTo(Packaging::class, 'layer_packaging_id');
+    }
+
+    // ========== متدهای کمکی ==========
+    public function isInjection(): bool
+    {
+        return $this->product_type === 'injection';
+    }
+
+    public function isNormal(): bool
+    {
+        return $this->product_type === 'normal' || is_null($this->product_type);
     }
 }

@@ -202,6 +202,18 @@
                     @enderror
                 </div>
 
+                <!-- ✅ نوع محصول (جدید) -->
+                <div class="col-md-3">
+                    <label class="form-label">نوع محصول</label>
+                    <select name="product_type" class="form-select @error('product_type') is-invalid @enderror">
+                        <option value="normal" {{ old('product_type') == 'normal' ? 'selected' : '' }}>معمولی</option>
+                        <option value="injection" {{ old('product_type') == 'injection' ? 'selected' : '' }}>تزریق</option>
+                    </select>
+                    @error('product_type')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+
                 <!-- ===== والد (محصول خام) ===== -->
                 <div class="col-md-3">
                     <label class="form-label">محصول خام (والد)</label>

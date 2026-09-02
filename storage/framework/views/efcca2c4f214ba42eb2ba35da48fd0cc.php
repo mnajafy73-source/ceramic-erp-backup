@@ -19,13 +19,14 @@
                     <tr>
                         <th>#</th>
                         <th>نام محصول</th>
-                        <th class="text-center">موجودی اول دوره</th>
-                        <th class="text-center">موجودی خام</th>
-                        <th class="text-center">موجودی موم (۹۰۰°)</th>
-                        <th class="text-center">موجودی ۱۳۰۰°</th>
-                        <th class="text-center">موجودی انبار</th>
-                        <th class="text-center">موجودی شانه شده</th>
-                        <th class="text-center">ضایعات موم</th>
+                        <th class="text-center">اول دوره</th>
+                        <th class="text-center">خام</th>
+                        <th class="text-center">موم (۹۰۰°)</th>
+                        <th class="text-center">شانه شده</th>
+                        <th class="text-center">ضایعات</th>
+                        <th class="text-center">۱۳۰۰°</th>
+                        <th class="text-center">بسته بندی نشده</th>
+                        <th class="text-center">انبار</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -36,14 +37,15 @@
                             <td class="text-center"><?php echo e(number_format($item->opening)); ?></td>
                             <td class="text-center"><?php echo e(number_format($item->raw)); ?></td>
                             <td class="text-center"><?php echo e(number_format($item->wax)); ?></td>
-                            <td class="text-center"><?php echo e(number_format($item->glaze1300)); ?></td>
-                            <td class="text-center"><?php echo e(number_format($item->warehouse)); ?></td>
                             <td class="text-center"><?php echo e(number_format($item->shoulder)); ?></td>
                             <td class="text-center"><?php echo e(number_format($item->waste_mum)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->glaze1300)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->unpackaged ?? 0)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->warehouse)); ?></td>
                         </tr>
                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
-                            <td colspan="9" class="text-center">هیچ محصولی یافت نشد.</td>
+                            <td colspan="10" class="text-center">هیچ محصولی یافت نشد.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
