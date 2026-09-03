@@ -11,6 +11,9 @@ use App\Models\InformalSale;
 use App\Models\Production;
 use App\Models\RawMaterialPurchase;
 use App\Models\RawMaterial;
+use App\Models\PackagingPurchase;
+use App\Models\PackagingPurchaseItem;
+use App\Models\Packaging;
 
 class UndoController extends Controller
 {
@@ -69,32 +72,65 @@ class UndoController extends Controller
                 $data = $record['data'];
                 $extra = $record['extra'] ?? [];
 
+                // اطمینان از وجود فیلدهای زمان
                 $data['created_at'] = now();
                 $data['updated_at'] = now();
 
-                if (isset($data['date']) && is_string($data['date']) && strpos($data['date'], 'T') !== false) {
-                    try {
-                        $data['date'] = Carbon::parse($data['date'])->format('Y-m-d');
-                    } catch (\Exception $e) {}
+                // اگر purchase_date وجود نداشت، از داده‌های موجود استفاده کن
+                if (!isset($data['purchase_date']) && isset($data['date'])) {
+                    $data['purchase_date'] = $data['date'];
+                }
+
+                // ============================================================
+                //  بازیابی خرید کارتن/لایه (PackagingPurchase) ✅
+                // ============================================================
+                if ($class === PackagingPurchase::class) {
+                    // داده‌های خرید اصلی
+                    $purchaseData = $data;
+                    // آیتم‌های خرید
+                    $itemsData = $extra['items'] ?? [];
+
+                    // اطمینان از وجود purchase_date
+                    if (empty($purchaseData['purchase_date'])) {
+                        return back()->with('error', 'تاریخ خرید در داده‌های برگردانی وجود ندارد.');
+                    }
+
+                    // ایجاد خرید جدید
+                    $newPurchase = PackagingPurchase::create($purchaseData);
+
+                    foreach ($itemsData as $itemData) {
+                        // حذف کلیدهای اضافی
+                        unset($itemData['id'], $itemData['purchase_id'], $itemData['created_at'], $itemData['updated_at']);
+
+                        // ایجاد آیتم
+                        $newPurchase->items()->create($itemData);
+
+                        // افزایش موجودی کارتن/لایه (چون حذف، موجودی را کم کرده بود)
+                        $packaging = Packaging::find($itemData['packaging_id']);
+                        if ($packaging) {
+                            $packaging->stock += $itemData['quantity'];
+                            $packaging->save();
+                        }
+                    }
+
+                    session()->forget('undo_record');
+                    DB::commit();
+                    return back()->with('success', 'خرید کارتن/لایه با موفقیت برگشت داده شد.');
                 }
 
                 // ============================================================
                 //  بازیابی خرید مواد اولیه (RawMaterialPurchase)
                 // ============================================================
                 if ($class === RawMaterialPurchase::class) {
-                    // ایجاد خرید جدید
                     $newPurchase = RawMaterialPurchase::create($data);
 
-                    // بازیابی آیتم‌ها و افزایش موجودی
                     if (isset($extra['items']) && is_array($extra['items'])) {
                         foreach ($extra['items'] as $itemData) {
                             $quantityInGram = $itemData['quantity'];
                             $rawMaterialId = $itemData['raw_material_id'];
 
-                            // ایجاد آیتم
                             $newPurchase->items()->create($itemData);
 
-                            // افزایش موجودی به اندازه مقدار خرید (چون حذف، موجودی را کم کرده بود)
                             $rawMaterial = RawMaterial::find($rawMaterialId);
                             if ($rawMaterial) {
                                 $rawMaterial->stock += $quantityInGram;

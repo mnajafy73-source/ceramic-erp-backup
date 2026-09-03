@@ -10,9 +10,6 @@ use Morilog\Jalali\Jalalian;
 
 class PackagingPurchaseController extends Controller
 {
-    /**
-     * حذف کاما از اعداد ورودی (سطح دسترسی protected)
-     */
     protected function cleanNumber($value)
     {
         if (is_null($value) || $value === '') {
@@ -157,10 +154,43 @@ class PackagingPurchaseController extends Controller
             ->with('success', 'خرید کارتن/لایه با موفقیت ویرایش شد.');
     }
 
-    public function destroy(PackagingPurchase $packagingPurchase)
+    /**
+     * ✅ اصلاح‌شده: ذخیره‌سازی کامل داده‌ها برای Undo
+     */
+    public function destroy($id)
     {
+        $packagingPurchase = PackagingPurchase::with('items.packaging')->findOrFail($id);
+
+        // ذخیره داده‌های کامل برای Undo
+        $purchaseData = $packagingPurchase->toArray();
+        $itemsData = $packagingPurchase->items->map(function ($item) {
+            return $item->toArray();
+        })->toArray();
+
+        // اطمینان از وجود purchase_date در داده‌ها
+        if (!isset($purchaseData['purchase_date'])) {
+            $purchaseData['purchase_date'] = $packagingPurchase->purchase_date;
+        }
+
+        session(['undo_record' => [
+            'class' => PackagingPurchase::class,
+            'multiple' => false,
+            'data' => $purchaseData,
+            'extra' => ['items' => $itemsData],
+        ]]);
+
+        // برگرداندن موجودی (کسر از موجودی چون خرید حذف می‌شود)
+        foreach ($packagingPurchase->items as $item) {
+            $packaging = Packaging::find($item->packaging_id);
+            if ($packaging) {
+                $packaging->stock -= $item->quantity;
+                $packaging->save();
+            }
+        }
+
         $packagingPurchase->delete();
+
         return redirect()->route('packaging-purchases.index')
-            ->with('success', 'خرید کارتن/لایه با موفقیت حذف شد.');
+            ->with('success', 'خرید کارتن/لایه با موفقیت حذف شد. (قابل بازگرداندن)');
     }
 }

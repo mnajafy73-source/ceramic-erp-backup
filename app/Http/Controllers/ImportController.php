@@ -53,7 +53,6 @@ class ImportController extends Controller
         try {
             set_time_limit(0);
 
-            // حذف رکوردهای قبلی
             DB::statement('DELETE FROM production_stops');
             DB::statement('DELETE FROM productions');
             DB::statement('DELETE FROM tonneli_firing_items');
@@ -64,7 +63,6 @@ class ImportController extends Controller
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($filePath);
 
-            // ---- هر برگه با try-catch جداگانه ----
             try {
                 $this->importProductionsFromSpreadsheet($spreadsheet);
                 $anySuccess = true;
@@ -105,7 +103,6 @@ class ImportController extends Controller
                 \Log::error('importFormalSalesFromSpreadsheet failed: ' . $e->getMessage());
             }
 
-            // ⭐ برگه شانه زنی (که قبلاً فراموش شده بود)
             try {
                 $this->importShoulderFromSpreadsheet($spreadsheet);
                 $anySuccess = true;
@@ -115,12 +112,10 @@ class ImportController extends Controller
             }
 
         } catch (\Exception $e) {
-            // خطای عمومی (مثل بارگذاری فایل)
             return redirect()->route('import.index')
                 ->withErrors(['file' => 'خطا در خواندن فایل: ' . $e->getMessage()]);
         }
 
-        // ---- به‌روزرسانی موجودی‌ها در هر صورت (حتی اگر برخی برگه‌ها خطا داشته باشند) ----
         try {
             Artisan::call('raw-material:fix-stock');
             Artisan::call('wax:fix-stock');
@@ -128,13 +123,13 @@ class ImportController extends Controller
             Artisan::call('warehouse:fix-stock');
             Artisan::call('shoulder:fix-stock');
             Artisan::call('wastemum:fix-stock');
-            Artisan::call('wax:fix-stock'); // دوباره برای اطمینان
+            Artisan::call('wax:fix-stock');
+            Artisan::call('packaging:fix-stock'); // ✅ اضافه شد
         } catch (\Exception $e) {
             $errors[] = 'خطا در به‌روزرسانی موجودی‌ها: ' . $e->getMessage();
             \Log::error('Artisan commands failed: ' . $e->getMessage());
         }
 
-        // ---- ساخت پیام نهایی ----
         if ($anySuccess) {
             $message = '✅ واردات خودکار با موفقیت انجام شد.';
             if (!empty($errors)) {
@@ -148,7 +143,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه تولید (آپلود دستی) - بدون تغییر
+    //  برگه تولید (آپلود دستی)
     // ============================================================
     public function importProductions(Request $request)
     {
@@ -258,7 +253,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه کوره تونلی (آپلود دستی) - بدون تغییر
+    //  برگه کوره تونلی (آپلود دستی) - اصلاح‌شده
     // ============================================================
     public function importTonneli(Request $request)
     {
@@ -333,8 +328,9 @@ class ImportController extends Controller
                             'is_packaged' => $packaged,
                         ]);
 
+                        // ✅ کسر کارتن و لایه در صورت بسته‌بندی
                         if ($packaged) {
-                            $this->subtractPackagingForTonneli($product, $outputQty);
+                            $product->subtractPackaging($outputQty);
                         }
                     }
 
@@ -357,6 +353,7 @@ class ImportController extends Controller
         Artisan::call('shoulder:fix-stock');
         Artisan::call('wastemum:fix-stock');
         Artisan::call('wax:fix-stock');
+        Artisan::call('packaging:fix-stock');
 
         $message = "✅ {$count} رکورد کوره تونلی با موفقیت وارد شد.";
         if (!empty($errors)) {
@@ -368,7 +365,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه کوره شاتل (آپلود دستی) - بدون تغییر
+    //  برگه کوره شاتل (آپلود دستی) - اصلاح‌شده
     // ============================================================
     public function importShuttle(Request $request)
     {
@@ -493,6 +490,14 @@ class ImportController extends Controller
                         'month' => $group['month'],
                         'day' => $group['day'],
                     ]);
+
+                    // ✅ کسر کارتن و لایه در صورت بسته‌بندی
+                    if ($item['is_packaged']) {
+                        $product = Product::find($item['product_id']);
+                        if ($product) {
+                            $product->subtractPackaging($item['output_quantity']);
+                        }
+                    }
                 }
 
                 $count += count($group['items']);
@@ -512,6 +517,7 @@ class ImportController extends Controller
         Artisan::call('shoulder:fix-stock');
         Artisan::call('wastemum:fix-stock');
         Artisan::call('wax:fix-stock');
+        Artisan::call('packaging:fix-stock');
 
         $message = "✅ {$count} رکورد کوره شاتل در " . count($groups) . " پخت با موفقیت وارد شد.";
         if (!empty($errors)) {
@@ -523,7 +529,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه فروش غیررسمی (آپلود دستی) - بدون تغییر
+    //  برگه فروش غیررسمی (آپلود دستی)
     // ============================================================
     public function importInformalSales(Request $request)
     {
@@ -680,7 +686,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  برگه فروش رسمی (آپلود دستی) - بدون تغییر
+    //  برگه فروش رسمی (آپلود دستی)
     // ============================================================
     public function importFormalSales(Request $request)
     {
@@ -875,7 +881,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  ✅ برگه شانه زنی (آپلود دستی) - بدون تغییر
+    //  برگه شانه زنی (آپلود دستی)
     // ============================================================
     public function importShoulder(Request $request)
     {
@@ -959,12 +965,11 @@ class ImportController extends Controller
     //  متدهای خصوصی
     // ============================================================
 
-    // ---- متد جدید برای واردات شانه زنی در خودکار ----
     private function importShoulderFromSpreadsheet($spreadsheet)
     {
         $sheet = $spreadsheet->getSheetByName('شانه زنی');
         if (!$sheet) {
-            return; // اگر برگه وجود نداشت، بدون خطا برگرد
+            return;
         }
 
         $rows = $sheet->toArray();
@@ -1016,11 +1021,10 @@ class ImportController extends Controller
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            throw $e; // برای مدیریت توسط try-catch بالاتر
+            throw $e;
         }
     }
 
-    // ---- سایر متدهای خصوصی (بدون تغییر) ----
     private function importInformalSalesFromSpreadsheet($spreadsheet)
     {
         $sheetNames = ['غیر رسمی', 'غیررسمی', 'غیر رسمی فروش', 'غیررسمی فروش'];
@@ -1349,6 +1353,7 @@ class ImportController extends Controller
         }
     }
 
+    // ✅ اصلاح‌شده: کسر کارتن و لایه با متد جدید
     private function importTonneliFromSpreadsheet($spreadsheet)
     {
         $sheet = $spreadsheet->getSheetByName('کوره تونلی');
@@ -1399,7 +1404,7 @@ class ImportController extends Controller
                         ]);
 
                         if ($packaged) {
-                            $this->subtractPackagingForTonneli($product, $outputQty);
+                            $product->subtractPackaging($outputQty);
                         }
                     }
                 } catch (\Exception $e) {
@@ -1413,6 +1418,7 @@ class ImportController extends Controller
         }
     }
 
+    // ✅ اصلاح‌شده: کسر کارتن و لایه با متد جدید
     private function importShuttleFromSpreadsheet($spreadsheet)
     {
         $sheet = $spreadsheet->getSheetByName('کوره شاتل');
@@ -1515,6 +1521,13 @@ class ImportController extends Controller
                         'month' => $group['month'],
                         'day' => $group['day'],
                     ]);
+
+                    if ($item['is_packaged']) {
+                        $product = Product::find($item['product_id']);
+                        if ($product) {
+                            $product->subtractPackaging($item['output_quantity']);
+                        }
+                    }
                 }
             }
             DB::commit();
@@ -1525,7 +1538,7 @@ class ImportController extends Controller
     }
 
     // ============================================================
-    //  متدهای کمکی (بدون تغییر)
+    //  متدهای کمکی
     // ============================================================
 
     private function calculateBoxAndLayer($productId, $quantity)
@@ -1688,30 +1701,6 @@ class ImportController extends Controller
             if (strpos($firingType, 'لعاب') !== false || strpos($firingType, 'موم') !== false) return 'kiln_3';
         }
         return 'kiln_1';
-    }
-
-    private function subtractPackagingForTonneli($product, $quantity)
-    {
-        if ($quantity <= 0) return;
-
-        if ($product->carton_packaging_id && $product->per_box > 0) {
-            $cartonCount = ceil($quantity / $product->per_box);
-            $carton = Packaging::find($product->carton_packaging_id);
-            if ($carton) {
-                $carton->stock -= $cartonCount;
-                $carton->save();
-            }
-        }
-
-        if ($product->layer_packaging_id && $product->layers_per_box > 0 && $product->per_box > 0) {
-            $cartonCount = ceil($quantity / $product->per_box);
-            $layerCount = $cartonCount * $product->layers_per_box;
-            $layer = Packaging::find($product->layer_packaging_id);
-            if ($layer) {
-                $layer->stock -= $layerCount;
-                $layer->save();
-            }
-        }
     }
 
     private function detectStopType($reason)

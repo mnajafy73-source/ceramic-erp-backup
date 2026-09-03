@@ -12,15 +12,24 @@ class ShuttleFiringController extends Controller
 {
     /**
      * نمایش لیست پخت‌ها به‌صورت گروه‌بندی‌شده بر اساس شماره پخت
-     * همراه با نمایش تعداد پخت‌های هر کوره
+     * همراه با قابلیت فیلتر بر اساس نوع کوره
      */
-    public function index()
+    public function index(Request $request)
     {
+        // دریافت نوع کوره از پارامتر کوئری (در صورت وجود)
+        $filterKiln = $request->query('kiln');
+
         // دریافت همه رکوردها با محصولات مرتبط
-        $allFirings = ShuttleFiring::with('product')
+        $query = ShuttleFiring::with('product')
             ->orderBy('date', 'desc')
-            ->orderBy('firing_number', 'desc')
-            ->get();
+            ->orderBy('firing_number', 'desc');
+
+        // اعمال فیلتر بر اساس نوع کوره (اگر پارامتر وجود داشته باشد)
+        if ($filterKiln && $filterKiln !== 'all') {
+            $query->where('kiln_type', $filterKiln);
+        }
+
+        $allFirings = $query->get();
 
         // گروه‌بندی بر اساس کلید کامل (تاریخ + کوره + شماره پخت)
         $grouped = $allFirings->groupBy(function ($item) {
@@ -45,24 +54,26 @@ class ShuttleFiringController extends Controller
             ];
         })->values();
 
-        // ===== محاسبه تعداد پخت‌های هر کوره =====
-        $kilnCounts = $firings->groupBy('kiln_type')->map(function ($items) {
-            return $items->count();
-        });
+        // ===== محاسبه تعداد پخت‌های هر کوره (از کل داده‌ها بدون فیلتر) =====
+        // ✅ اصلاح شده: استفاده از || به جای concat برای SQLite
+        $allKilnCounts = ShuttleFiring::select('kiln_type')
+            ->selectRaw("count(distinct (year || '-' || month || '-' || day || '-' || kiln_type || '-' || firing_number)) as count")
+            ->groupBy('kiln_type')
+            ->pluck('count', 'kiln_type');
 
-        // صفحه‌بندی دستی
+        // صفحه‌بندی دستی (بر اساس داده‌های فیلترشده)
         $perPage = 20;
-        $currentPage = request()->get('page', 1);
+        $currentPage = $request->get('page', 1);
         $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
             $firings->forPage($currentPage, $perPage),
             $firings->count(),
             $perPage,
             $currentPage,
-            ['path' => request()->url(), 'query' => request()->query()]
+            ['path' => $request->url(), 'query' => $request->query()]
         );
 
         // ارسال داده‌ها به ویو
-        return view('shuttle.index', compact('paginated', 'kilnCounts'));
+        return view('shuttle.index', compact('paginated', 'allKilnCounts', 'filterKiln'));
     }
 
     /**

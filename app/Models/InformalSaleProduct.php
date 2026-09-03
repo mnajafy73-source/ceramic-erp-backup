@@ -16,9 +16,9 @@ class InformalSaleProduct extends Model
         'unit_price',
     ];
 
-    public function sale()
+    public function informalSale()
     {
-        return $this->belongsTo(InformalSale::class, 'informal_sale_id');
+        return $this->belongsTo(InformalSale::class);
     }
 
     public function product()

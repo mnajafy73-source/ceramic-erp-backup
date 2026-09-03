@@ -74,11 +74,11 @@
                                 <td>{{ $group->products_text }}</td>
                                 <td>{{ $group->stages_text }}</td>
                                 <td>
-                                    <a href="{{ route('productions.show-by-date', ['date' => $group->date]) }}" class="btn btn-sm btn-info">
+                                    {{-- ✅ اصلاح شده: نام صحیح route --}}
+                                    <a href="{{ route('productions.by-date', ['date' => $group->date]) }}" class="btn btn-sm btn-info">
                                         <i class="fas fa-eye"></i> جزئیات
                                     </a>
 
-                                    {{-- ✅ دکمه حذف گروه با سه پارامتر --}}
                                     @if($year && $month && $day)
                                         <form action="{{ route('productions.destroy-group', ['year' => $year, 'month' => $month, 'day' => $day]) }}" method="POST" class="d-inline" 
                                               onsubmit="return confirm('آیا از حذف تمام تولیدات تاریخ {{ $group->date }} مطمئن هستید؟');">

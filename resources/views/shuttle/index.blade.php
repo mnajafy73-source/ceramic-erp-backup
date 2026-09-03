@@ -20,10 +20,18 @@
             </a>
         </div>
 
-        {{-- ===== نمایش تعداد پخت‌های هر کوره ===== --}}
-        @if($kilnCounts->count())
+        {{-- ===== دکمه‌های فیلتر بر اساس نوع کوره ===== --}}
+        @if($allKilnCounts->count())
             <div class="row g-2 mb-3">
-                @foreach($kilnCounts as $kilnType => $count)
+                {{-- دکمه "همه" --}}
+                <div class="col-auto">
+                    <a href="{{ route('shuttle.index') }}" 
+                       class="badge {{ is_null($filterKiln) || $filterKiln === 'all' ? 'bg-dark' : 'bg-secondary' }} p-2 fs-6 text-decoration-none">
+                        همه ({{ $allKilnCounts->sum() }})
+                    </a>
+                </div>
+
+                @foreach($allKilnCounts as $kilnType => $count)
                     @php
                         $kilnDisplay = 'نامشخص';
                         if ($kilnType === 'packaging') {
@@ -31,13 +39,25 @@
                         } elseif (str_starts_with($kilnType, 'kiln_')) {
                             $kilnDisplay = 'کوره ' . substr($kilnType, 5);
                         }
+                        $isActive = ($filterKiln == $kilnType);
                     @endphp
                     <div class="col-auto">
-                        <span class="badge bg-primary p-2 fs-6">
+                        <a href="{{ route('shuttle.index', ['kiln' => $kilnType]) }}" 
+                           class="badge {{ $isActive ? 'bg-primary' : 'bg-secondary' }} p-2 fs-6 text-decoration-none">
                             {{ $kilnDisplay }}: {{ $count }} پخت
-                        </span>
+                        </a>
                     </div>
                 @endforeach
+            </div>
+        @endif
+
+        {{-- نمایش تعداد کل رکوردهای فیلترشده --}}
+        @if($paginated->count())
+            <div class="mb-2 text-muted small">
+                نمایش {{ $paginated->firstItem() }} تا {{ $paginated->lastItem() }} از {{ $paginated->total() }} پخت
+                @if($filterKiln && $filterKiln !== 'all')
+                    (فیلتر شده بر اساس {{ $kilnDisplay ?? 'کوره انتخاب‌شده' }})
+                @endif
             </div>
         @endif
 
@@ -95,7 +115,7 @@
                                     @endif
                                 </td>
                                 <td>
-                                    {{-- دکمه مشاهده با پارامترهای کامل --}}
+                                    {{-- دکمه مشاهده --}}
                                     <a href="{{ route('shuttle.show', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
@@ -106,7 +126,7 @@
                                         <i class="fas fa-eye"></i> مشاهده
                                     </a>
 
-                                    {{-- دکمه ویرایش با پارامترهای کامل --}}
+                                    {{-- دکمه ویرایش --}}
                                     <a href="{{ route('shuttle.edit', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
@@ -117,7 +137,7 @@
                                         <i class="fas fa-edit"></i> ویرایش
                                     </a>
 
-                                    {{-- فرم حذف با پارامترهای کامل --}}
+                                    {{-- فرم حذف --}}
                                     <form action="{{ route('shuttle.destroy', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
@@ -141,7 +161,13 @@
                 {{ $paginated->links() }}
             </div>
         @else
-            <div class="alert alert-info">هیچ پخت شاتلی ثبت نشده است.</div>
+            <div class="alert alert-info">
+                @if($filterKiln && $filterKiln !== 'all')
+                    هیچ پختی برای کوره انتخاب‌شده یافت نشد.
+                @else
+                    هیچ پخت شاتلی ثبت نشده است.
+                @endif
+            </div>
         @endif
     </div>
 </div>

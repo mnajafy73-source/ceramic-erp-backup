@@ -25,6 +25,7 @@ use App\Http\Controllers\UndoController;
 use App\Http\Controllers\ProductLogController;
 use App\Http\Controllers\CostPriceController;
 use App\Http\Controllers\TestController;
+use App\Http\Controllers\ProductSalesStatsController;
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -39,7 +40,9 @@ Route::middleware(['auth'])->group(function () {
 
     // تولید
     Route::resource('productions', ProductionController::class);
-    Route::get('/productions/by-date', [ProductionController::class, 'showByDate'])->name('productions.by-date');
+    Route::get('/productions/by-date/{date}', [ProductionController::class, 'showByDate'])
+        ->name('productions.by-date')
+        ->where('date', '.*');
     Route::delete('/productions/group/{year}/{month}/{day}', [ProductionController::class, 'destroyGroup'])->name('productions.destroy-group');
 
     // کوره تونلی
@@ -124,7 +127,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/production', [ReportController::class, 'production'])->name('reports.production');
     Route::get('/reports/production/export', [ReportController::class, 'exportProductionCSV'])->name('reports.production.export');
     Route::get('/reports/firing', [ReportController::class, 'firing'])->name('reports.firing');
+    Route::get('/reports/firing/export', [ReportController::class, 'exportFiringCSV'])->name('reports.firing.export');
     Route::get('/reports/annual', [ReportController::class, 'annual'])->name('reports.annual');
+    Route::get('/reports/annual/export', [ReportController::class, 'exportAnnualCSV'])->name('reports.annual.export');
+
+    // آمار فروش محصولات
+    Route::get('/product-sales-stats', [ProductSalesStatsController::class, 'index'])->name('product-sales-stats.index');
+    Route::post('/product-sales-stats/add', [ProductSalesStatsController::class, 'addProduct'])->name('product-sales-stats.add');
+    Route::post('/product-sales-stats/remove', [ProductSalesStatsController::class, 'removeProduct'])->name('product-sales-stats.remove');
 
     // قیمت تمام شده
     Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-price.index');

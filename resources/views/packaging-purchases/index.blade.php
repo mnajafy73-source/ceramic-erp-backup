@@ -50,7 +50,7 @@
                         <a href="{{ route('packaging-purchases.edit', $purchase) }}" class="btn btn-sm btn-warning">
                             <i class="fas fa-edit"></i>
                         </a>
-                        <form action="{{ route('packaging-purchases.destroy', $purchase) }}" method="POST" class="d-inline">
+                        <form action="{{ route('packaging-purchases.destroy', $purchase->id) }}" method="POST" class="d-inline">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('آیا مطمئن هستید؟')">

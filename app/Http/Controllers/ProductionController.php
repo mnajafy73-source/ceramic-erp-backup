@@ -100,7 +100,6 @@ class ProductionController extends Controller
                     'notes' => null,
                 ]);
 
-                // ✅ کسر مواد اولیه با لاگ دیباگ
                 $this->subtractMaterials($production, $productWeight);
 
                 if (!empty($rowData['stop_types']) && !empty($rowData['stop_hours'])) {
@@ -294,13 +293,9 @@ class ProductionController extends Controller
             ->with('success', '✅ ' . $productions->count() . ' رکورد تولید تاریخ ' . $dateStr . ' با موفقیت حذف شدند.');
     }
 
-    public function showByDate(Request $request)
+    // ✅ اصلاح شده: متد showByDate با پارامتر $date
+    public function showByDate($date)
     {
-        $date = $request->input('date');
-        if (empty($date)) {
-            return redirect()->route('productions.index')->withErrors('تاریخ مشخص نشده است.');
-        }
-
         try {
             Jalalian::fromFormat('Y/m/d', $date);
         } catch (\Exception $e) {
@@ -324,7 +319,6 @@ class ProductionController extends Controller
         $product = $production->product;
         $weight = $weight ?? $production->product_weight ?? ($product ? $product->weight : null);
 
-        // ===== لاگ دیباگ =====
         Log::info('===== SUBTRACT MATERIALS =====');
         Log::info('Production ID: ' . $production->id);
         Log::info('Product ID: ' . ($product ? $product->id : 'null'));

@@ -200,12 +200,12 @@
             <div class="submenu" id="submenu-inventory">
                 <a href="<?php echo e(route('opening-inventories.index')); ?>"><i class="fas fa-database"></i> موجودی اول دوره</a>
                 <a href="<?php echo e(route('inventory.raw-materials')); ?>"><i class="fas fa-cube"></i> مواد اولیه</a>
-                <a href="<?php echo e(route('inventory.raw')); ?>"><i class="fas fa-cube"></i> موجودی خام</a>
-                <a href="<?php echo e(route('inventory.mum')); ?>"><i class="fas fa-fire"></i> موجودی موم (۹۰۰°)</a>
-                <a href="<?php echo e(route('inventory.glaze1300')); ?>"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a>
+                
+                
+                
                 <a href="<?php echo e(route('inventory.packaging-stock')); ?>"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="<?php echo e(route('inventory.warehouse')); ?>"><i class="fas fa-warehouse"></i> موجودی انبار</a>
-                <a href="<?php echo e(route('inventory.all-stocks')); ?>"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a> <!-- ✅ اضافه شد -->
+                <a href="<?php echo e(route('inventory.all-stocks')); ?>"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a>
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
@@ -217,6 +217,11 @@
                 <a href="<?php echo e(route('reports.firing')); ?>"><i class="fas fa-fire"></i> گزارش پخت</a>
                 <a href="<?php echo e(route('reports.annual')); ?>"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
+
+            
+            <a href="<?php echo e(route('product-sales-stats.index')); ?>" class="nav-link <?php echo e(request()->routeIs('product-sales-stats.*') ? 'active' : ''); ?>">
+                <i class="fas fa-chart-line"></i> آمار
+            </a>
 
             <a href="<?php echo e(route('import.index')); ?>" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>">
                 <i class="fas fa-upload"></i> وارد کردن

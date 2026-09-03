@@ -200,12 +200,12 @@
             <div class="submenu" id="submenu-inventory">
                 <a href="{{ route('opening-inventories.index') }}"><i class="fas fa-database"></i> موجودی اول دوره</a>
                 <a href="{{ route('inventory.raw-materials') }}"><i class="fas fa-cube"></i> مواد اولیه</a>
-                <a href="{{ route('inventory.raw') }}"><i class="fas fa-cube"></i> موجودی خام</a>
-                <a href="{{ route('inventory.mum') }}"><i class="fas fa-fire"></i> موجودی موم (۹۰۰°)</a>
-                <a href="{{ route('inventory.glaze1300') }}"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a>
+                {{-- <a href="{{ route('inventory.raw') }}"><i class="fas fa-cube"></i> موجودی خام</a> --}}
+                {{-- <a href="{{ route('inventory.mum') }}"><i class="fas fa-fire"></i> موجودی موم (۹۰۰°)</a> --}}
+                {{-- <a href="{{ route('inventory.glaze1300') }}"><i class="fas fa-fire"></i> موجودی ۱۳۰۰°</a> --}}
                 <a href="{{ route('inventory.packaging-stock') }}"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="{{ route('inventory.warehouse') }}"><i class="fas fa-warehouse"></i> موجودی انبار</a>
-                <a href="{{ route('inventory.all-stocks') }}"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a> <!-- ✅ اضافه شد -->
+                <a href="{{ route('inventory.all-stocks') }}"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a>
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
@@ -217,6 +217,11 @@
                 <a href="{{ route('reports.firing') }}"><i class="fas fa-fire"></i> گزارش پخت</a>
                 <a href="{{ route('reports.annual') }}"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
+
+            {{-- ✅ منوی اصلی جدید «آمار» (جایگزین منوی قبلی با زیرمنو) --}}
+            <a href="{{ route('product-sales-stats.index') }}" class="nav-link {{ request()->routeIs('product-sales-stats.*') ? 'active' : '' }}">
+                <i class="fas fa-chart-line"></i> آمار
+            </a>
 
             <a href="{{ route('import.index') }}" class="nav-link {{ request()->routeIs('import.*') ? 'active' : '' }}">
                 <i class="fas fa-upload"></i> وارد کردن

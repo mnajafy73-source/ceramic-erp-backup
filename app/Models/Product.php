@@ -26,7 +26,7 @@ class Product extends Model
         'status',
         'in_production',
         'firing_process',
-        'product_type', // ✅ اضافه شد
+        'product_type',
         'parent_product_id',
     ];
 
@@ -105,5 +105,43 @@ class Product extends Model
     public function isNormal(): bool
     {
         return $this->product_type === 'normal' || is_null($this->product_type);
+    }
+
+    /**
+     * کسر کارتن و لایه بر اساس تعداد محصول بسته‌بندی‌شده
+     * @param int $quantity تعداد محصول بسته‌بندی‌شده
+     * @return array ['carton' => تعداد کارتن مصرفی, 'layer' => تعداد لایه مصرفی]
+     */
+    public function subtractPackaging($quantity)
+    {
+        if ($quantity <= 0) {
+            return ['carton' => 0, 'layer' => 0];
+        }
+
+        $cartonCount = 0;
+        $layerCount = 0;
+
+        // کسر کارتن
+        if ($this->carton_packaging_id && $this->per_box > 0) {
+            $cartonCount = ceil($quantity / $this->per_box);
+            $carton = Packaging::find($this->carton_packaging_id);
+            if ($carton) {
+                $carton->stock -= $cartonCount;
+                $carton->save();
+            }
+        }
+
+        // کسر لایه
+        if ($this->layer_packaging_id && $this->layers_per_box > 0 && $this->per_box > 0) {
+            $cartonCountForLayer = ceil($quantity / $this->per_box);
+            $layerCount = $cartonCountForLayer * $this->layers_per_box;
+            $layer = Packaging::find($this->layer_packaging_id);
+            if ($layer) {
+                $layer->stock -= $layerCount;
+                $layer->save();
+            }
+        }
+
+        return ['carton' => $cartonCount, 'layer' => $layerCount];
     }
 }
