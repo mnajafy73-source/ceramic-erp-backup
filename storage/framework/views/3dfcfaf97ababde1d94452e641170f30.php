@@ -218,7 +218,6 @@
                 <a href="<?php echo e(route('reports.annual')); ?>"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
 
-            
             <a href="<?php echo e(route('product-sales-stats.index')); ?>" class="nav-link <?php echo e(request()->routeIs('product-sales-stats.*') ? 'active' : ''); ?>">
                 <i class="fas fa-chart-line"></i> آمار
             </a>
@@ -245,6 +244,9 @@
                 <a href="<?php echo e(route('products.index')); ?>"><i class="fas fa-box"></i> مدیریت کالاها</a>
                 <a href="<?php echo e(route('customers.index')); ?>"><i class="fas fa-users"></i> مدیریت مشتریان</a>
                 <a href="<?php echo e(route('product_logs.index')); ?>"><i class="fas fa-history"></i> تاریخچه تغییرات</a>
+
+                <div style="padding: 5px 40px 5px 20px; color: rgba(255,255,255,0.4); font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">ابزارها</div>
+                <a href="<?php echo e(route('settings.manual-inventory')); ?>"><i class="fas fa-hand-edit"></i> به‌روزرسانی دستی موجودی</a>
             </div>
 
             <form method="POST" action="<?php echo e(route('logout')); ?>" class="mt-3 px-3 pb-3">

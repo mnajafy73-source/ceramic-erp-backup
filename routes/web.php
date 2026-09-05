@@ -26,6 +26,7 @@ use App\Http\Controllers\ProductLogController;
 use App\Http\Controllers\CostPriceController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\ProductSalesStatsController;
+use App\Http\Controllers\ManualInventoryController;
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -154,6 +155,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // ============================================================
+    // ✅ تنظیمات - به‌روزرسانی دستی موجودی‌ها (جدید)
+    // ============================================================
+    Route::get('/settings/manual-inventory', [ManualInventoryController::class, 'index'])->name('settings.manual-inventory');
+    Route::put('/settings/manual-inventory', [ManualInventoryController::class, 'update'])->name('settings.manual-inventory.update');
+    Route::delete('/settings/manual-inventory/reset', [ManualInventoryController::class, 'resetAll'])->name('settings.manual-inventory.reset');
 });
 
 require __DIR__.'/auth.php';
