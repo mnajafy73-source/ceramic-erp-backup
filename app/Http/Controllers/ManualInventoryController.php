@@ -17,42 +17,20 @@ use Illuminate\Support\Facades\DB;
 
 class ManualInventoryController extends Controller
 {
-    /**
-     * نمایش فرم به‌روزرسانی دستی همه موجودی‌ها
-     */
     public function index()
     {
-        // محصولات فعال
         $products = Product::where('status', 1)->orderBy('name')->get();
-
-        // موجودی اول دوره
         $openingInventories = OpeningInventory::with('product')->get()->keyBy('product_id');
-
-        // موجودی خام (محاسبه‌شده از سیستم)
         $rawStocks = [];
         foreach ($products as $product) {
             $rawStocks[$product->id] = ShuttleFiring::getRawStock($product->id);
         }
-
-        // موجودی موم
         $waxInventories = WaxInventory::with('product')->get()->keyBy('product_id');
-
-        // موجودی ۱۳۰۰ درجه
         $glaze1300Inventories = Glaze1300Inventory::with('product')->get()->keyBy('product_id');
-
-        // موجودی انبار
         $warehouseInventories = WarehouseInventory::with('product')->get()->keyBy('product_id');
-
-        // موجودی شانه شده
         $shoulderInventories = ShoulderInventory::with('product')->get()->keyBy('product_id');
-
-        // ضایعات موم
         $wasteMumInventories = WasteMumInventory::with('product')->get()->keyBy('product_id');
-
-        // مواد اولیه
         $rawMaterials = RawMaterial::orderBy('name')->get();
-
-        // کارتن و لایه
         $packagings = Packaging::orderBy('type')->orderBy('name')->get();
 
         return view('settings.manual-inventory', compact(
@@ -69,41 +47,23 @@ class ManualInventoryController extends Controller
         ));
     }
 
-    /**
-     * ذخیره‌سازی مقادیر ویرایش‌شده
-     */
     public function update(Request $request)
     {
         $request->validate([
-            // اعتبارسنجی موجودی اول دوره
             'opening' => 'nullable|array',
             'opening.*' => 'nullable|numeric|min:0',
-
-            // اعتبارسنجی موجودی موم
             'wax' => 'nullable|array',
             'wax.*' => 'nullable|numeric|min:0',
-
-            // اعتبارسنجی موجودی ۱۳۰۰ درجه
             'glaze1300' => 'nullable|array',
             'glaze1300.*' => 'nullable|numeric|min:0',
-
-            // اعتبارسنجی موجودی انبار
             'warehouse' => 'nullable|array',
             'warehouse.*' => 'nullable|numeric|min:0',
-
-            // اعتبارسنجی موجودی شانه شده
             'shoulder' => 'nullable|array',
             'shoulder.*' => 'nullable|numeric|min:0',
-
-            // اعتبارسنجی ضایعات موم
             'waste_mum' => 'nullable|array',
             'waste_mum.*' => 'nullable|numeric|min:0',
-
-            // اعتبارسنجی موجودی مواد اولیه
             'raw_material' => 'nullable|array',
             'raw_material.*' => 'nullable|numeric|min:0',
-
-            // اعتبارسنجی موجودی کارتن و لایه
             'packaging' => 'nullable|array',
             'packaging.*' => 'nullable|numeric|min:0',
         ]);
@@ -111,7 +71,7 @@ class ManualInventoryController extends Controller
         DB::beginTransaction();
 
         try {
-            // ===== ۱. به‌روزرسانی موجودی اول دوره =====
+            // موجودی اول دوره
             if ($request->has('opening')) {
                 foreach ($request->opening as $productId => $quantity) {
                     if ($quantity !== null && $quantity !== '') {
@@ -123,7 +83,7 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ===== ۲. به‌روزرسانی موجودی موم =====
+            // موجودی موم
             if ($request->has('wax')) {
                 foreach ($request->wax as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -135,7 +95,7 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ===== ۳. به‌روزرسانی موجودی ۱۳۰۰ درجه =====
+            // موجودی ۱۳۰۰ درجه
             if ($request->has('glaze1300')) {
                 foreach ($request->glaze1300 as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -147,7 +107,7 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ===== ۴. به‌روزرسانی موجودی انبار =====
+            // موجودی انبار
             if ($request->has('warehouse')) {
                 foreach ($request->warehouse as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -159,7 +119,7 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ===== ۵. به‌روزرسانی موجودی شانه شده =====
+            // موجودی شانه شده
             if ($request->has('shoulder')) {
                 foreach ($request->shoulder as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -171,7 +131,7 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ===== ۶. به‌روزرسانی ضایعات موم =====
+            // ضایعات موم
             if ($request->has('waste_mum')) {
                 foreach ($request->waste_mum as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -183,7 +143,7 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ===== ۷. به‌روزرسانی موجودی مواد اولیه =====
+            // مواد اولیه
             if ($request->has('raw_material')) {
                 foreach ($request->raw_material as $materialId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -192,7 +152,7 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ===== ۸. به‌روزرسانی موجودی کارتن و لایه =====
+            // کارتن و لایه
             if ($request->has('packaging')) {
                 foreach ($request->packaging as $packagingId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -212,14 +172,8 @@ class ManualInventoryController extends Controller
         }
     }
 
-    /**
-     * صفر کردن همه موجودی‌ها (با احتیاط)
-     */
     public function resetAll()
     {
-        // فقط با تایید دو مرحله‌ای اجرا شود
-        // برای امنیت بیشتر، می‌توانید این متد را فقط با POST و توکن CSRF اجرا کنید
-
         DB::beginTransaction();
 
         try {

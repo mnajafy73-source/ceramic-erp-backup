@@ -2,49 +2,43 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\RawMaterial;
 use App\Models\RawMaterialPurchaseItem;
 use App\Models\Production;
 use App\Models\Product;
+use App\Models\OpeningInventory;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class FixRawMaterialStock extends Command
 {
     protected $signature = 'raw-material:fix-stock';
-    protected $description = 'محاسبه و بازنشانی موجودی مواد اولیه بر اساس خریدها و تولیدات با فرمول صحیح';
+    protected $description = 'محاسبه موجودی مواد اولیه بر اساس موجودی اول دوره، خریدها و تولیدات';
 
     public function handle()
     {
-        $this->info('🔄 شروع بازنشانی موجودی مواد اولیه...');
+        $this->info('🔄 شروع محاسبه موجودی مواد اولیه...');
 
         DB::beginTransaction();
 
         try {
-            // ۱. تنظیم موجودی همه مواد به صفر
-            RawMaterial::query()->update(['stock' => 0]);
-            $this->info('✅ موجودی مواد اولیه به صفر تنظیم شد.');
+            // ۱. دریافت موجودی اول دوره برای هر ماده
+            $openingStocks = [];
+            $openingItems = OpeningInventory::with('product')->get();
+            foreach ($openingItems as $item) {
+                // اگر محصول مربوط به مواد اولیه است
+                $material = RawMaterial::where('name', $item->product->name)->first();
+                if ($material) {
+                    $openingStocks[$material->id] = $item->quantity;
+                }
+            }
 
-            // ۲. محاسبه مجموع خرید هر ماده (بر حسب گرم)
+            // ۲. محاسبه مجموع خرید هر ماده
             $purchases = RawMaterialPurchaseItem::with('rawMaterial')
                 ->get()
                 ->groupBy('raw_material_id');
 
-            $this->info('📊 محاسبه خریدها...');
-
-            foreach ($purchases as $materialId => $items) {
-                $totalPurchased = $items->sum('quantity'); // به گرم
-                $rawMaterial = RawMaterial::find($materialId);
-                if ($rawMaterial) {
-                    $rawMaterial->stock += $totalPurchased;
-                    $rawMaterial->save();
-                    $this->line("   🔹 {$rawMaterial->name}: +{$totalPurchased} گرم (خرید)");
-                }
-            }
-
-            // ۳. محاسبه مصرف هر ماده از تولیدات (بر حسب گرم)
-            $this->info('📊 محاسبه مصرف تولیدات...');
-
+            // ۳. محاسبه مصرف هر ماده از تولیدات
             $productions = Production::with(['product.formula.items.rawMaterial'])
                 ->where('stage', 'production')
                 ->get();
@@ -57,7 +51,6 @@ class FixRawMaterialStock extends Command
                     continue;
                 }
 
-                // محاسبه مصرف به گرم (مستقیم)
                 $totalMaterialGram = $production->quantity * $product->weight;
 
                 foreach ($product->formula->items as $item) {
@@ -71,26 +64,22 @@ class FixRawMaterialStock extends Command
                 }
             }
 
-            // ۴. کسر مصرف از موجودی
-            foreach ($materialConsumption as $materialId => $consumedGram) {
-                $rawMaterial = RawMaterial::find($materialId);
-                if ($rawMaterial) {
-                    $oldStock = $rawMaterial->stock;
-                    $rawMaterial->stock -= $consumedGram;
-                    $rawMaterial->save();
-                    $this->line("   🔹 {$rawMaterial->name}: -{$consumedGram} گرم (مصرف تولید) → موجودی: {$rawMaterial->stock} گرم");
-                }
+            // ۴. محاسبه موجودی نهایی = موجودی اول دوره + خرید - مصرف
+            foreach (RawMaterial::all() as $material) {
+                $opening = $openingStocks[$material->id] ?? 0;
+                $purchased = $purchases->has($material->id) ? $purchases[$material->id]->sum('quantity') : 0;
+                $consumed = $materialConsumption[$material->id] ?? 0;
+
+                $stock = $opening + $purchased - $consumed;
+                $material->stock = max(0, $stock);
+                $material->save();
+
+                $this->line("   {$material->name}: {$opening} + {$purchased} - {$consumed} = {$stock} گرم");
             }
 
             DB::commit();
 
-            $this->info('✅ موجودی مواد اولیه با موفقیت بازنشانی شد.');
-            $this->info('📌 موجودی نهایی:');
-
-            foreach (RawMaterial::all() as $material) {
-                $this->line("   🔹 {$material->name}: {$material->stock} گرم");
-            }
-
+            $this->info('✅ موجودی مواد اولیه با موفقیت محاسبه شد.');
             return 0;
         } catch (\Exception $e) {
             DB::rollBack();

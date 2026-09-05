@@ -9,141 +9,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
     <?php echo app('Illuminate\Foundation\Vite')(['resources/css/app.css', 'resources/js/app.js']); ?>
     <style>
-        :root {
-            --primary: #1e3a5f;
-            --secondary: #2b5f8e;
-            --light-bg: #f0f4f8;
-            --sidebar-width: 260px;
-        }
-        body {
-            background-color: var(--light-bg);
-            font-family: Tahoma, sans-serif;
-            margin: 0;
-        }
-        .sidebar {
-            position: fixed;
-            right: 0;
-            top: 0;
-            height: 100%;
-            width: var(--sidebar-width);
-            background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%);
-            color: white;
-            z-index: 1050;
-            box-shadow: -5px 0 20px rgba(0,0,0,0.2);
-            overflow-y: auto;
-            transform: translateX(0);
-            transition: transform 0.4s;
-        }
-        .sidebar .sidebar-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            text-align: center;
-        }
-        .sidebar .nav-link {
-            color: rgba(255,255,255,0.8) !important;
-            padding: 0.8rem 1.5rem;
-            border-left: 3px solid transparent;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            text-decoration: none;
-            background: none;
-            border: none;
-            width: 100%;
-            text-align: right;
-            font-size: 0.95rem;
-            cursor: pointer;
-        }
-        .sidebar .nav-link:hover,
-        .sidebar .nav-link.active {
-            background: rgba(255,255,255,0.1);
-            border-left-color: #ffc107;
-            color: white !important;
-        }
-        .sidebar .submenu {
-            display: none;
-            background: rgba(0, 0, 0, 0.25);
-        }
-        .sidebar .submenu.open {
-            display: block;
-        }
-        .sidebar .submenu a {
-            display: block;
-            padding: 10px 40px 10px 20px;
-            color: rgba(255,255,255,0.7);
-            text-decoration: none;
-            font-size: 0.9rem;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            transition: all 0.2s;
-        }
-        .sidebar .submenu a:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
-        }
-        .sidebar .menu-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .sidebar .menu-arrow {
-            font-size: 0.8rem;
-            transition: transform 0.3s;
-        }
-        .sidebar .menu-title.open .menu-arrow {
-            transform: rotate(180deg);
-        }
-        .main-content {
-            margin-right: var(--sidebar-width);
-            min-height: 100vh;
-            transition: margin-right 0.4s;
-        }
-        .topbar {
-            background: white;
-            padding: 1rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .menu-toggle {
-            display: none;
-            background: none;
-            border: none;
-            font-size: 1.8rem;
-            color: var(--primary);
-            cursor: pointer;
-        }
-        .alert-undo {
-            background: #e8f5fe;
-            border: 1px solid #b8dfff;
-            border-radius: 10px;
-            padding: 12px 18px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .alert-undo .btn-group {
-            display: flex;
-            gap: 8px;
-        }
-        @media (max-width: 991px) {
-            .sidebar {
-                transform: translateX(100%);
-            }
-            .sidebar.active {
-                transform: translateX(0);
-            }
-            .main-content {
-                margin-right: 0;
-            }
-            .menu-toggle {
-                display: block;
-            }
-        }
+        :root { --primary: #1e3a5f; --secondary: #2b5f8e; --light-bg: #f0f4f8; --sidebar-width: 260px; }
+        body { background-color: var(--light-bg); font-family: Tahoma, sans-serif; margin: 0; }
+        .sidebar { position: fixed; right: 0; top: 0; height: 100%; width: var(--sidebar-width); background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%); color: white; z-index: 1050; box-shadow: -5px 0 20px rgba(0,0,0,0.2); overflow-y: auto; transform: translateX(0); transition: transform 0.4s; }
+        .sidebar .sidebar-header { padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8) !important; padding: 0.8rem 1.5rem; border-left: 3px solid transparent; transition: all 0.3s; display: flex; align-items: center; gap: 10px; text-decoration: none; background: none; border: none; width: 100%; text-align: right; font-size: 0.95rem; cursor: pointer; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background: rgba(255,255,255,0.1); border-left-color: #ffc107; color: white !important; }
+        .sidebar .submenu { display: none; background: rgba(0,0,0,0.25); }
+        .sidebar .submenu.open { display: block; }
+        .sidebar .submenu a { display: block; padding: 10px 40px 10px 20px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.05); transition: all 0.2s; }
+        .sidebar .submenu a:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar .menu-title { display: flex; justify-content: space-between; align-items: center; }
+        .sidebar .menu-arrow { font-size: 0.8rem; transition: transform 0.3s; }
+        .sidebar .menu-title.open .menu-arrow { transform: rotate(180deg); }
+        .main-content { margin-right: var(--sidebar-width); min-height: 100vh; transition: margin-right 0.4s; }
+        .topbar { background: white; padding: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .menu-toggle { display: none; background: none; border: none; font-size: 1.8rem; color: var(--primary); cursor: pointer; }
+        .alert-undo { background: #e8f5fe; border: 1px solid #b8dfff; border-radius: 10px; padding: 12px 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .alert-undo .btn-group { display: flex; gap: 8px; }
+        @media (max-width: 991px) { .sidebar { transform: translateX(100%); } .sidebar.active { transform: translateX(0); } .main-content { margin-right: 0; } .menu-toggle { display: block; } }
     </style>
     <?php echo $__env->yieldPushContent('styles'); ?>
 </head>
@@ -157,17 +41,11 @@
             <small class="text-white-50">پنل مدیریت</small>
         </div>
         <div class="pt-3">
-            <a href="<?php echo e(route('dashboard')); ?>" class="nav-link <?php echo e(request()->routeIs('dashboard') ? 'active' : ''); ?>">
-                <i class="fas fa-tachometer-alt"></i> داشبورد
-            </a>
-
-            <a href="<?php echo e(route('productions.index')); ?>" class="nav-link <?php echo e(request()->routeIs('productions.*') ? 'active' : ''); ?>">
-                <i class="fas fa-industry"></i> تولید
-            </a>
+            <a href="<?php echo e(route('dashboard')); ?>" class="nav-link <?php echo e(request()->routeIs('dashboard') ? 'active' : ''); ?>"><i class="fas fa-tachometer-alt"></i> داشبورد</a>
+            <a href="<?php echo e(route('productions.index')); ?>" class="nav-link <?php echo e(request()->routeIs('productions.*') ? 'active' : ''); ?>"><i class="fas fa-industry"></i> تولید</a>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-kilns')">
-                <span><i class="fas fa-fire"></i> کوره‌ها</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
+                <span><i class="fas fa-fire"></i> کوره‌ها</span> <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-kilns">
                 <a href="<?php echo e(route('tonneli.index')); ?>"><i class="fas fa-industry"></i> پخت کوره تونلی</a>
@@ -175,8 +53,7 @@
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-sales')">
-                <span><i class="fas fa-shopping-cart"></i> فروش</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
+                <span><i class="fas fa-shopping-cart"></i> فروش</span> <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-sales">
                 <a href="<?php echo e(route('sales.index')); ?>"><i class="fas fa-file-invoice-dollar"></i> رسمی</a>
@@ -185,8 +62,7 @@
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-purchases')">
-                <span><i class="fas fa-shopping-basket"></i> خرید</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
+                <span><i class="fas fa-shopping-basket"></i> خرید</span> <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-purchases">
                 <a href="<?php echo e(route('raw-material-purchases.index')); ?>"><i class="fas fa-cube"></i> خرید مواد</a>
@@ -194,23 +70,18 @@
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-inventory')">
-                <span><i class="fas fa-cubes"></i> موجودی</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
+                <span><i class="fas fa-cubes"></i> موجودی</span> <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-inventory">
                 <a href="<?php echo e(route('opening-inventories.index')); ?>"><i class="fas fa-database"></i> موجودی اول دوره</a>
                 <a href="<?php echo e(route('inventory.raw-materials')); ?>"><i class="fas fa-cube"></i> مواد اولیه</a>
-                
-                
-                
                 <a href="<?php echo e(route('inventory.packaging-stock')); ?>"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="<?php echo e(route('inventory.warehouse')); ?>"><i class="fas fa-warehouse"></i> موجودی انبار</a>
                 <a href="<?php echo e(route('inventory.all-stocks')); ?>"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a>
             </div>
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
-                <span><i class="fas fa-chart-bar"></i> گزارشات</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
+                <span><i class="fas fa-chart-bar"></i> گزارشات</span> <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-reports">
                 <a href="<?php echo e(route('reports.production')); ?>"><i class="fas fa-industry"></i> گزارش تولید</a>
@@ -218,19 +89,13 @@
                 <a href="<?php echo e(route('reports.annual')); ?>"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
 
-            <a href="<?php echo e(route('product-sales-stats.index')); ?>" class="nav-link <?php echo e(request()->routeIs('product-sales-stats.*') ? 'active' : ''); ?>">
-                <i class="fas fa-chart-line"></i> آمار
-            </a>
-
-            <a href="<?php echo e(route('import.index')); ?>" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>">
-                <i class="fas fa-upload"></i> وارد کردن
-            </a>
+            <a href="<?php echo e(route('product-sales-stats.index')); ?>" class="nav-link <?php echo e(request()->routeIs('product-sales-stats.*') ? 'active' : ''); ?>"><i class="fas fa-chart-line"></i> آمار</a>
+            <a href="<?php echo e(route('import.index')); ?>" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>"><i class="fas fa-upload"></i> وارد کردن</a>
 
             <hr class="text-white-50 mx-3 my-2">
 
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-settings')">
-                <span><i class="fas fa-cog"></i> تنظیمات</span>
-                <i class="fas fa-chevron-down menu-arrow"></i>
+                <span><i class="fas fa-cog"></i> تنظیمات</span> <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-settings">
                 <div style="padding: 5px 40px 5px 20px; color: rgba(255,255,255,0.4); font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">تعاریف پایه</div>
@@ -246,72 +111,39 @@
                 <a href="<?php echo e(route('product_logs.index')); ?>"><i class="fas fa-history"></i> تاریخچه تغییرات</a>
 
                 <div style="padding: 5px 40px 5px 20px; color: rgba(255,255,255,0.4); font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">ابزارها</div>
-                <a href="<?php echo e(route('settings.manual-inventory')); ?>"><i class="fas fa-hand-edit"></i> به‌روزرسانی دستی موجودی</a>
+                <a href="<?php echo e(route('settings.manual-inventory')); ?>"><i class="fas fa-hand-edit"></i> تنظیم موجودی اول دوره</a>
             </div>
 
             <form method="POST" action="<?php echo e(route('logout')); ?>" class="mt-3 px-3 pb-3">
                 <?php echo csrf_field(); ?>
-                <button type="submit" class="btn btn-outline-light btn-sm w-100">
-                    <i class="fas fa-sign-out-alt ms-1"></i> خروج
-                </button>
+                <button type="submit" class="btn btn-outline-light btn-sm w-100"><i class="fas fa-sign-out-alt ms-1"></i> خروج</button>
             </form>
         </div>
     </nav>
 
     <div class="main-content" id="mainContent">
         <div class="topbar">
-            <button class="menu-toggle" id="menuToggle" onclick="openSidebar()">
-                <i class="fas fa-bars"></i>
-            </button>
-            <div>
-                <span class="text-muted"><?php echo e(Auth::user()->name ?? 'کاربر'); ?></span>
-            </div>
+            <button class="menu-toggle" id="menuToggle" onclick="openSidebar()"><i class="fas fa-bars"></i></button>
+            <div><span class="text-muted"><?php echo e(Auth::user()->name ?? 'کاربر'); ?></span></div>
         </div>
         <div class="p-3 p-md-4">
 
-            
             <?php if(session('undo_record')): ?>
                 <div class="alert-undo">
-                    <span>
-                        <i class="fas fa-undo-alt me-2 text-primary"></i>
-                        یک عملیات حذف قابل برگشت است.
-                    </span>
+                    <span><i class="fas fa-undo-alt me-2 text-primary"></i> یک عملیات حذف قابل برگشت است.</span>
                     <div class="btn-group">
-                        <a href="<?php echo e(route('undo.restore')); ?>" class="btn btn-sm btn-success">
-                            <i class="fas fa-undo me-1"></i> بازگرداندن
-                        </a>
-                        <a href="<?php echo e(route('undo.discard')); ?>" class="btn btn-sm btn-danger">
-                            <i class="fas fa-times me-1"></i> لغو
-                        </a>
+                        <a href="<?php echo e(route('undo.restore')); ?>" class="btn btn-sm btn-success"><i class="fas fa-undo me-1"></i> بازگرداندن</a>
+                        <a href="<?php echo e(route('undo.discard')); ?>" class="btn btn-sm btn-danger"><i class="fas fa-times me-1"></i> لغو</a>
                     </div>
                 </div>
             <?php endif; ?>
 
-            
-            <?php if(session('success')): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <?php echo e(session('success')); ?>
-
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            <?php endif; ?>
-
-            <?php if(session('error')): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <?php echo e(session('error')); ?>
-
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            <?php endif; ?>
-
+            <?php if(session('success')): ?> <div class="alert alert-success alert-dismissible fade show" role="alert"><?php echo e(session('success')); ?> <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> <?php endif; ?>
+            <?php if(session('error')): ?> <div class="alert alert-danger alert-dismissible fade show" role="alert"><?php echo e(session('error')); ?> <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> <?php endif; ?>
             <?php if($errors->any()): ?>
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <ul class="mb-0">
-                        <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                            <li><?php echo e($error); ?></li>
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                    </ul>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <ul class="mb-0"> <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?> <li><?php echo e($error); ?></li> <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?> </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
 
@@ -325,28 +157,10 @@
     <script>
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-
-        function openSidebar() {
-            sidebar.classList.add('active');
-            overlay.style.display = 'block';
-        }
-        function closeSidebar() {
-            sidebar.classList.remove('active');
-            overlay.style.display = 'none';
-        }
-        window.addEventListener('resize', function() {
-            if (window.innerWidth >= 992) {
-                sidebar.classList.remove('active');
-                overlay.style.display = 'none';
-            }
-        });
-
-        function toggleSubmenu(button, submenuId) {
-            event.preventDefault();
-            const submenu = document.getElementById(submenuId);
-            submenu.classList.toggle('open');
-            button.classList.toggle('open');
-        }
+        function openSidebar() { sidebar.classList.add('active'); overlay.style.display = 'block'; }
+        function closeSidebar() { sidebar.classList.remove('active'); overlay.style.display = 'none'; }
+        window.addEventListener('resize', function() { if (window.innerWidth >= 992) { sidebar.classList.remove('active'); overlay.style.display = 'none'; } });
+        function toggleSubmenu(button, submenuId) { event.preventDefault(); const submenu = document.getElementById(submenuId); submenu.classList.toggle('open'); button.classList.toggle('open'); }
     </script>
     <?php echo $__env->yieldPushContent('scripts'); ?>
 </body>

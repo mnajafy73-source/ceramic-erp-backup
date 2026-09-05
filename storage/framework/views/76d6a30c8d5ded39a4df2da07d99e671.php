@@ -15,9 +15,6 @@
         padding-bottom: 0.5rem;
         margin-bottom: 1rem;
     }
-    .inventory-table td, .inventory-table th {
-        vertical-align: middle;
-    }
     .inventory-table input[type="number"] {
         width: 120px;
         text-align: left;
@@ -28,12 +25,11 @@
 
 <?php $__env->startSection('content'); ?>
 <div class="mb-4">
-    <h4 class="fw-bold mb-1">🛠️ به‌روزرسانی دستی موجودی‌ها</h4>
+    <h4 class="fw-bold mb-1">🛠️ تنظیم موجودی اول دوره</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">داشبورد</a></li>
-            <li class="breadcrumb-item"><a href="<?php echo e(route('settings.manual-inventory')); ?>">تنظیمات</a></li>
-            <li class="breadcrumb-item active">به‌روزرسانی موجودی</li>
+            <li class="breadcrumb-item active">تنظیم موجودی اول دوره</li>
         </ol>
     </nav>
 </div>
@@ -42,9 +38,9 @@
     <div class="card-body">
         <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            در این صفحه می‌توانید همه‌ی موجودی‌های سیستم را به‌صورت دستی ویرایش کنید. 
-            مقادیر خالی یا صفر، موجودی را به‌روز نمی‌کنند.
-            <strong>توجه:</strong> پس از ذخیره، سیستم از همین موجودی‌ها برای محاسبات بعدی استفاده می‌کند.
+            در این صفحه می‌توانید <strong>موجودی اول دوره</strong> را برای همه‌ی بخش‌ها تنظیم کنید.
+            این موجودی‌ها به‌عنوان پایه در نظر گرفته می‌شوند و سیستم تغییرات بعدی را روی آن‌ها اعمال می‌کند.
+            مقادیر خالی یا صفر، به‌روزرسانی نمی‌شوند.
         </div>
 
         <form action="<?php echo e(route('settings.manual-inventory.update')); ?>" method="POST">
@@ -54,7 +50,7 @@
             
             <?php if($products->count()): ?>
             <div class="inventory-section">
-                <h5 class="section-title">📦 موجودی اول دوره</h5>
+                <h5 class="section-title">📦 موجودی اول دوره (پایه)</h5>
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
@@ -111,10 +107,7 @@
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
-                            <tr>
-                                <th>نام محصول</th>
-                                <th>موجودی موم</th>
-                            </tr>
+                            <tr><th>نام محصول</th><th>موجودی موم</th></tr>
                         </thead>
                         <tbody>
                             <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -133,16 +126,12 @@
                 </div>
             </div>
 
-            
             <div class="inventory-section">
                 <h5 class="section-title">🔥 موجودی ۱۳۰۰ درجه</h5>
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
-                            <tr>
-                                <th>نام محصول</th>
-                                <th>موجودی ۱۳۰۰ درجه</th>
-                            </tr>
+                            <tr><th>نام محصول</th><th>موجودی ۱۳۰۰ درجه</th></tr>
                         </thead>
                         <tbody>
                             <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -161,16 +150,12 @@
                 </div>
             </div>
 
-            
             <div class="inventory-section">
                 <h5 class="section-title">🏭 موجودی انبار</h5>
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
-                            <tr>
-                                <th>نام محصول</th>
-                                <th>موجودی انبار</th>
-                            </tr>
+                            <tr><th>نام محصول</th><th>موجودی انبار</th></tr>
                         </thead>
                         <tbody>
                             <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -189,16 +174,12 @@
                 </div>
             </div>
 
-            
             <div class="inventory-section">
                 <h5 class="section-title">🧴 موجودی شانه شده</h5>
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
-                            <tr>
-                                <th>نام محصول</th>
-                                <th>موجودی شانه شده</th>
-                            </tr>
+                            <tr><th>نام محصول</th><th>موجودی شانه شده</th></tr>
                         </thead>
                         <tbody>
                             <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -217,16 +198,12 @@
                 </div>
             </div>
 
-            
             <div class="inventory-section">
                 <h5 class="section-title">🗑️ ضایعات موم</h5>
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
-                            <tr>
-                                <th>نام محصول</th>
-                                <th>ضایعات موم</th>
-                            </tr>
+                            <tr><th>نام محصول</th><th>ضایعات موم</th></tr>
                         </thead>
                         <tbody>
                             <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -252,10 +229,7 @@
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
-                            <tr>
-                                <th>نام ماده</th>
-                                <th>موجودی (گرم)</th>
-                            </tr>
+                            <tr><th>نام ماده</th><th>موجودی (گرم)</th></tr>
                         </thead>
                         <tbody>
                             <?php $__currentLoopData = $rawMaterials; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $material): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -282,11 +256,7 @@
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover inventory-table">
                         <thead class="table-light">
-                            <tr>
-                                <th>نوع</th>
-                                <th>نام</th>
-                                <th>موجودی (عدد)</th>
-                            </tr>
+                            <tr><th>نوع</th><th>نام</th><th>موجودی (عدد)</th></tr>
                         </thead>
                         <tbody>
                             <?php $__currentLoopData = $packagings; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $packaging): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -307,7 +277,6 @@
             </div>
             <?php endif; ?>
 
-            
             <div class="d-flex justify-content-between align-items-center mt-4 gap-3 flex-wrap">
                 <button type="submit" class="btn btn-primary btn-lg">
                     <i class="fas fa-save me-2"></i> ذخیره همه موجودی‌ها
@@ -324,7 +293,6 @@
         </form>
     </div>
 </div>
-
 
 <form id="resetForm" action="<?php echo e(route('settings.manual-inventory.reset')); ?>" method="POST" style="display:none;">
     <?php echo csrf_field(); ?>

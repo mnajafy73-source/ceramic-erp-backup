@@ -156,9 +156,7 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // ============================================================
-    // ✅ تنظیمات - به‌روزرسانی دستی موجودی‌ها (جدید)
-    // ============================================================
+    // تنظیمات - به‌روزرسانی دستی موجودی‌ها
     Route::get('/settings/manual-inventory', [ManualInventoryController::class, 'index'])->name('settings.manual-inventory');
     Route::put('/settings/manual-inventory', [ManualInventoryController::class, 'update'])->name('settings.manual-inventory.update');
     Route::delete('/settings/manual-inventory/reset', [ManualInventoryController::class, 'resetAll'])->name('settings.manual-inventory.reset');
