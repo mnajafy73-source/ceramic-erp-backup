@@ -27,6 +27,7 @@ use App\Http\Controllers\CostPriceController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\ProductSalesStatsController;
 use App\Http\Controllers\ManualInventoryController;
+use App\Http\Controllers\MaterialMakingController;
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -123,6 +124,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/import/informal-sales', [ImportController::class, 'importInformalSales'])->name('import.informal-sales');
     Route::post('/import/formal-sales', [ImportController::class, 'importFormalSales'])->name('import.formal-sales');
     Route::post('/import/shoulder', [ImportController::class, 'importShoulder'])->name('import.shoulder');
+    Route::post('/import/material-making', [ImportController::class, 'importMaterialMaking'])->name('import.material-making');
 
     // گزارشات
     Route::get('/reports/production', [ReportController::class, 'production'])->name('reports.production');
@@ -160,6 +162,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/settings/manual-inventory', [ManualInventoryController::class, 'index'])->name('settings.manual-inventory');
     Route::put('/settings/manual-inventory', [ManualInventoryController::class, 'update'])->name('settings.manual-inventory.update');
     Route::delete('/settings/manual-inventory/reset', [ManualInventoryController::class, 'resetAll'])->name('settings.manual-inventory.reset');
+
+    // مواد سازی
+    Route::get('/material-making', [MaterialMakingController::class, 'index'])->name('material-making.index');
+    Route::get('/material-making/import', [MaterialMakingController::class, 'import'])->name('material-making.import');
+    Route::post('/material-making/import', [MaterialMakingController::class, 'importStore'])->name('material-making.import.store');
+    Route::delete('/material-making/{id}', [MaterialMakingController::class, 'destroy'])->name('material-making.destroy');
+    Route::delete('/material-making/group/{year}/{month}/{day}', [MaterialMakingController::class, 'destroyGroup'])->name('material-making.destroy-group');
 });
 
 require __DIR__.'/auth.php';

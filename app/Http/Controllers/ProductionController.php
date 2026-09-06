@@ -7,7 +7,6 @@ use App\Models\ProductionStop;
 use App\Models\Operator;
 use App\Models\Press;
 use App\Models\Product;
-use App\Models\RawMaterial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -100,7 +99,8 @@ class ProductionController extends Controller
                     'notes' => null,
                 ]);
 
-                $this->subtractMaterials($production, $productWeight);
+                // ❌ کسر مواد اولیه حذف شد - فقط از برگه مواد سازی کسر می‌شود
+                // $this->subtractMaterials($production, $productWeight);
 
                 if (!empty($rowData['stop_types']) && !empty($rowData['stop_hours'])) {
                     foreach ($rowData['stop_types'] as $index => $type) {
@@ -168,7 +168,8 @@ class ProductionController extends Controller
         DB::beginTransaction();
 
         try {
-            $this->addMaterials($production);
+            // ❌ برگرداندن مواد اولیه حذف شد
+            // $this->addMaterials($production);
 
             $product = Product::find($validated['product_id']);
             $newWeight = $product ? $product->weight : null;
@@ -186,7 +187,9 @@ class ProductionController extends Controller
             ]);
 
             $production->refresh();
-            $this->subtractMaterials($production, $newWeight);
+
+            // ❌ کسر مجدد مواد اولیه حذف شد
+            // $this->subtractMaterials($production, $newWeight);
 
             $production->stops()->delete();
             if (!empty($request->stop_types) && !empty($request->stop_hours)) {
@@ -216,7 +219,9 @@ class ProductionController extends Controller
         DB::beginTransaction();
 
         try {
-            $this->addMaterials($production);
+            // ❌ برگرداندن مواد اولیه حذف شد
+            // $this->addMaterials($production);
+
             $production->stops()->delete();
             $production->delete();
             DB::commit();
@@ -276,7 +281,9 @@ class ProductionController extends Controller
 
         try {
             foreach ($productions as $production) {
-                $this->addMaterials($production);
+                // ❌ برگرداندن مواد اولیه حذف شد
+                // $this->addMaterials($production);
+
                 $production->stops()->delete();
                 $production->delete();
             }
@@ -293,7 +300,6 @@ class ProductionController extends Controller
             ->with('success', '✅ ' . $productions->count() . ' رکورد تولید تاریخ ' . $dateStr . ' با موفقیت حذف شدند.');
     }
 
-    // ✅ اصلاح شده: متد showByDate با پارامتر $date
     public function showByDate($date)
     {
         try {
@@ -311,78 +317,20 @@ class ProductionController extends Controller
     }
 
     // ============================================================
-    //  متدهای کمکی کسر و بازگشت مواد اولیه (با لاگ دیباگ)
+    //  ❌ متدهای کمکی کسر و بازگشت مواد اولیه (غیرفعال شدند)
     // ============================================================
-
-    private function subtractMaterials(Production $production, $weight = null)
-    {
-        $product = $production->product;
-        $weight = $weight ?? $production->product_weight ?? ($product ? $product->weight : null);
-
-        Log::info('===== SUBTRACT MATERIALS =====');
-        Log::info('Production ID: ' . $production->id);
-        Log::info('Product ID: ' . ($product ? $product->id : 'null'));
-        Log::info('Product Name: ' . ($product ? $product->name : 'null'));
-        Log::info('Weight: ' . $weight);
-        Log::info('Quantity: ' . $production->quantity);
-        Log::info('Formula ID: ' . ($product ? $product->formula_id : 'null'));
-
-        if (!$product || !$weight || !$product->formula_id) {
-            Log::warning('SKIP: Missing product, weight, or formula_id');
-            return;
-        }
-
-        $weightInKg = $this->convertWeightToKg($weight);
-        $totalMaterialKg = $production->quantity * $weightInKg;
-
-        Log::info('Weight in kg: ' . $weightInKg);
-        Log::info('Total material kg: ' . $totalMaterialKg);
-
-        $formulaItems = $product->formula->items;
-        Log::info('Formula items count: ' . $formulaItems->count());
-
-        foreach ($formulaItems as $item) {
-            $consumedKg = ($totalMaterialKg * $item->percentage) / 100;
-            $consumedGram = $consumedKg * 1000;
-            Log::info('Raw material ID: ' . $item->raw_material_id . ', Percentage: ' . $item->percentage . '%, Consumed gram: ' . $consumedGram);
-
-            $rawMaterial = RawMaterial::find($item->raw_material_id);
-            if ($rawMaterial) {
-                $oldStock = $rawMaterial->stock;
-                $rawMaterial->stock -= $consumedGram;
-                $rawMaterial->save();
-                Log::info('Raw material "' . $rawMaterial->name . '" stock: ' . $oldStock . ' → ' . $rawMaterial->stock);
-            } else {
-                Log::error('Raw material not found for ID: ' . $item->raw_material_id);
-            }
-        }
-    }
-
-    private function addMaterials(Production $production)
-    {
-        $product = $production->product;
-        $weight = $production->product_weight ?? ($product ? $product->weight : null);
-
-        if (!$product || !$weight || !$product->formula_id) {
-            return;
-        }
-
-        $weightInKg = $this->convertWeightToKg($weight);
-        $totalMaterialKg = $production->quantity * $weightInKg;
-
-        foreach ($product->formula->items as $item) {
-            $consumedKg = ($totalMaterialKg * $item->percentage) / 100;
-            $consumedGram = $consumedKg * 1000;
-            $rawMaterial = RawMaterial::find($item->raw_material_id);
-            if ($rawMaterial) {
-                $rawMaterial->stock += $consumedGram;
-                $rawMaterial->save();
-            }
-        }
-    }
-
-    private function convertWeightToKg($weight)
-    {
-        return ($weight < 1000) ? $weight / 1000 : $weight;
-    }
+    // private function subtractMaterials(Production $production, $weight = null)
+    // {
+    //     // این متد دیگر استفاده نمی‌شود
+    // }
+    //
+    // private function addMaterials(Production $production)
+    // {
+    //     // این متد دیگر استفاده نمی‌شود
+    // }
+    //
+    // private function convertWeightToKg($weight)
+    // {
+    //     // این متد دیگر استفاده نمی‌شود
+    // }
 }

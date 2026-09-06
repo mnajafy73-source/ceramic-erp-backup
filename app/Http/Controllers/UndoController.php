@@ -14,9 +14,14 @@ use App\Models\RawMaterial;
 use App\Models\PackagingPurchase;
 use App\Models\PackagingPurchaseItem;
 use App\Models\Packaging;
+use App\Models\MaterialMaking;
+use App\Models\Formula;
 
 class UndoController extends Controller
 {
+    /**
+     * بازگرداندن عملیات حذف شده (Undo)
+     */
     public function restore(Request $request)
     {
         $record = session('undo_record');
@@ -32,37 +37,56 @@ class UndoController extends Controller
         try {
             if ($isGroup) {
                 // ============================================================
-                //  بازیابی گروهی (برای Production)
+                //  بازیابی گروهی
                 // ============================================================
                 $class = $record['class'];
-                $items = $record['data'];
+                $data = $record['data'];
 
-                foreach ($items as $item) {
-                    $productionData = $item['production'];
-                    $stopsData = $item['stops'] ?? [];
-
-                    unset($productionData['id'], $productionData['created_at'], $productionData['updated_at']);
-                    $productionData['created_at'] = now();
-                    $productionData['updated_at'] = now();
-
-                    if (isset($productionData['date']) && is_string($productionData['date']) && strpos($productionData['date'], 'T') !== false) {
-                        try {
-                            $productionData['date'] = Carbon::parse($productionData['date'])->format('Y-m-d');
-                        } catch (\Exception $e) {}
+                // --- بازیابی گروهی مواد سازی ---
+                if ($class === MaterialMaking::class) {
+                    foreach ($data as $item) {
+                        unset($item['id'], $item['created_at'], $item['updated_at']);
+                        $newRecord = MaterialMaking::create($item);
+                        $this->subtractMaterialsForFormula($newRecord->material, $newRecord->quantity, $newRecord->mill_weight);
                     }
-
-                    $newId = DB::table((new $class())->getTable())->insertGetId($productionData);
-
-                    foreach ($stopsData as $stopData) {
-                        unset($stopData['id'], $stopData['production_id'], $stopData['created_at'], $stopData['updated_at']);
-                        $stopData['production_id'] = $newId;
-                        $stopData['created_at'] = now();
-                        $stopData['updated_at'] = now();
-                        DB::table('production_stops')->insert($stopData);
-                    }
+                    session()->forget('undo_record');
+                    DB::commit();
+                    return back()->with('success', 'رکوردهای مواد سازی با موفقیت برگشت داده شدند.');
                 }
 
-                session()->forget('undo_record');
+                // --- بازیابی گروهی تولید (Production) ---
+                if ($class === Production::class) {
+                    foreach ($data as $item) {
+                        $productionData = $item['production'];
+                        $stopsData = $item['stops'] ?? [];
+
+                        unset($productionData['id'], $productionData['created_at'], $productionData['updated_at']);
+                        $productionData['created_at'] = now();
+                        $productionData['updated_at'] = now();
+
+                        if (isset($productionData['date']) && is_string($productionData['date']) && strpos($productionData['date'], 'T') !== false) {
+                            try {
+                                $productionData['date'] = Carbon::parse($productionData['date'])->format('Y-m-d');
+                            } catch (\Exception $e) {}
+                        }
+
+                        $newId = DB::table((new $class())->getTable())->insertGetId($productionData);
+
+                        foreach ($stopsData as $stopData) {
+                            unset($stopData['id'], $stopData['production_id'], $stopData['created_at'], $stopData['updated_at']);
+                            $stopData['production_id'] = $newId;
+                            $stopData['created_at'] = now();
+                            $stopData['updated_at'] = now();
+                            DB::table('production_stops')->insert($stopData);
+                        }
+                    }
+                    session()->forget('undo_record');
+                    DB::commit();
+                    return back()->with('success', 'رکوردهای تولید با موفقیت برگشت داده شدند.');
+                }
+
+                // --- سایر بازیابی‌های گروهی در صورت نیاز ---
+                // می‌توانید کلاس‌های دیگر را در اینجا اضافه کنید
 
             } else {
                 // ============================================================
@@ -72,40 +96,40 @@ class UndoController extends Controller
                 $data = $record['data'];
                 $extra = $record['extra'] ?? [];
 
-                // اطمینان از وجود فیلدهای زمان
                 $data['created_at'] = now();
                 $data['updated_at'] = now();
 
-                // اگر purchase_date وجود نداشت، از داده‌های موجود استفاده کن
+                // تنظیم purchase_date برای خریدها (در صورت نیاز)
                 if (!isset($data['purchase_date']) && isset($data['date'])) {
                     $data['purchase_date'] = $data['date'];
                 }
 
-                // ============================================================
-                //  بازیابی خرید کارتن/لایه (PackagingPurchase) ✅
-                // ============================================================
+                // --- بازیابی تکی مواد سازی ---
+                if ($class === MaterialMaking::class) {
+                    unset($data['id'], $data['created_at'], $data['updated_at']);
+                    $newRecord = MaterialMaking::create($data);
+                    // mill_weight در دیتابیس به گرم است، اما متد subtract انتظار کیلوگرم دارد
+                    $this->subtractMaterialsForFormula($newRecord->material, $newRecord->quantity, $newRecord->mill_weight);
+                    session()->forget('undo_record');
+                    DB::commit();
+                    return back()->with('success', 'رکورد مواد سازی با موفقیت برگشت داده شد.');
+                }
+
+                // --- بازیابی خرید کارتن و لایه ---
                 if ($class === PackagingPurchase::class) {
-                    // داده‌های خرید اصلی
                     $purchaseData = $data;
-                    // آیتم‌های خرید
                     $itemsData = $extra['items'] ?? [];
 
-                    // اطمینان از وجود purchase_date
                     if (empty($purchaseData['purchase_date'])) {
                         return back()->with('error', 'تاریخ خرید در داده‌های برگردانی وجود ندارد.');
                     }
 
-                    // ایجاد خرید جدید
                     $newPurchase = PackagingPurchase::create($purchaseData);
 
                     foreach ($itemsData as $itemData) {
-                        // حذف کلیدهای اضافی
                         unset($itemData['id'], $itemData['purchase_id'], $itemData['created_at'], $itemData['updated_at']);
-
-                        // ایجاد آیتم
                         $newPurchase->items()->create($itemData);
 
-                        // افزایش موجودی کارتن/لایه (چون حذف، موجودی را کم کرده بود)
                         $packaging = Packaging::find($itemData['packaging_id']);
                         if ($packaging) {
                             $packaging->stock += $itemData['quantity'];
@@ -118,9 +142,7 @@ class UndoController extends Controller
                     return back()->with('success', 'خرید کارتن/لایه با موفقیت برگشت داده شد.');
                 }
 
-                // ============================================================
-                //  بازیابی خرید مواد اولیه (RawMaterialPurchase)
-                // ============================================================
+                // --- بازیابی خرید مواد اولیه ---
                 if ($class === RawMaterialPurchase::class) {
                     $newPurchase = RawMaterialPurchase::create($data);
 
@@ -144,9 +166,7 @@ class UndoController extends Controller
                     return back()->with('success', 'خرید مواد با موفقیت برگشت داده شد.');
                 }
 
-                // ============================================================
-                //  بازیابی فروش (Sale / InformalSale)
-                // ============================================================
+                // --- بازیابی فروش (رسمی و غیررسمی) ---
                 $products = $extra['products'] ?? [];
 
                 $newId = DB::table((new $class())->getTable())->insertGetId($data);
@@ -172,6 +192,8 @@ class UndoController extends Controller
                     }
                 }
 
+                // --- سایر بازیابی‌های تکی در صورت نیاز ---
+
                 session()->forget('undo_record');
             }
 
@@ -184,6 +206,41 @@ class UndoController extends Controller
         }
     }
 
+    /**
+     * متد کمکی برای کسر مجدد مواد اولیه هنگام بازگردانی موادسازی
+     * 
+     * @param string $formulaName نام فرمول
+     * @param float $quantity تعداد بالمیل‌ها
+     * @param float $millWeight وزن هر بالمیل به گرم (ذخیره‌شده در دیتابیس)
+     */
+    private function subtractMaterialsForFormula($formulaName, $quantity, $millWeight)
+    {
+        // تبدیل وزن بالمیل از گرم به کیلوگرم
+        $millWeightKg = $millWeight / 1000;
+        $totalKg = $quantity * $millWeightKg;
+
+        $formula = Formula::where('name', $formulaName)->first();
+        if (!$formula) {
+            \Log::warning("فرمول '$formulaName' برای کسر مواد در Undo پیدا نشد.");
+            return;
+        }
+
+        foreach ($formula->items as $item) {
+            $consumedKg = ($totalKg * $item->percentage) / 100;
+            $consumedGram = $consumedKg * 1000;
+
+            $rawMaterial = RawMaterial::find($item->raw_material_id);
+            if ($rawMaterial) {
+                $rawMaterial->stock -= $consumedGram;
+                $rawMaterial->save();
+                \Log::info("کسر مواد در Undo: {$rawMaterial->name} - {$consumedGram} گرم (فرمول {$formulaName})");
+            }
+        }
+    }
+
+    /**
+     * کاهش موجودی محصول (برای فروش)
+     */
     private function decreaseStock($productId, $quantity)
     {
         $product = Product::find($productId);
@@ -193,6 +250,9 @@ class UndoController extends Controller
         $product->save();
     }
 
+    /**
+     * لغو عملیات بازگردانی (Discard)
+     */
     public function discard(Request $request)
     {
         session()->forget('undo_record');

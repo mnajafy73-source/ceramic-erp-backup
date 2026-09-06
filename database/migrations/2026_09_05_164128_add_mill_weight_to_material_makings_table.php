@@ -1,0 +1,24 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('material_makings', function (Blueprint $table) {
+            if (!Schema::hasColumn('material_makings', 'mill_weight')) {
+                $table->decimal('mill_weight', 15, 2)->nullable()->after('quantity');
+            }
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('material_makings', function (Blueprint $table) {
+            $table->dropColumn('mill_weight');
+        });
+    }
+};
