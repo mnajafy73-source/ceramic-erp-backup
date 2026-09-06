@@ -1,6 +1,6 @@
-@extends('layouts.app')
 
-@push('styles')
+
+<?php $__env->startPush('styles'); ?>
 <style>
     .inventory-section {
         margin-bottom: 2rem;
@@ -25,15 +25,15 @@
         font-family: 'Courier New', monospace;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="mb-4">
     <h4 class="fw-bold mb-1">🛠️ به‌روزرسانی دستی موجودی‌ها</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">داشبورد</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('settings.manual-inventory') }}">تنظیمات</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">داشبورد</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('settings.manual-inventory')); ?>">تنظیمات</a></li>
             <li class="breadcrumb-item active">به‌روزرسانی موجودی</li>
         </ol>
     </nav>
@@ -47,12 +47,12 @@
             اعداد با جداکننده هزارگان (مثلاً ۱,۰۰۰) نمایش داده می‌شوند.
         </div>
 
-        <form action="{{ route('settings.manual-inventory.update') }}" method="POST" id="inventoryForm">
-            @csrf
-            @method('PUT')
+        <form action="<?php echo e(route('settings.manual-inventory.update')); ?>" method="POST" id="inventoryForm">
+            <?php echo csrf_field(); ?>
+            <?php echo method_field('PUT'); ?>
 
             <!-- موجودی اول دوره -->
-            @if($products->count())
+            <?php if($products->count()): ?>
             <div class="inventory-section">
                 <h5 class="section-title">📦 موجودی اول دوره</h5>
                 <div class="table-responsive">
@@ -64,22 +64,22 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $product->name }}</td>
+                                <td><?php echo e($product->name); ?></td>
                                 <td>
-                                    <input type="text" name="opening[{{ $product->id }}]"
+                                    <input type="text" name="opening[<?php echo e($product->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($openingInventories->has($product->id) ? $openingInventories[$product->id]->quantity : 0) }}"
+                                           value="<?php echo e(number_format($openingInventories->has($product->id) ? $openingInventories[$product->id]->quantity : 0)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
             </div>
-            @endif
+            <?php endif; ?>
 
             <!-- موجودی خام (فقط نمایش) -->
             <div class="inventory-section">
@@ -93,12 +93,12 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $product->name }}</td>
-                                <td class="fw-bold">{{ number_format($rawStocks[$product->id] ?? 0) }}</td>
+                                <td><?php echo e($product->name); ?></td>
+                                <td class="fw-bold"><?php echo e(number_format($rawStocks[$product->id] ?? 0)); ?></td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
@@ -117,17 +117,17 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $product->name }}</td>
+                                <td><?php echo e($product->name); ?></td>
                                 <td>
-                                    <input type="text" name="wax[{{ $product->id }}]"
+                                    <input type="text" name="wax[<?php echo e($product->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($waxInventories->has($product->id) ? $waxInventories[$product->id]->stock : 0) }}"
+                                           value="<?php echo e(number_format($waxInventories->has($product->id) ? $waxInventories[$product->id]->stock : 0)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
@@ -145,17 +145,17 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $product->name }}</td>
+                                <td><?php echo e($product->name); ?></td>
                                 <td>
-                                    <input type="text" name="glaze1300[{{ $product->id }}]"
+                                    <input type="text" name="glaze1300[<?php echo e($product->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($glaze1300Inventories->has($product->id) ? $glaze1300Inventories[$product->id]->stock : 0) }}"
+                                           value="<?php echo e(number_format($glaze1300Inventories->has($product->id) ? $glaze1300Inventories[$product->id]->stock : 0)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
@@ -173,17 +173,17 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $product->name }}</td>
+                                <td><?php echo e($product->name); ?></td>
                                 <td>
-                                    <input type="text" name="warehouse[{{ $product->id }}]"
+                                    <input type="text" name="warehouse[<?php echo e($product->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($warehouseInventories->has($product->id) ? $warehouseInventories[$product->id]->stock : 0) }}"
+                                           value="<?php echo e(number_format($warehouseInventories->has($product->id) ? $warehouseInventories[$product->id]->stock : 0)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
@@ -201,17 +201,17 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $product->name }}</td>
+                                <td><?php echo e($product->name); ?></td>
                                 <td>
-                                    <input type="text" name="shoulder[{{ $product->id }}]"
+                                    <input type="text" name="shoulder[<?php echo e($product->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($shoulderInventories->has($product->id) ? $shoulderInventories[$product->id]->stock : 0) }}"
+                                           value="<?php echo e(number_format($shoulderInventories->has($product->id) ? $shoulderInventories[$product->id]->stock : 0)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
@@ -229,24 +229,24 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($products as $product)
+                            <?php $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $product->name }}</td>
+                                <td><?php echo e($product->name); ?></td>
                                 <td>
-                                    <input type="text" name="waste_mum[{{ $product->id }}]"
+                                    <input type="text" name="waste_mum[<?php echo e($product->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($wasteMumInventories->has($product->id) ? $wasteMumInventories[$product->id]->stock : 0) }}"
+                                           value="<?php echo e(number_format($wasteMumInventories->has($product->id) ? $wasteMumInventories[$product->id]->stock : 0)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <!-- موجودی مواد اولیه -->
-            @if($rawMaterials->count())
+            <?php if($rawMaterials->count()): ?>
             <div class="inventory-section">
                 <h5 class="section-title">🧪 موجودی مواد اولیه</h5>
                 <div class="table-responsive">
@@ -258,25 +258,25 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($rawMaterials as $material)
+                            <?php $__currentLoopData = $rawMaterials; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $material): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $material->name }}</td>
+                                <td><?php echo e($material->name); ?></td>
                                 <td>
-                                    <input type="text" name="raw_material[{{ $material->id }}]"
+                                    <input type="text" name="raw_material[<?php echo e($material->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($material->stock) }}"
+                                           value="<?php echo e(number_format($material->stock)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
             </div>
-            @endif
+            <?php endif; ?>
 
             <!-- موجودی کارتن و لایه -->
-            @if($packagings->count())
+            <?php if($packagings->count()): ?>
             <div class="inventory-section">
                 <h5 class="section-title">📦 موجودی کارتن و لایه</h5>
                 <div class="table-responsive">
@@ -289,23 +289,23 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($packagings as $packaging)
+                            <?php $__currentLoopData = $packagings; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $packaging): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr>
-                                <td>{{ $packaging->type == 'carton' ? 'کارتن' : 'لایه' }}</td>
-                                <td>{{ $packaging->name }}</td>
+                                <td><?php echo e($packaging->type == 'carton' ? 'کارتن' : 'لایه'); ?></td>
+                                <td><?php echo e($packaging->name); ?></td>
                                 <td>
-                                    <input type="text" name="packaging[{{ $packaging->id }}]"
+                                    <input type="text" name="packaging[<?php echo e($packaging->id); ?>]"
                                            class="form-control form-control-sm number-format"
-                                           value="{{ number_format($packaging->stock) }}"
+                                           value="<?php echo e(number_format($packaging->stock)); ?>"
                                            min="0" step="1">
                                 </td>
                             </tr>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </tbody>
                     </table>
                 </div>
             </div>
-            @endif
+            <?php endif; ?>
 
             <!-- دکمه‌ها -->
             <div class="d-flex justify-content-between align-items-center mt-4 gap-3 flex-wrap">
@@ -316,7 +316,7 @@
                     <button type="button" class="btn btn-danger btn-lg" onclick="confirmReset()">
                         <i class="fas fa-trash-alt me-2"></i> صفر کردن همه موجودی‌ها
                     </button>
-                    <a href="{{ route('dashboard') }}" class="btn btn-secondary btn-lg">
+                    <a href="<?php echo e(route('dashboard')); ?>" class="btn btn-secondary btn-lg">
                         <i class="fas fa-times me-2"></i> انصراف
                     </a>
                 </div>
@@ -325,10 +325,10 @@
     </div>
 </div>
 
-{{-- فرم مخفی برای صفر کردن --}}
-<form id="resetForm" action="{{ route('settings.manual-inventory.reset') }}" method="POST" style="display:none;">
-    @csrf
-    @method('DELETE')
+
+<form id="resetForm" action="<?php echo e(route('settings.manual-inventory.reset')); ?>" method="POST" style="display:none;">
+    <?php echo csrf_field(); ?>
+    <?php echo method_field('DELETE'); ?>
 </form>
 
 <script>
@@ -399,4 +399,5 @@
         });
     });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/settings/manual-inventory.blade.php ENDPATH**/ ?>

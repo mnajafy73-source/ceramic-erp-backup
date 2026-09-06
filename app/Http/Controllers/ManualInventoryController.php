@@ -17,9 +17,24 @@ use Illuminate\Support\Facades\DB;
 
 class ManualInventoryController extends Controller
 {
+    /**
+     * حذف ویرگول از اعداد ورودی
+     */
+    protected function cleanNumber($value)
+    {
+        if (is_null($value) || $value === '') {
+            return null;
+        }
+        return str_replace(',', '', $value);
+    }
+
+    /**
+     * نمایش فرم به‌روزرسانی دستی همه موجودی‌ها
+     */
     public function index()
     {
         $products = Product::where('status', 1)->orderBy('name')->get();
+
         $openingInventories = OpeningInventory::with('product')->get()->keyBy('product_id');
         $rawStocks = [];
         foreach ($products as $product) {
@@ -30,6 +45,7 @@ class ManualInventoryController extends Controller
         $warehouseInventories = WarehouseInventory::with('product')->get()->keyBy('product_id');
         $shoulderInventories = ShoulderInventory::with('product')->get()->keyBy('product_id');
         $wasteMumInventories = WasteMumInventory::with('product')->get()->keyBy('product_id');
+
         $rawMaterials = RawMaterial::orderBy('name')->get();
         $packagings = Packaging::orderBy('type')->orderBy('name')->get();
 
@@ -47,8 +63,26 @@ class ManualInventoryController extends Controller
         ));
     }
 
+    /**
+     * ذخیره‌سازی مقادیر ویرایش‌شده
+     */
     public function update(Request $request)
     {
+        // پاک کردن ویرگول‌ها از همه ورودی‌ها
+        $cleanedData = $request->all();
+
+        // پاک کردن ویرگول از آرایه‌ها
+        $fields = ['opening', 'wax', 'glaze1300', 'warehouse', 'shoulder', 'waste_mum', 'raw_material', 'packaging'];
+        foreach ($fields as $field) {
+            if (isset($cleanedData[$field]) && is_array($cleanedData[$field])) {
+                foreach ($cleanedData[$field] as $key => $value) {
+                    $cleanedData[$field][$key] = $this->cleanNumber($value);
+                }
+            }
+        }
+
+        $request->merge($cleanedData);
+
         $request->validate([
             'opening' => 'nullable|array',
             'opening.*' => 'nullable|numeric|min:0',
@@ -71,7 +105,6 @@ class ManualInventoryController extends Controller
         DB::beginTransaction();
 
         try {
-            // موجودی اول دوره
             if ($request->has('opening')) {
                 foreach ($request->opening as $productId => $quantity) {
                     if ($quantity !== null && $quantity !== '') {
@@ -83,7 +116,6 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // موجودی موم
             if ($request->has('wax')) {
                 foreach ($request->wax as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -95,7 +127,6 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // موجودی ۱۳۰۰ درجه
             if ($request->has('glaze1300')) {
                 foreach ($request->glaze1300 as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -107,7 +138,6 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // موجودی انبار
             if ($request->has('warehouse')) {
                 foreach ($request->warehouse as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -119,7 +149,6 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // موجودی شانه شده
             if ($request->has('shoulder')) {
                 foreach ($request->shoulder as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -131,7 +160,6 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // ضایعات موم
             if ($request->has('waste_mum')) {
                 foreach ($request->waste_mum as $productId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -143,7 +171,6 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // مواد اولیه
             if ($request->has('raw_material')) {
                 foreach ($request->raw_material as $materialId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -152,7 +179,6 @@ class ManualInventoryController extends Controller
                 }
             }
 
-            // کارتن و لایه
             if ($request->has('packaging')) {
                 foreach ($request->packaging as $packagingId => $stock) {
                     if ($stock !== null && $stock !== '') {
@@ -172,6 +198,9 @@ class ManualInventoryController extends Controller
         }
     }
 
+    /**
+     * صفر کردن همه موجودی‌ها (با احتیاط)
+     */
     public function resetAll()
     {
         DB::beginTransaction();
