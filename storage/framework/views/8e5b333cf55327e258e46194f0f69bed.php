@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@push('styles')
+<?php $__env->startPush('styles'); ?>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
@@ -88,14 +86,14 @@
         border-bottom: 2px solid #f1f3f5;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="mb-4">
     <h4 class="fw-bold mb-1">📊 آمار فروش محصولات (ماهیانه)</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">داشبورد</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">داشبورد</a></li>
             <li class="breadcrumb-item active">آمار فروش محصولات</li>
         </ol>
     </nav>
@@ -104,25 +102,27 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
-        @if(session('success'))
+        <?php if(session('success')): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        @endif
-        @if(session('info'))
-            <div class="alert alert-info alert-dismissible fade show" role="alert">
-                {{ session('info') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        @endif
+                <?php echo e(session('success')); ?>
 
-        {{-- ============================================================ --}}
-        {{--  پنل انتخاب محصولات و مشتری‌ها                                --}}
-        {{-- ============================================================ --}}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+        <?php if(session('info')): ?>
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <?php echo e(session('info')); ?>
+
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+
+        
+        
+        
         <div class="row g-3 mb-4">
 
-            {{-- ستون محصولات --}}
+            
             <div class="col-md-6">
                 <div class="filter-box h-100">
                     <div class="filter-title">
@@ -130,52 +130,53 @@
                         محصولات انتخاب‌شده
                     </div>
 
-                    {{-- فرم افزودن محصول --}}
-                    <form action="{{ route('product-sales-stats.add') }}" method="POST" class="d-flex gap-2 mb-3">
-                        @csrf
+                    
+                    <form action="<?php echo e(route('product-sales-stats.add')); ?>" method="POST" class="d-flex gap-2 mb-3">
+                        <?php echo csrf_field(); ?>
                         <select name="product_id" class="form-control product-search-select" style="width: 100%;" required>
                             <option value="">جستجو و انتخاب محصول...</option>
-                            @foreach($allProductsList as $product)
-                                <option value="{{ $product->id }}">{{ $product->name }} ({{ $product->code }})</option>
-                            @endforeach
+                            <?php $__currentLoopData = $allProductsList; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($product->id); ?>"><?php echo e($product->name); ?> (<?php echo e($product->code); ?>)</option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                         <button type="submit" class="btn btn-primary btn-sm" style="min-width: 80px;">
                             <i class="fas fa-plus"></i> افزودن
                         </button>
                     </form>
 
-                    {{-- چیپ‌های محصولات انتخاب‌شده --}}
-                    @if($selectedProducts->count())
+                    
+                    <?php if($selectedProducts->count()): ?>
                         <div class="selected-chips-box">
                             <div class="chips-title">
                                 <i class="fas fa-check-circle me-1"></i>
-                                {{ $selectedProducts->count() }} محصول انتخاب شده
+                                <?php echo e($selectedProducts->count()); ?> محصول انتخاب شده
                             </div>
                             <div class="chips-list">
-                                @foreach($selectedProducts as $sp)
+                                <?php $__currentLoopData = $selectedProducts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sp): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <span class="chip">
-                                        {{ $sp->name }}
-                                        <form action="{{ route('product-sales-stats.remove') }}" method="POST" style="display:inline;">
-                                            @csrf
-                                            <input type="hidden" name="product_id" value="{{ $sp->id }}">
+                                        <?php echo e($sp->name); ?>
+
+                                        <form action="<?php echo e(route('product-sales-stats.remove')); ?>" method="POST" style="display:inline;">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="product_id" value="<?php echo e($sp->id); ?>">
                                             <button type="submit" class="chip-remove" title="حذف"
                                                     onclick="return confirm('حذف شود؟')">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         </form>
                                     </span>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </div>
                         </div>
-                    @else
+                    <?php else: ?>
                         <div class="alert alert-light mb-0" style="font-size: 13px;">
                             هیچ محصولی انتخاب نشده است.
                         </div>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
 
-            {{-- ستون مشتری‌ها --}}
+            
             <div class="col-md-6">
                 <div class="filter-box h-100">
                     <div class="filter-title">
@@ -186,70 +187,71 @@
                         </span>
                     </div>
 
-                    {{-- فرم افزودن مشتری --}}
-                    <form action="{{ route('product-sales-stats.add-customer') }}" method="POST" class="d-flex gap-2 mb-3">
-                        @csrf
+                    
+                    <form action="<?php echo e(route('product-sales-stats.add-customer')); ?>" method="POST" class="d-flex gap-2 mb-3">
+                        <?php echo csrf_field(); ?>
                         <select name="customer_id" class="form-control customer-search-select" style="width: 100%;" required>
                             <option value="">جستجو و انتخاب مشتری...</option>
-                            @foreach($allCustomersList as $customer)
-                                <option value="{{ $customer->id }}">{{ $customer->name }}</option>
-                            @endforeach
+                            <?php $__currentLoopData = $allCustomersList; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $customer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($customer->id); ?>"><?php echo e($customer->name); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                         <button type="submit" class="btn btn-success btn-sm" style="min-width: 80px;">
                             <i class="fas fa-plus"></i> افزودن
                         </button>
                     </form>
 
-                    {{-- چیپ‌های مشتری‌های انتخاب‌شده --}}
-                    @if($selectedCustomers->count())
+                    
+                    <?php if($selectedCustomers->count()): ?>
                         <div class="selected-chips-box">
                             <div class="chips-title">
                                 <i class="fas fa-check-circle me-1"></i>
-                                {{ $selectedCustomers->count() }} مشتری انتخاب شده
+                                <?php echo e($selectedCustomers->count()); ?> مشتری انتخاب شده
                             </div>
                             <div class="chips-list">
-                                @foreach($selectedCustomers as $sc)
+                                <?php $__currentLoopData = $selectedCustomers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <span class="chip chip-customer">
-                                        {{ $sc->name }}
-                                        <form action="{{ route('product-sales-stats.remove-customer') }}" method="POST" style="display:inline;">
-                                            @csrf
-                                            <input type="hidden" name="customer_id" value="{{ $sc->id }}">
+                                        <?php echo e($sc->name); ?>
+
+                                        <form action="<?php echo e(route('product-sales-stats.remove-customer')); ?>" method="POST" style="display:inline;">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="customer_id" value="<?php echo e($sc->id); ?>">
                                             <button type="submit" class="chip-remove" title="حذف"
                                                     onclick="return confirm('حذف شود؟')">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         </form>
                                     </span>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </div>
                         </div>
-                    @else
+                    <?php else: ?>
                         <div class="alert alert-light mb-0" style="font-size: 13px;">
                             هیچ مشتری انتخاب نشده — همه مشتری‌ها در گزارش نمایش داده می‌شن.
                         </div>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
 
-        {{-- ============================================================ --}}
-        {{--  فیلتر ماه و سال                                              --}}
-        {{-- ============================================================ --}}
-        <form method="GET" action="{{ route('product-sales-stats.index') }}" class="row g-3 mb-4">
+        
+        
+        
+        <form method="GET" action="<?php echo e(route('product-sales-stats.index')); ?>" class="row g-3 mb-4">
             <div class="col-md-3">
                 <label class="form-label">سال</label>
                 <select name="year" class="form-select">
-                    @for($y = $currentYear - 2; $y <= $currentYear; $y++)
-                        <option value="{{ $y }}" {{ $year == $y ? 'selected' : '' }}>{{ $y }}</option>
-                    @endfor
+                    <?php for($y = $currentYear - 2; $y <= $currentYear; $y++): ?>
+                        <option value="<?php echo e($y); ?>" <?php echo e($year == $y ? 'selected' : ''); ?>><?php echo e($y); ?></option>
+                    <?php endfor; ?>
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label">ماه</label>
                 <select name="month" class="form-select">
-                    @for($m = 1; $m <= 12; $m++)
-                        <option value="{{ $m }}" {{ $month == $m ? 'selected' : '' }}>{{ $monthNames[$m - 1] }}</option>
-                    @endfor
+                    <?php for($m = 1; $m <= 12; $m++): ?>
+                        <option value="<?php echo e($m); ?>" <?php echo e($month == $m ? 'selected' : ''); ?>><?php echo e($monthNames[$m - 1]); ?></option>
+                    <?php endfor; ?>
                 </select>
             </div>
             <div class="col-md-2 d-flex align-items-end">
@@ -257,24 +259,24 @@
             </div>
         </form>
 
-        {{-- ============================================================ --}}
-        {{--  جدول نتایج                                                  --}}
-        {{-- ============================================================ --}}
-        @if($reportData->count())
+        
+        
+        
+        <?php if($reportData->count()): ?>
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <h5 class="fw-bold mb-0">
-                    نتایج ({{ $reportData->count() }} محصول
-                    @if($selectedCustomers->count())
-                        — فیلترشده برای {{ $selectedCustomers->count() }} مشتری
-                    @endif
+                    نتایج (<?php echo e($reportData->count()); ?> محصول
+                    <?php if($selectedCustomers->count()): ?>
+                        — فیلترشده برای <?php echo e($selectedCustomers->count()); ?> مشتری
+                    <?php endif; ?>
                     )
                 </h5>
-                @if($reportData->count() >= 2)
+                <?php if($reportData->count() >= 2): ?>
                     <span class="reorder-notice">
                         <i class="fas fa-arrows-alt me-1"></i>
                         برای تغییر ترتیب محصولات، از آیکون <strong>⋮⋮</strong> بکشید
                     </span>
-                @endif
+                <?php endif; ?>
             </div>
 
             <div class="table-responsive">
@@ -300,98 +302,100 @@
                         </tr>
                     </thead>
                     <tbody id="statsTableBody">
-                        @foreach($reportData as $productItem)
-                            @php
+                        <?php $__currentLoopData = $reportData; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $productItem): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php
                                 $customers = $productItem->customers;
                                 $customersCount = count($customers);
                                 $firstRow = true;
-                            @endphp
+                            ?>
 
-                            @foreach($customers as $customer)
-                                <tr class="product-row {{ $firstRow ? 'customer-first-row' : '' }}"
-                                    data-product-id="{{ $productItem->product_id }}">
+                            <?php $__currentLoopData = $customers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $customer): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <tr class="product-row <?php echo e($firstRow ? 'customer-first-row' : ''); ?>"
+                                    data-product-id="<?php echo e($productItem->product_id); ?>">
 
-                                    @if($firstRow)
-                                        <td rowspan="{{ $customersCount }}" class="column-drag align-middle">
-                                            @if($reportData->count() >= 2)
+                                    <?php if($firstRow): ?>
+                                        <td rowspan="<?php echo e($customersCount); ?>" class="column-drag align-middle">
+                                            <?php if($reportData->count() >= 2): ?>
                                                 <div class="drag-handle" title="برای جابه‌جایی بکشید">
                                                     <i class="fas fa-grip-vertical"></i>
                                                 </div>
-                                            @else
+                                            <?php else: ?>
                                                 <div class="drag-handle disabled">
                                                     <i class="fas fa-grip-vertical"></i>
                                                 </div>
-                                            @endif
+                                            <?php endif; ?>
                                         </td>
 
-                                        <td rowspan="{{ $customersCount }}" class="product-name-cell align-middle">
-                                            {{ $productItem->product_name }}
+                                        <td rowspan="<?php echo e($customersCount); ?>" class="product-name-cell align-middle">
+                                            <?php echo e($productItem->product_name); ?>
+
                                             <br>
                                             <small class="text-muted fw-normal">
-                                                ({{ $customersCount }} مشتری)
+                                                (<?php echo e($customersCount); ?> مشتری)
                                             </small>
                                         </td>
-                                    @endif
+                                    <?php endif; ?>
 
-                                    <td class="customer-cell">{{ $customer['name'] }}</td>
+                                    <td class="customer-cell"><?php echo e($customer['name']); ?></td>
 
-                                    <td class="text-center">{{ number_format($customer['formal_total']) }}</td>
-                                    <td class="text-center">{{ number_format($customer['formal_amount']) }}</td>
-                                    <td class="text-center">{{ number_format($customer['informal_total']) }}</td>
-                                    <td class="text-center">{{ number_format($customer['informal_amount']) }}</td>
-                                    <td class="text-center fw-bold">{{ number_format($customer['total_quantity']) }}</td>
-                                    <td class="text-center fw-bold">{{ number_format($customer['total_amount']) }}</td>
+                                    <td class="text-center"><?php echo e(number_format($customer['formal_total'])); ?></td>
+                                    <td class="text-center"><?php echo e(number_format($customer['formal_amount'])); ?></td>
+                                    <td class="text-center"><?php echo e(number_format($customer['informal_total'])); ?></td>
+                                    <td class="text-center"><?php echo e(number_format($customer['informal_amount'])); ?></td>
+                                    <td class="text-center fw-bold"><?php echo e(number_format($customer['total_quantity'])); ?></td>
+                                    <td class="text-center fw-bold"><?php echo e(number_format($customer['total_amount'])); ?></td>
                                 </tr>
-                                @php $firstRow = false; @endphp
-                            @endforeach
+                                <?php $firstRow = false; ?>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                             <tr class="table-light">
                                 <td class="text-center fw-bold" colspan="2" style="font-size: 12px;">
-                                    جمع {{ $productItem->product_name }}
+                                    جمع <?php echo e($productItem->product_name); ?>
+
                                 </td>
-                                <td class="text-center fw-bold">{{ number_format($productItem->formal_total) }}</td>
-                                <td class="text-center fw-bold">{{ number_format($productItem->formal_amount) }}</td>
-                                <td class="text-center fw-bold">{{ number_format($productItem->informal_total) }}</td>
-                                <td class="text-center fw-bold">{{ number_format($productItem->informal_amount) }}</td>
-                                <td class="text-center fw-bold">{{ number_format($productItem->total_quantity) }}</td>
-                                <td class="text-center fw-bold">{{ number_format($productItem->total_amount) }}</td>
+                                <td class="text-center fw-bold"><?php echo e(number_format($productItem->formal_total)); ?></td>
+                                <td class="text-center fw-bold"><?php echo e(number_format($productItem->formal_amount)); ?></td>
+                                <td class="text-center fw-bold"><?php echo e(number_format($productItem->informal_total)); ?></td>
+                                <td class="text-center fw-bold"><?php echo e(number_format($productItem->informal_amount)); ?></td>
+                                <td class="text-center fw-bold"><?php echo e(number_format($productItem->total_quantity)); ?></td>
+                                <td class="text-center fw-bold"><?php echo e(number_format($productItem->total_amount)); ?></td>
                             </tr>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tbody>
                     <tfoot class="table-secondary fw-bold">
                         <tr>
                             <td colspan="3" class="text-center">مجموع کل</td>
-                            <td class="text-center">{{ number_format($reportData->sum('formal_total')) }}</td>
-                            <td class="text-center">{{ number_format($reportData->sum('formal_amount')) }}</td>
-                            <td class="text-center">{{ number_format($reportData->sum('informal_total')) }}</td>
-                            <td class="text-center">{{ number_format($reportData->sum('informal_amount')) }}</td>
-                            <td class="text-center">{{ number_format($reportData->sum('total_quantity')) }}</td>
-                            <td class="text-center">{{ number_format($reportData->sum('total_amount')) }}</td>
+                            <td class="text-center"><?php echo e(number_format($reportData->sum('formal_total'))); ?></td>
+                            <td class="text-center"><?php echo e(number_format($reportData->sum('formal_amount'))); ?></td>
+                            <td class="text-center"><?php echo e(number_format($reportData->sum('informal_total'))); ?></td>
+                            <td class="text-center"><?php echo e(number_format($reportData->sum('informal_amount'))); ?></td>
+                            <td class="text-center"><?php echo e(number_format($reportData->sum('total_quantity'))); ?></td>
+                            <td class="text-center"><?php echo e(number_format($reportData->sum('total_amount'))); ?></td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
-        @else
+        <?php else: ?>
             <div class="alert alert-info">
                 <i class="fas fa-info-circle me-1"></i>
-                @if($selectedProducts->count() > 0)
+                <?php if($selectedProducts->count() > 0): ?>
                     هیچ فروشی در این ماه برای محصولات و مشتری‌های انتخابی یافت نشد.
-                @else
+                <?php else: ?>
                     هیچ محصولی به لیست اضافه نشده است. از پنل بالا محصول مورد نظر را اضافه کنید.
-                @endif
+                <?php endif; ?>
             </div>
-        @endif
+        <?php endif; ?>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    var CSRF_TOKEN = '{{ csrf_token() }}';
-    var REORDER_URL = '{{ route("product-sales-stats.reorder") }}';
+    var CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
+    var REORDER_URL = '<?php echo e(route("product-sales-stats.reorder")); ?>';
 
     $(document).ready(function() {
         // Select2 برای محصولات
@@ -516,4 +520,5 @@
         }, 2200);
     }
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/reports/product-sales-stats.blade.php ENDPATH**/ ?>

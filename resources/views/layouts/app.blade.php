@@ -209,7 +209,6 @@
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
             <div class="submenu" id="submenu-inventory">
-                <a href="{{ route('opening-inventories.index') }}"><i class="fas fa-database"></i> موجودی اول دوره</a>
                 <a href="{{ route('inventory.raw-materials') }}"><i class="fas fa-cube"></i> مواد اولیه</a>
                 <a href="{{ route('inventory.packaging-stock') }}"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="{{ route('inventory.warehouse') }}"><i class="fas fa-warehouse"></i> موجودی انبار</a>
@@ -256,9 +255,6 @@
                 <a href="{{ route('products.index') }}"><i class="fas fa-box"></i> مدیریت کالاها</a>
                 <a href="{{ route('customers.index') }}"><i class="fas fa-users"></i> مدیریت مشتریان</a>
                 <a href="{{ route('product_logs.index') }}"><i class="fas fa-history"></i> تاریخچه تغییرات</a>
-
-                <div style="padding: 5px 40px 5px 20px; color: rgba(255,255,255,0.4); font-size: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">ابزارها</div>
-                <a href="{{ route('settings.manual-inventory') }}"><i class="fas fa-hand-edit"></i> به‌روزرسانی دستی موجودی</a>
             </div>
 
             <form method="POST" action="{{ route('logout') }}" class="mt-3 px-3 pb-3">

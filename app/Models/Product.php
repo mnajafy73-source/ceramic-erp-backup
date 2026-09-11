@@ -32,9 +32,13 @@ class Product extends Model
         'hidden_from_warehouse',
         'warehouse_sort_order',
         'all_stocks_sort_order',
+        'unpackaged_manual_stock',    // ✅ جدید
     ];
 
-    // ========== ارتباطات ==========
+    protected $casts = [
+        'unpackaged_manual_stock' => 'decimal:2',
+    ];
+
     public function logs()
     {
         return $this->hasMany(ProductLog::class);
@@ -100,7 +104,6 @@ class Product extends Model
         return $this->belongsTo(Packaging::class, 'layer_packaging_id');
     }
 
-    // ========== متدهای کمکی ==========
     public function isInjection(): bool
     {
         return $this->product_type === 'injection';

@@ -126,8 +126,11 @@ Route::middleware(['auth'])->group(function () {
     // ذخیره ترتیب سفارشی موجودی انبار
     Route::post('/inventory/warehouse/reorder', [InventoryController::class, 'reorderWarehouse'])->name('inventory.warehouse.reorder');
 
-    // ✅ ذخیره ترتیب سفارشی گزارش جامع
+    // ذخیره ترتیب سفارشی گزارش جامع
     Route::post('/inventory/all-stocks/reorder', [InventoryController::class, 'reorderAllStocks'])->name('inventory.all-stocks.reorder');
+
+    // به‌روزرسانی هر سلول از گزارش جامع
+    Route::post('/inventory/all-stocks/{product}/update-field', [InventoryController::class, 'updateAllStocksField'])->name('inventory.all-stocks.update-field');
 
     // موجودی اول دوره
     Route::resource('opening-inventories', OpeningInventoryController::class);
@@ -148,6 +151,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/product-sales-stats', [ProductSalesStatsController::class, 'index'])->name('product-sales-stats.index');
     Route::post('/product-sales-stats/add', [ProductSalesStatsController::class, 'addProduct'])->name('product-sales-stats.add');
     Route::post('/product-sales-stats/remove', [ProductSalesStatsController::class, 'removeProduct'])->name('product-sales-stats.remove');
+    Route::post('/product-sales-stats/reorder', [ProductSalesStatsController::class, 'reorder'])->name('product-sales-stats.reorder');
+    Route::post('/product-sales-stats/add-customer', [ProductSalesStatsController::class, 'addCustomer'])->name('product-sales-stats.add-customer');
+    Route::post('/product-sales-stats/remove-customer', [ProductSalesStatsController::class, 'removeCustomer'])->name('product-sales-stats.remove-customer');
 
     // قیمت تمام شده
     Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-price.index');

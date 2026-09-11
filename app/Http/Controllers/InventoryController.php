@@ -107,18 +107,11 @@ class InventoryController extends Controller
         return view('inventory.packaging-stock', compact('packagings'));
     }
 
-    /**
-     * محاسبه موجودی کل یک محصول با احتساب فرزندان
-     * برای والدها: موجودی خودش + موجودی همه فرزندان
-     * برای بقیه: موجودی خودش
-     */
     private function calculateTotalWarehouseStock(Product $product)
     {
-        // موجودی خود محصول
         $warehouse = WarehouseInventory::where('product_id', $product->id)->first();
         $total = $warehouse ? (float) $warehouse->stock : 0;
 
-        // اضافه کردن موجودی فرزندان
         $children = Product::where('parent_product_id', $product->id)
             ->where('status', 1)
             ->get();
@@ -133,9 +126,26 @@ class InventoryController extends Controller
         return $total;
     }
 
-    /**
-     * موجودی انبار (با نمایش کارتن، بسته، پالت و ترتیب سفارشی)
-     */
+    private function calculateUnpackagedStock(Product $product)
+    {
+        if ($product->unpackaged_manual_stock !== null) {
+            return (float) $product->unpackaged_manual_stock;
+        }
+
+        $unpackaged = ShuttleFiring::where('kiln_type', 'kiln_3')
+            ->where('firing_subtype', 'glaze')
+            ->where('is_packaged', 0)
+            ->where('product_id', $product->id)
+            ->sum('output_quantity')
+            -
+            ShuttleFiring::where('kiln_type', 'kiln_4')
+            ->where('is_packaged', 1)
+            ->where('product_id', $product->id)
+            ->sum('output_quantity');
+
+        return max(0, (float) $unpackaged);
+    }
+
     public function warehouse(Request $request)
     {
         $showHidden = $request->input('show_hidden') == '1';
@@ -161,7 +171,6 @@ class InventoryController extends Controller
         $inventories = [];
 
         foreach ($products as $product) {
-            // ✅ موجودی = خودش + فرزندانش
             $stock = $this->calculateTotalWarehouseStock($product);
 
             $cartons = 0;
@@ -218,7 +227,7 @@ class InventoryController extends Controller
     }
 
     /**
-     * گزارش جامع موجودی‌ها (با ترتیب سفارشی)
+     * گزارش جامع موجودی‌ها
      */
     public function allStocks(Request $request)
     {
@@ -233,6 +242,11 @@ class InventoryController extends Controller
             });
         }
 
+        // ✅ فیلتر جستجو
+        if ($request->filled('search')) {
+            $query->where('id', $request->search);
+        }
+
         $products = $query
             ->orderByRaw('CASE WHEN all_stocks_sort_order > 0 THEN all_stocks_sort_order ELSE 999999 END ASC')
             ->orderBy('name')
@@ -241,22 +255,10 @@ class InventoryController extends Controller
         $stocks = collect();
 
         foreach ($products as $product) {
-            $unpackaged = ShuttleFiring::where('kiln_type', 'kiln_3')
-                ->where('firing_subtype', 'glaze')
-                ->where('is_packaged', 0)
-                ->where('product_id', $product->id)
-                ->sum('output_quantity')
-                -
-                ShuttleFiring::where('kiln_type', 'kiln_4')
-                ->where('is_packaged', 1)
-                ->where('product_id', $product->id)
-                ->sum('output_quantity');
-
-            $unpackaged = max(0, $unpackaged);
+            $unpackaged = $this->calculateUnpackagedStock($product);
+            $isManualUnpackaged = $product->unpackaged_manual_stock !== null;
 
             $raw = RawInventory::where('product_id', $product->id)->value('stock') ?? 0;
-
-            // ✅ موجودی انبار = خودش + فرزندانش
             $warehouseStock = $this->calculateTotalWarehouseStock($product);
 
             $stocks->push((object) [
@@ -265,10 +267,11 @@ class InventoryController extends Controller
                 'raw' => $raw,
                 'wax' => $product->waxInventory->stock ?? 0,
                 'glaze1300' => $product->glaze1300Inventory->stock ?? 0,
-                'warehouse' => $warehouseStock,  // ✅ با احتساب فرزندان
+                'warehouse' => $warehouseStock,
                 'shoulder' => $product->shoulderInventory->stock ?? 0,
                 'waste_mum' => $product->wasteMumInventory->stock ?? 0,
                 'unpackaged' => $unpackaged,
+                'is_manual_unpackaged' => $isManualUnpackaged,
             ]);
         }
 
@@ -314,7 +317,7 @@ class InventoryController extends Controller
     }
 
     // ============================================================
-    //  به‌روزرسانی موجودی انبار از صفحه موجودی انبار
+    //  به‌روزرسانی موجودی انبار
     // ============================================================
     public function updateWarehouseStock(Request $request, Product $product)
     {
@@ -351,13 +354,11 @@ class InventoryController extends Controller
             ], 422);
         }
 
-        // ✅ اگه محصول فرزند داره، ذخیره روی خودش (موجودی نمایشی از جمع میاد)
         WarehouseInventory::updateOrCreate(
             ['product_id' => $product->id],
             ['stock' => $quantity]
         );
 
-        // محاسبه مجدد موجودی کل (خودش + فرزندان)
         $totalStock = $this->calculateTotalWarehouseStock($product);
 
         $cartons = 0;
@@ -382,6 +383,135 @@ class InventoryController extends Controller
             'pallets' => $pallets,
             'message' => 'موجودی با موفقیت به‌روزرسانی شد.',
         ]);
+    }
+
+    // ============================================================
+    //  به‌روزرسانی هر سلول از گزارش جامع
+    // ============================================================
+    public function updateAllStocksField(Request $request, Product $product)
+    {
+        $request->validate([
+            'field'    => 'required|in:raw,wax,shoulder,waste_mum,glaze1300,warehouse,unpackaged',
+            'quantity' => 'required|string',
+        ]);
+
+        $field = $request->input('field');
+
+        $rawInput = (string) $request->input('quantity');
+        $rawInput = str_replace(
+            ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
+             '٠','١','٢','٣','٤','٥','٦','٧','٨','٩',
+             '،'],
+            ['0','1','2','3','4','5','6','7','8','9',
+             '0','1','2','3','4','5','6','7','8','9',
+             ''],
+            $rawInput
+        );
+
+        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+
+        if ($field === 'unpackaged' && ($cleanQty === '' || $rawInput === 'auto')) {
+            $product->unpackaged_manual_stock = null;
+            $product->save();
+
+            return response()->json([
+                'success' => true,
+                'stock'   => 0,
+                'is_auto' => true,
+                'message' => 'مقدار به حالت محاسبه خودکار برگشت.',
+            ]);
+        }
+
+        if ($cleanQty === '' || !is_numeric($cleanQty)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'عدد معتبر وارد کنید.',
+            ], 422);
+        }
+
+        $quantity = (float) $cleanQty;
+
+        if ($quantity < 0) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'مقدار نمی‌تواند منفی باشد.',
+            ], 422);
+        }
+
+        if ($field === 'warehouse') {
+            $hasChildren = $product->children()->where('status', 1)->exists();
+            if ($hasChildren) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'این محصول فرزند دارد. برای ویرایش انبار، از صفحه «موجودی انبار» استفاده کنید.',
+                ], 422);
+            }
+        }
+
+        try {
+            switch ($field) {
+                case 'raw':
+                    RawInventory::updateOrCreate(
+                        ['product_id' => $product->id],
+                        ['stock' => $quantity]
+                    );
+                    break;
+
+                case 'wax':
+                    WaxInventory::updateOrCreate(
+                        ['product_id' => $product->id],
+                        ['stock' => $quantity]
+                    );
+                    break;
+
+                case 'shoulder':
+                    ShoulderInventory::updateOrCreate(
+                        ['product_id' => $product->id],
+                        ['stock' => $quantity]
+                    );
+                    break;
+
+                case 'waste_mum':
+                    WasteMumInventory::updateOrCreate(
+                        ['product_id' => $product->id],
+                        ['stock' => $quantity]
+                    );
+                    break;
+
+                case 'glaze1300':
+                    Glaze1300Inventory::updateOrCreate(
+                        ['product_id' => $product->id],
+                        ['stock' => $quantity]
+                    );
+                    break;
+
+                case 'warehouse':
+                    WarehouseInventory::updateOrCreate(
+                        ['product_id' => $product->id],
+                        ['stock' => $quantity]
+                    );
+                    break;
+
+                case 'unpackaged':
+                    $product->unpackaged_manual_stock = $quantity;
+                    $product->save();
+                    break;
+            }
+
+            return response()->json([
+                'success' => true,
+                'stock'   => $quantity,
+                'is_auto' => false,
+                'message' => 'موجودی با موفقیت به‌روزرسانی شد.',
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('updateAllStocksField failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error'   => 'خطا در ذخیره‌سازی: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     // ============================================================

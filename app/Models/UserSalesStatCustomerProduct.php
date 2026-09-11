@@ -5,24 +5,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class UserSalesStatProduct extends Model
+class UserSalesStatCustomerProduct extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
+        'customer_id',
         'product_id',
-        'order',
-        'manually_added',
-    ];
-
-    protected $casts = [
-        'manually_added' => 'boolean',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     public function product()
