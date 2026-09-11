@@ -28,6 +28,10 @@ class Product extends Model
         'firing_process',
         'product_type',
         'parent_product_id',
+        'hidden_from_all_stocks',
+        'hidden_from_warehouse',
+        'warehouse_sort_order',
+        'all_stocks_sort_order',
     ];
 
     // ========== ارتباطات ==========
@@ -107,11 +111,6 @@ class Product extends Model
         return $this->product_type === 'normal' || is_null($this->product_type);
     }
 
-    /**
-     * کسر کارتن و لایه بر اساس تعداد محصول بسته‌بندی‌شده
-     * @param int $quantity تعداد محصول بسته‌بندی‌شده
-     * @return array ['carton' => تعداد کارتن مصرفی, 'layer' => تعداد لایه مصرفی]
-     */
     public function subtractPackaging($quantity)
     {
         if ($quantity <= 0) {
@@ -121,7 +120,6 @@ class Product extends Model
         $cartonCount = 0;
         $layerCount = 0;
 
-        // کسر کارتن
         if ($this->carton_packaging_id && $this->per_box > 0) {
             $cartonCount = ceil($quantity / $this->per_box);
             $carton = Packaging::find($this->carton_packaging_id);
@@ -131,7 +129,6 @@ class Product extends Model
             }
         }
 
-        // کسر لایه
         if ($this->layer_packaging_id && $this->layers_per_box > 0 && $this->per_box > 0) {
             $cartonCountForLayer = ceil($quantity / $this->per_box);
             $layerCount = $cartonCountForLayer * $this->layers_per_box;

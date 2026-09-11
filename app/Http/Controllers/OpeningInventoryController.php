@@ -8,9 +8,16 @@ use Illuminate\Http\Request;
 
 class OpeningInventoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $inventories = OpeningInventory::with('product')->get();
+        $query = OpeningInventory::with('product');
+
+        if ($request->filled('search')) {
+            $query->where('product_id', $request->search);
+        }
+
+        $inventories = $query->get();
+
         return view('opening-inventories.index', compact('inventories'));
     }
 
@@ -24,8 +31,8 @@ class OpeningInventoryController extends Controller
     {
         $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:0',
-            'date' => 'nullable|string',
+            'quantity'   => 'required|integer|min:0',
+            'date'       => 'nullable|string',
         ]);
 
         $exists = OpeningInventory::where('product_id', $request->product_id)->exists();
@@ -36,8 +43,8 @@ class OpeningInventoryController extends Controller
 
         OpeningInventory::create([
             'product_id' => $request->product_id,
-            'quantity' => $request->quantity,
-            'date' => $request->date ?? jdate()->format('Y/m/d'),
+            'quantity'   => $request->quantity,
+            'date'       => $request->date ?? jdate()->format('Y/m/d'),
         ]);
 
         return redirect()->route('opening-inventories.index')
@@ -54,14 +61,14 @@ class OpeningInventoryController extends Controller
     {
         $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:0',
-            'date' => 'nullable|string',
+            'quantity'   => 'required|integer|min:0',
+            'date'       => 'nullable|string',
         ]);
 
         $openingInventory->update([
             'product_id' => $request->product_id,
-            'quantity' => $request->quantity,
-            'date' => $request->date ?? jdate()->format('Y/m/d'),
+            'quantity'   => $request->quantity,
+            'date'       => $request->date ?? jdate()->format('Y/m/d'),
         ]);
 
         return redirect()->route('opening-inventories.index')

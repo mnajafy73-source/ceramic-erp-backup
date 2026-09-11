@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@push('styles')
+<?php $__env->startPush('styles'); ?>
 <style>
     .hidden-row { background: #fff3cd !important; opacity: 0.75; }
     .hidden-row:hover { opacity: 1; }
@@ -54,13 +52,13 @@
         border-color: #dee2e6;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    var CSRF_TOKEN = '{{ csrf_token() }}';
-    var REORDER_URL = '{{ route("inventory.all-stocks.reorder") }}';
+    var CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
+    var REORDER_URL = '<?php echo e(route("inventory.all-stocks.reorder")); ?>';
 
     // ============================================================
     //  Drag & Drop
@@ -138,57 +136,58 @@
         }, 2200);
     }
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
-@php
+<?php $__env->startSection('content'); ?>
+<?php
     $showHidden = request('show_hidden') == '1';
     $rowCount = $stocks->count();
-@endphp
+?>
 
 <div class="mb-4">
     <h4 class="fw-bold mb-1">گزارش جامع موجودی‌ها</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('inventory.index') }}">موجودی</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('inventory.index')); ?>">موجودی</a></li>
             <li class="breadcrumb-item active">گزارش جامع</li>
         </ol>
     </nav>
 </div>
 
-@if(session('success'))
+<?php if(session('success')): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
+        <?php echo e(session('success')); ?>
+
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-@endif
+<?php endif; ?>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
-        {{-- نوار ابزار --}}
+        
         <div class="filter-bar">
             <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge-count">{{ $rowCount }} محصول</span>
+                <span class="badge-count"><?php echo e($rowCount); ?> محصول</span>
 
-                @if($showHidden)
+                <?php if($showHidden): ?>
                     <span class="badge-count-hidden">
                         <i class="fas fa-eye me-1"></i> حالت نمایش همه
                     </span>
-                @endif
+                <?php endif; ?>
 
-                {{-- راهنمای جابه‌جایی --}}
-                @if($rowCount < 2)
+                
+                <?php if($rowCount < 2): ?>
                     <span class="reorder-notice disabled">
                         <i class="fas fa-info-circle me-1"></i>
                         حداقل ۲ محصول برای مرتب‌سازی لازمه
                     </span>
-                @else
+                <?php else: ?>
                     <span class="reorder-notice">
                         <i class="fas fa-arrows-alt me-1"></i>
                         برای تغییر ترتیب، ردیف‌ها را از آیکون <strong>⋮⋮</strong> بکشید
                     </span>
-                @endif
+                <?php endif; ?>
 
                 <span class="text-muted small">
                     — برای حذف از این گزارش، روی ❌ بزنید
@@ -196,21 +195,21 @@
             </div>
 
             <div>
-                @if($showHidden)
-                    <a href="{{ route('inventory.all-stocks') }}" class="btn btn-sm btn-outline-secondary">
+                <?php if($showHidden): ?>
+                    <a href="<?php echo e(route('inventory.all-stocks')); ?>" class="btn btn-sm btn-outline-secondary">
                         <i class="fas fa-eye-slash me-1"></i>
                         پنهان کردن محصولات مخفی‌شده
                     </a>
-                @else
-                    <a href="{{ route('inventory.all-stocks', ['show_hidden' => 1]) }}" class="btn btn-sm btn-outline-warning">
+                <?php else: ?>
+                    <a href="<?php echo e(route('inventory.all-stocks', ['show_hidden' => 1])); ?>" class="btn btn-sm btn-outline-warning">
                         <i class="fas fa-eye me-1"></i>
                         نمایش محصولات مخفی‌شده
                     </a>
-                @endif
+                <?php endif; ?>
             </div>
         </div>
 
-        {{-- جدول --}}
+        
         <div class="table-responsive">
             <table class="table table-bordered table-hover table-striped align-middle">
                 <thead class="table-dark">
@@ -232,84 +231,86 @@
                     </tr>
                 </thead>
                 <tbody id="allStocksTableBody">
-                    @forelse($stocks as $index => $item)
-                        @php
+                    <?php $__empty_1 = true; $__currentLoopData = $stocks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $isHidden = (bool) $item->product->hidden_from_all_stocks;
-                        @endphp
-                        <tr data-product-id="{{ $item->product->id }}" class="{{ $isHidden ? 'hidden-row' : '' }}">
+                        ?>
+                        <tr data-product-id="<?php echo e($item->product->id); ?>" class="<?php echo e($isHidden ? 'hidden-row' : ''); ?>">
 
-                            {{-- دستگیره جابه‌جایی --}}
+                            
                             <td class="column-drag">
-                                @if($rowCount >= 2)
+                                <?php if($rowCount >= 2): ?>
                                     <div class="drag-handle" title="برای جابه‌جایی بکشید">
                                         <i class="fas fa-grip-vertical"></i>
                                     </div>
-                                @else
+                                <?php else: ?>
                                     <span class="text-muted" style="opacity:0.3;">
                                         <i class="fas fa-grip-vertical"></i>
                                     </span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
-                            <td>{{ $loop->iteration }}</td>
+                            <td><?php echo e($loop->iteration); ?></td>
 
                             <td>
-                                {{ $item->product->name }}
-                                @if($isHidden)
+                                <?php echo e($item->product->name); ?>
+
+                                <?php if($isHidden): ?>
                                     <span class="badge bg-warning text-dark ms-1">
                                         <i class="fas fa-eye-slash me-1"></i>مخفی
                                     </span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
-                            <td class="text-center">{{ number_format($item->opening) }}</td>
-                            <td class="text-center">{{ number_format($item->raw) }}</td>
-                            <td class="text-center">{{ number_format($item->wax) }}</td>
-                            <td class="text-center">{{ number_format($item->shoulder) }}</td>
-                            <td class="text-center">{{ number_format($item->waste_mum) }}</td>
-                            <td class="text-center">{{ number_format($item->glaze1300) }}</td>
-                            <td class="text-center">{{ number_format($item->unpackaged ?? 0) }}</td>
-                            <td class="text-center">{{ number_format($item->warehouse) }}</td>
+                            <td class="text-center"><?php echo e(number_format($item->opening)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->raw)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->wax)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->shoulder)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->waste_mum)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->glaze1300)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->unpackaged ?? 0)); ?></td>
+                            <td class="text-center"><?php echo e(number_format($item->warehouse)); ?></td>
 
                             <td class="column-action">
-                                @if($isHidden)
-                                    <form action="{{ route('inventory.all-stocks.unhide', $item->product) }}"
+                                <?php if($isHidden): ?>
+                                    <form action="<?php echo e(route('inventory.all-stocks.unhide', $item->product)); ?>"
                                           method="POST"
                                           class="d-inline"
                                           onsubmit="return confirm('این محصول به گزارش برگردانده شود؟')">
-                                        @csrf
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit"
                                                 class="btn btn-sm btn-success btn-icon"
                                                 title="برگرداندن به گزارش">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
-                                @else
-                                    <form action="{{ route('inventory.all-stocks.hide', $item->product) }}"
+                                <?php else: ?>
+                                    <form action="<?php echo e(route('inventory.all-stocks.hide', $item->product)); ?>"
                                           method="POST"
                                           class="d-inline"
                                           onsubmit="return confirm('این محصول از گزارش حذف شود؟\n(در دیتابیس می‌ماند و می‌توانید بعداً برگردانید)')">
-                                        @csrf
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit"
                                                 class="btn btn-sm btn-outline-danger btn-icon"
                                                 title="حذف از این گزارش">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </form>
-                                @endif
+                                <?php endif; ?>
                             </td>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="12" class="text-center py-4">
                                 <i class="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
                                 هیچ محصولی یافت نشد.
                             </td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/inventory/all-stocks.blade.php ENDPATH**/ ?>

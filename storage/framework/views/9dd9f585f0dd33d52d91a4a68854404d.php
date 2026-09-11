@@ -1,6 +1,6 @@
-@extends('layouts.app')
 
-@push('styles')
+
+<?php $__env->startPush('styles'); ?>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
@@ -93,17 +93,17 @@
     }
     .edit-stock-hint { font-size: 12px; color: #6c757d; margin-top: 6px; }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    var CSRF_TOKEN = '{{ csrf_token() }}';
-    var UPDATE_STOCK_URL_TEMPLATE = '{{ route("inventory.warehouse.update-stock", ["product" => 0]) }}';
-    var REORDER_URL = '{{ route("inventory.warehouse.reorder") }}';
-    var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
+    var CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
+    var UPDATE_STOCK_URL_TEMPLATE = '<?php echo e(route("inventory.warehouse.update-stock", ["product" => 0])); ?>';
+    var REORDER_URL = '<?php echo e(route("inventory.warehouse.reorder")); ?>';
+    var HAS_SEARCH_FILTER = <?php echo e(request('search') ? 'true' : 'false'); ?>;
 
     $(document).ready(function() {
         $('.product-search-select').select2({
@@ -351,100 +351,101 @@
         }
     });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
-@php
+<?php $__env->startSection('content'); ?>
+<?php
     $showHidden = request('show_hidden') == '1';
     $hasSearchFilter = request('search') ? true : false;
     $rowCount = count($inventories);
-@endphp
+?>
 
 <div class="mb-4">
     <h4 class="fw-bold mb-1">موجودی انبار</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('inventory.index') }}">موجودی</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('inventory.index')); ?>">موجودی</a></li>
             <li class="breadcrumb-item active">موجودی انبار</li>
         </ol>
     </nav>
 </div>
 
-@if(session('success'))
+<?php if(session('success')): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
+        <?php echo e(session('success')); ?>
+
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-@endif
+<?php endif; ?>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
-        <form action="{{ route('inventory.warehouse') }}" method="GET" class="row g-3 mb-3">
+        <form action="<?php echo e(route('inventory.warehouse')); ?>" method="GET" class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-search"></i></span>
                     <select name="search" class="form-select product-search-select" style="width: 100%;">
                         <option value="">همه محصولات...</option>
-                        @foreach(\App\Models\Product::where('status', 1)->orderBy('name')->get() as $product)
-                            <option value="{{ $product->id }}" {{ request('search') == $product->id ? 'selected' : '' }}>
-                                {{ $product->name }} ({{ $product->code }})
+                        <?php $__currentLoopData = \App\Models\Product::where('status', 1)->orderBy('name')->get(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($product->id); ?>" <?php echo e(request('search') == $product->id ? 'selected' : ''); ?>>
+                                <?php echo e($product->name); ?> (<?php echo e($product->code); ?>)
                             </option>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </select>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search"></i> جستجو
                     </button>
-                    @if(request('search'))
-                        <a href="{{ route('inventory.warehouse') }}" class="btn btn-secondary">
+                    <?php if(request('search')): ?>
+                        <a href="<?php echo e(route('inventory.warehouse')); ?>" class="btn btn-secondary">
                             <i class="fas fa-times"></i> پاک کردن
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </form>
 
         <div class="filter-bar">
             <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge-count">{{ $rowCount }} محصول</span>
+                <span class="badge-count"><?php echo e($rowCount); ?> محصول</span>
 
-                @if($showHidden)
+                <?php if($showHidden): ?>
                     <span class="badge-count-hidden">
                         <i class="fas fa-eye me-1"></i> حالت نمایش همه
                     </span>
-                @endif
+                <?php endif; ?>
 
-                {{-- راهنمای جابه‌جایی --}}
-                @if($hasSearchFilter)
+                
+                <?php if($hasSearchFilter): ?>
                     <span class="reorder-notice disabled">
                         <i class="fas fa-lock me-1"></i>
                         برای مرتب‌سازی، فیلتر جستجو را بردارید
                     </span>
-                @elseif($rowCount < 2)
+                <?php elseif($rowCount < 2): ?>
                     <span class="reorder-notice disabled">
                         <i class="fas fa-info-circle me-1"></i>
                         حداقل ۲ محصول برای مرتب‌سازی لازمه
                     </span>
-                @else
+                <?php else: ?>
                     <span class="reorder-notice">
                         <i class="fas fa-arrows-alt me-1"></i>
                         برای تغییر ترتیب، ردیف‌ها را از آیکون <strong>⋮⋮</strong> بکشید
                     </span>
-                @endif
+                <?php endif; ?>
             </div>
 
             <div>
-                @if($showHidden)
-                    <a href="{{ route('inventory.warehouse') }}" class="btn btn-sm btn-outline-secondary">
+                <?php if($showHidden): ?>
+                    <a href="<?php echo e(route('inventory.warehouse')); ?>" class="btn btn-sm btn-outline-secondary">
                         <i class="fas fa-eye-slash me-1"></i>
                         پنهان کردن محصولات مخفی‌شده
                     </a>
-                @else
-                    <a href="{{ route('inventory.warehouse', ['show_hidden' => 1]) }}" class="btn btn-sm btn-outline-warning">
+                <?php else: ?>
+                    <a href="<?php echo e(route('inventory.warehouse', ['show_hidden' => 1])); ?>" class="btn btn-sm btn-outline-warning">
                         <i class="fas fa-eye me-1"></i>
                         نمایش محصولات مخفی‌شده
                     </a>
-                @endif
+                <?php endif; ?>
             </div>
         </div>
 
@@ -464,48 +465,49 @@
                     </tr>
                 </thead>
                 <tbody id="warehouseTableBody">
-                    @forelse($inventories as $item)
-                        @php
+                    <?php $__empty_1 = true; $__currentLoopData = $inventories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $isHidden = (bool) $item['product']->hidden_from_warehouse;
-                        @endphp
-                        <tr data-product-id="{{ $item['product']->id }}" class="{{ $isHidden ? 'hidden-row' : '' }}">
+                        ?>
+                        <tr data-product-id="<?php echo e($item['product']->id); ?>" class="<?php echo e($isHidden ? 'hidden-row' : ''); ?>">
 
-                            {{-- ✅ دستگیره جابه‌جایی --}}
+                            
                             <td class="column-drag">
-                                @if(!$hasSearchFilter && $rowCount >= 2)
+                                <?php if(!$hasSearchFilter && $rowCount >= 2): ?>
                                     <div class="drag-handle" title="برای جابه‌جایی بکشید">
                                         <i class="fas fa-grip-vertical"></i>
                                     </div>
-                                @else
+                                <?php else: ?>
                                     <span class="text-muted" style="opacity:0.3;">
                                         <i class="fas fa-grip-vertical"></i>
                                     </span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
                             <td>
-                                <div class="fw-bold">{{ $item['product']->name }}</div>
-                                <small class="text-muted">کد: {{ $item['product']->code }}</small>
-                                @if($isHidden)
+                                <div class="fw-bold"><?php echo e($item['product']->name); ?></div>
+                                <small class="text-muted">کد: <?php echo e($item['product']->code); ?></small>
+                                <?php if($isHidden): ?>
                                     <span class="badge bg-warning text-dark ms-1">
                                         <i class="fas fa-eye-slash me-1"></i>مخفی
                                     </span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
                             <td class="text-center">
                                 <div class="stock-cell">
                                     <div class="stock-main">
-                                        <span class="stock-value">{{ number_format($item['stock']) }}</span>
+                                        <span class="stock-value"><?php echo e(number_format($item['stock'])); ?></span>
                                         <small>عدد</small>
                                     </div>
                                     <button type="button"
                                             class="btn btn-sm btn-outline-primary btn-edit-stock"
                                             onclick="openEditStockModal(
-                                                {{ $item['product']->id }},
-                                                '{{ addslashes($item['product']->name) }}',
-                                                '{{ addslashes($item['product']->code) }}',
-                                                {{ $item['stock'] }}
+                                                <?php echo e($item['product']->id); ?>,
+                                                '<?php echo e(addslashes($item['product']->name)); ?>',
+                                                '<?php echo e(addslashes($item['product']->code)); ?>',
+                                                <?php echo e($item['stock']); ?>
+
                                             )"
                                             title="ویرایش موجودی">
                                         <i class="fas fa-pen"></i>
@@ -514,81 +516,81 @@
                             </td>
 
                             <td class="text-center">
-                                @if($item['per_box'] && $item['per_box'] > 0)
+                                <?php if($item['per_box'] && $item['per_box'] > 0): ?>
                                     <span class="stat-badge box" data-bs-toggle="tooltip"
-                                          title="هر کارتن {{ number_format($item['per_box']) }} عدد">
+                                          title="هر کارتن <?php echo e(number_format($item['per_box'])); ?> عدد">
                                         <i class="fas fa-box"></i>
-                                        <span class="stat-box-value">{{ number_format($item['cartons']) }}</span>
+                                        <span class="stat-box-value"><?php echo e(number_format($item['cartons'])); ?></span>
                                     </span>
-                                @else
+                                <?php else: ?>
                                     <span class="stat-badge dash" data-bs-toggle="tooltip"
                                           title="تعداد در کارتن تعریف نشده">—</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
                             <td class="text-center">
-                                @if($item['per_pack'] && $item['per_pack'] > 0)
+                                <?php if($item['per_pack'] && $item['per_pack'] > 0): ?>
                                     <span class="stat-badge pack" data-bs-toggle="tooltip"
-                                          title="هر بسته {{ number_format($item['per_pack']) }} عدد">
+                                          title="هر بسته <?php echo e(number_format($item['per_pack'])); ?> عدد">
                                         <i class="fas fa-cube"></i>
-                                        <span class="stat-pack-value">{{ number_format($item['packs']) }}</span>
+                                        <span class="stat-pack-value"><?php echo e(number_format($item['packs'])); ?></span>
                                     </span>
-                                @else
+                                <?php else: ?>
                                     <span class="stat-badge dash" data-bs-toggle="tooltip"
                                           title="تعداد در بسته تعریف نشده">—</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
                             <td class="text-center">
-                                @if($item['per_pallet'] && $item['per_pallet'] > 0)
+                                <?php if($item['per_pallet'] && $item['per_pallet'] > 0): ?>
                                     <span class="stat-badge pallet" data-bs-toggle="tooltip"
-                                          title="هر پالت {{ number_format($item['per_pallet']) }} عدد">
+                                          title="هر پالت <?php echo e(number_format($item['per_pallet'])); ?> عدد">
                                         <i class="fas fa-pallet"></i>
-                                        <span class="stat-pallet-value">{{ number_format($item['pallets']) }}</span>
+                                        <span class="stat-pallet-value"><?php echo e(number_format($item['pallets'])); ?></span>
                                     </span>
-                                @else
+                                <?php else: ?>
                                     <span class="stat-badge dash" data-bs-toggle="tooltip"
                                           title="تعداد در پالت تعریف نشده">—</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
                             <td class="column-action">
-                                @if($isHidden)
-                                    <form action="{{ route('inventory.warehouse.unhide', $item['product']) }}"
+                                <?php if($isHidden): ?>
+                                    <form action="<?php echo e(route('inventory.warehouse.unhide', $item['product'])); ?>"
                                           method="POST" class="d-inline"
                                           onsubmit="return confirm('این محصول به موجودی انبار برگردانده شود؟')">
-                                        @csrf
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit" class="btn btn-sm btn-success btn-icon" title="برگرداندن">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
-                                @else
-                                    <form action="{{ route('inventory.warehouse.hide', $item['product']) }}"
+                                <?php else: ?>
+                                    <form action="<?php echo e(route('inventory.warehouse.hide', $item['product'])); ?>"
                                           method="POST" class="d-inline"
                                           onsubmit="return confirm('این محصول از موجودی انبار حذف شود؟\n(در دیتابیس می‌ماند)')">
-                                        @csrf
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit" class="btn btn-sm btn-outline-danger btn-icon" title="حذف از این گزارش">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </form>
-                                @endif
+                                <?php endif; ?>
                             </td>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="7" class="text-center py-4">
                                 <i class="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
                                 هیچ محصولی یافت نشد.
                             </td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-{{-- Modal ویرایش موجودی --}}
+
 <div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -632,4 +634,5 @@
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/inventory/warehouse.blade.php ENDPATH**/ ?>

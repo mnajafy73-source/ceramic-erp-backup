@@ -112,19 +112,29 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/inventory/shoulder', [InventoryController::class, 'shoulder'])->name('inventory.shoulder');
     Route::get('/inventory/all-stocks', [InventoryController::class, 'allStocks'])->name('inventory.all-stocks');
 
+    // مخفی/نمایش در گزارش جامع موجودی‌ها
+    Route::post('/inventory/all-stocks/{product}/hide', [InventoryController::class, 'hideFromAllStocks'])->name('inventory.all-stocks.hide');
+    Route::post('/inventory/all-stocks/{product}/unhide', [InventoryController::class, 'unhideFromAllStocks'])->name('inventory.all-stocks.unhide');
+
+    // مخفی/نمایش در موجودی انبار
+    Route::post('/inventory/warehouse/{product}/hide', [InventoryController::class, 'hideFromWarehouse'])->name('inventory.warehouse.hide');
+    Route::post('/inventory/warehouse/{product}/unhide', [InventoryController::class, 'unhideFromWarehouse'])->name('inventory.warehouse.unhide');
+
+    // به‌روزرسانی موجودی از صفحه موجودی انبار
+    Route::post('/inventory/warehouse/{product}/update-stock', [InventoryController::class, 'updateWarehouseStock'])->name('inventory.warehouse.update-stock');
+
+    // ذخیره ترتیب سفارشی موجودی انبار
+    Route::post('/inventory/warehouse/reorder', [InventoryController::class, 'reorderWarehouse'])->name('inventory.warehouse.reorder');
+
+    // ✅ ذخیره ترتیب سفارشی گزارش جامع
+    Route::post('/inventory/all-stocks/reorder', [InventoryController::class, 'reorderAllStocks'])->name('inventory.all-stocks.reorder');
+
     // موجودی اول دوره
     Route::resource('opening-inventories', OpeningInventoryController::class);
 
     // واردات
     Route::get('/import', [ImportController::class, 'index'])->name('import.index');
     Route::post('/import/from-path', [ImportController::class, 'importFromPath'])->name('import.from-path');
-    Route::post('/import/productions', [ImportController::class, 'importProductions'])->name('import.productions');
-    Route::post('/import/tonneli', [ImportController::class, 'importTonneli'])->name('import.tonneli');
-    Route::post('/import/shuttle', [ImportController::class, 'importShuttle'])->name('import.shuttle');
-    Route::post('/import/informal-sales', [ImportController::class, 'importInformalSales'])->name('import.informal-sales');
-    Route::post('/import/formal-sales', [ImportController::class, 'importFormalSales'])->name('import.formal-sales');
-    Route::post('/import/shoulder', [ImportController::class, 'importShoulder'])->name('import.shoulder');
-    Route::post('/import/material-making', [ImportController::class, 'importMaterialMaking'])->name('import.material-making');
 
     // گزارشات
     Route::get('/reports/production', [ReportController::class, 'production'])->name('reports.production');
@@ -145,11 +155,11 @@ Route::middleware(['auth'])->group(function () {
     // تاریخچه تغییرات محصولات
     Route::get('/product-logs', [ProductLogController::class, 'index'])->name('product_logs.index');
 
-    // Undo (بازگرداندن)
+    // Undo
     Route::get('/undo/restore', [UndoController::class, 'restore'])->name('undo.restore');
     Route::get('/undo/discard', [UndoController::class, 'discard'])->name('undo.discard');
 
-    // تست (در صورت نیاز)
+    // تست
     Route::get('/test', [TestController::class, 'index'])->name('test.index');
     Route::post('/test', [TestController::class, 'store'])->name('test.store');
 
@@ -158,7 +168,7 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // تنظیمات - به‌روزرسانی دستی موجودی‌ها
+    // تنظیمات - به‌روزرسانی دستی موجودی
     Route::get('/settings/manual-inventory', [ManualInventoryController::class, 'index'])->name('settings.manual-inventory');
     Route::put('/settings/manual-inventory', [ManualInventoryController::class, 'update'])->name('settings.manual-inventory.update');
     Route::delete('/settings/manual-inventory/reset', [ManualInventoryController::class, 'resetAll'])->name('settings.manual-inventory.reset');

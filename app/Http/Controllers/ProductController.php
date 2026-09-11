@@ -11,8 +11,15 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    // ============================================================
+    //  نمایش لیست محصولات
+    // ============================================================
     public function index(Request $request)
     {
+        // ✅ ذخیره‌ی URL فعلی (با فیلترها) در session
+        // بعد از هر عملیات، به همین URL برمی‌گردیم
+        session(['products_return_url' => $request->fullUrl()]);
+
         $query = Product::with('unit', 'parent', 'children');
 
         if ($search = $request->input('search')) {
@@ -26,11 +33,16 @@ class ProductController extends Controller
                     ? $request->input('sort') : 'code';
         $sortDirection = $request->input('direction') === 'asc' ? 'asc' : 'desc';
 
-        $products = $query->orderBy($sortField, $sortDirection)->paginate(10)->appends($request->all());
+        $products = $query->orderBy($sortField, $sortDirection)
+                          ->paginate(10)
+                          ->appends($request->all());
 
         return view('products.index', compact('products'));
     }
 
+    // ============================================================
+    //  فرم ایجاد محصول
+    // ============================================================
     public function create()
     {
         $units = Unit::all();
@@ -40,6 +52,9 @@ class ProductController extends Controller
         return view('products.create', compact('units', 'formulas', 'packagings', 'allProducts'));
     }
 
+    // ============================================================
+    //  ذخیره محصول جدید
+    // ============================================================
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -60,14 +75,14 @@ class ProductController extends Controller
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
             'firing_process' => 'nullable|in:tonneli,shuttle,both',
             'parent_product_id' => 'nullable|exists:products,id',
-            'product_type'  => 'nullable|in:normal,injection', // ✅ اضافه شد
+            'product_type'  => 'nullable|in:normal,injection',
         ]);
 
         if (empty($validated['firing_process'])) {
             $validated['firing_process'] = 'tonneli';
         }
         if (empty($validated['product_type'])) {
-            $validated['product_type'] = 'normal'; // مقدار پیش‌فرض
+            $validated['product_type'] = 'normal';
         }
 
         $validated['status'] = $request->has('status');
@@ -95,16 +110,23 @@ class ProductController extends Controller
             }
         }
 
-        return redirect()->route('products.index')
-            ->with('success', 'کالا با موفقیت ایجاد شد.');
+        // ✅ برگشت به صفحه لیست با فیلتر قبلی
+        $returnUrl = session('products_return_url', route('products.index'));
+        return redirect($returnUrl)->with('success', 'کالا با موفقیت ایجاد شد.');
     }
 
+    // ============================================================
+    //  نمایش محصول
+    // ============================================================
     public function show(Product $product)
     {
         $product->load('unit', 'logs.user', 'parent', 'children', 'aliases');
         return view('products.show', compact('product'));
     }
 
+    // ============================================================
+    //  فرم ویرایش محصول
+    // ============================================================
     public function edit(Product $product)
     {
         $units = Unit::all();
@@ -115,6 +137,9 @@ class ProductController extends Controller
         return view('products.edit', compact('product', 'units', 'formulas', 'packagings', 'allProducts'));
     }
 
+    // ============================================================
+    //  ذخیره ویرایش محصول
+    // ============================================================
     public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
@@ -134,7 +159,7 @@ class ProductController extends Controller
             'layer_packaging_id'  => 'nullable|exists:packagings,id',
             'firing_process' => 'nullable|in:tonneli,shuttle,both',
             'parent_product_id' => 'nullable|exists:products,id',
-            'product_type'  => 'nullable|in:normal,injection', // ✅ اضافه شد
+            'product_type'  => 'nullable|in:normal,injection',
         ]);
 
         if (empty($validated['firing_process'])) {
@@ -166,10 +191,14 @@ class ProductController extends Controller
             }
         }
 
-        return redirect()->route('products.index')
-            ->with('success', 'کالا با موفقیت ویرایش شد.');
+        // ✅ برگشت به صفحه لیست با فیلتر قبلی
+        $returnUrl = session('products_return_url', route('products.index'));
+        return redirect($returnUrl)->with('success', 'کالا با موفقیت ویرایش شد.');
     }
 
+    // ============================================================
+    //  تغییر وضعیت (AJAX — نیازی به redirect نداره)
+    // ============================================================
     public function toggleStatus(Product $product)
     {
         $product->status = !$product->status;
@@ -184,14 +213,22 @@ class ProductController extends Controller
         return response()->json(['success' => true, 'in_production' => $product->in_production]);
     }
 
+    // ============================================================
+    //  حذف محصول
+    // ============================================================
     public function destroy(Product $product)
     {
         try {
             $product->aliases()->delete();
             $product->delete();
-            return redirect()->route('products.index')->with('success', 'کالا حذف شد.');
+
+            // ✅ برگشت به صفحه لیست با فیلتر قبلی
+            $returnUrl = session('products_return_url', route('products.index'));
+            return redirect($returnUrl)->with('success', 'کالا حذف شد.');
+
         } catch (\Exception $e) {
-            return redirect()->route('products.index')->with('error', $e->getMessage());
+            $returnUrl = session('products_return_url', route('products.index'));
+            return redirect($returnUrl)->with('error', $e->getMessage());
         }
     }
 }
