@@ -4,11 +4,15 @@ namespace App\Observers;
 
 use App\Models\ShuttleFiring;
 use App\Models\Packaging;
+use App\Helpers\ImportFlag;
 
 class ShuttleFiringObserver
 {
     public function created(ShuttleFiring $shuttleFiring)
     {
+        // ✅ اگه داریم واردات می‌کنیم، Observer کاری نکنه
+        if (ImportFlag::$isImporting) return;
+
         if ($shuttleFiring->is_packaged && $shuttleFiring->output_quantity > 0) {
             $this->updatePackaging($shuttleFiring, 'subtract');
         }
@@ -16,6 +20,8 @@ class ShuttleFiringObserver
 
     public function updated(ShuttleFiring $shuttleFiring)
     {
+        if (ImportFlag::$isImporting) return;
+
         $original = $shuttleFiring->getOriginal();
         $oldPackaged = $original['is_packaged'] ?? false;
         $oldQuantity = $original['output_quantity'] ?? 0;
@@ -39,7 +45,8 @@ class ShuttleFiringObserver
 
     public function deleted(ShuttleFiring $shuttleFiring)
     {
-        // بارگذاری رابطه product برای دسترسی به اطلاعات کارتن و لایه
+        if (ImportFlag::$isImporting) return;
+
         $shuttleFiring->load('product');
         if ($shuttleFiring->is_packaged && $shuttleFiring->output_quantity > 0) {
             $this->updatePackaging($shuttleFiring, 'add');
@@ -57,7 +64,6 @@ class ShuttleFiringObserver
             return;
         }
 
-        // کارتن
         if ($product->carton_packaging_id && $product->per_box > 0) {
             $cartonCount = ceil($quantity / $product->per_box);
             $carton = Packaging::find($product->carton_packaging_id);
@@ -71,7 +77,6 @@ class ShuttleFiringObserver
             }
         }
 
-        // لایه
         if ($product->layer_packaging_id && $product->layers_per_box > 0 && $product->per_box > 0) {
             $cartonCount = ceil($quantity / $product->per_box);
             $layerCount = $cartonCount * $product->layers_per_box;

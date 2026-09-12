@@ -28,23 +28,19 @@ use App\Models\Glaze1300Inventory;
 use App\Models\WarehouseInventory;
 use App\Models\ShoulderInventory;
 use App\Models\WasteMumInventory;
+use App\Helpers\ImportFlag;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Morilog\Jalali\Jalalian;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ImportController extends Controller
 {
-    // ============================================================
-    //  صفحه اصلی
-    // ============================================================
     public function index()
     {
         return view('import.index');
     }
 
-    // ============================================================
-    //  ✅ واردات خودکار (تنها متد اصلی)
-    // ============================================================
     public function importFromPath()
     {
         $filePath = env('EXCEL_FILE_PATH');
@@ -54,16 +50,17 @@ class ImportController extends Controller
                 ->withErrors(['file' => 'مسیر فایل اکسل در فایل .env تنظیم نشده یا فایل وجود ندارد.']);
         }
 
+        // ✅ Observer ها رو خاموش کن
+        ImportFlag::$isImporting = true;
+
         $errors = [];
         $anySuccess = false;
 
         try {
             set_time_limit(0);
 
-            // عکس قبل از واردات
             $beforeSnapshot = $this->takeInventorySnapshot();
 
-            // پاکسازی جداول
             DB::statement('DELETE FROM production_stops');
             DB::statement('DELETE FROM productions');
             DB::statement('DELETE FROM tonneli_firing_items');
@@ -91,18 +88,23 @@ class ImportController extends Controller
                     $anySuccess = true;
                 } catch (\Exception $e) {
                     $errors[] = "خطا در برگه {$label}: " . $e->getMessage();
-                    \Log::error("{$method} failed: " . $e->getMessage());
+                    Log::error("{$method} failed: " . $e->getMessage());
                 }
             }
 
-            // عکس بعد از واردات و اعمال تفاضل
+            // ✅ Observer ها رو روشن کن
+            ImportFlag::$isImporting = false;
+
             $afterSnapshot = $this->takeInventorySnapshot();
             $this->applyInventoryDeltas($beforeSnapshot, $afterSnapshot);
 
         } catch (\Exception $e) {
+            ImportFlag::$isImporting = false;
             return redirect()->route('import.index')
                 ->withErrors(['file' => 'خطا در خواندن فایل: ' . $e->getMessage()]);
         }
+
+        ImportFlag::$isImporting = false;
 
         if ($anySuccess) {
             $message = '✅ واردات خودکار با موفقیت انجام شد و موجودی‌ها به‌روز شدند.';
@@ -116,9 +118,6 @@ class ImportController extends Controller
         }
     }
 
-    // ============================================================
-    //  محاسبه موجودی خام
-    // ============================================================
     private function calculateRawStock($product)
     {
         $production = Production::where('product_id', $product->id)
@@ -162,9 +161,6 @@ class ImportController extends Controller
         return max(0, $production - $tonneliInput - $shuttleOutput - $childOutput);
     }
 
-    // ============================================================
-    //  عکس گرفتن از وضعیت فعلی
-    // ============================================================
     private function takeInventorySnapshot()
     {
         $snapshot = [
@@ -207,7 +203,6 @@ class ImportController extends Controller
             ->where('kiln_type', 'kiln_3')->where('firing_subtype', 'mum')
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        // مواد اولیه مصرفی
         $rawConsumed = [];
         foreach (MaterialMaking::all() as $record) {
             $formula = Formula::where('name', $record->material)->first();
@@ -221,12 +216,13 @@ class ImportController extends Controller
             }
         }
 
-        // کارتن و لایه مصرفی
         $packagingConsumed = [];
+
         foreach (TonneliFiringItem::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
             $product = $item->product;
             if (!$product) continue;
             $qty = $item->output_quantity;
+
             if ($product->carton_packaging_id && $product->per_box > 0) {
                 $count = ceil($qty / $product->per_box);
                 $packagingConsumed[$product->carton_packaging_id] = ($packagingConsumed[$product->carton_packaging_id] ?? 0) + $count;
@@ -236,10 +232,12 @@ class ImportController extends Controller
                 $packagingConsumed[$product->layer_packaging_id] = ($packagingConsumed[$product->layer_packaging_id] ?? 0) + $count;
             }
         }
+
         foreach (ShuttleFiring::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
             $product = $item->product;
             if (!$product) continue;
             $qty = $item->output_quantity;
+
             if ($product->carton_packaging_id && $product->per_box > 0) {
                 $count = ceil($qty / $product->per_box);
                 $packagingConsumed[$product->carton_packaging_id] = ($packagingConsumed[$product->carton_packaging_id] ?? 0) + $count;
@@ -274,9 +272,6 @@ class ImportController extends Controller
         return $snapshot;
     }
 
-    // ============================================================
-    //  اعمال تفاضل روی موجودی‌ها
-    // ============================================================
     private function applyInventoryDeltas($before, $after)
     {
         DB::beginTransaction();
@@ -284,7 +279,6 @@ class ImportController extends Controller
             foreach (Product::where('status', 1)->get() as $product) {
                 $id = $product->id;
 
-                // ۱) موجودی انبار
                 $whDelta =
                     (($after['warehouse_produced'][$id] ?? 0) - ($before['warehouse_produced'][$id] ?? 0))
                     - (($after['formal_sales'][$id] ?? 0) - ($before['formal_sales'][$id] ?? 0))
@@ -296,7 +290,6 @@ class ImportController extends Controller
                     $inv->save();
                 }
 
-                // ۲) موجودی خام
                 $rawDelta = ($after['raw_calculated'][$id] ?? 0) - ($before['raw_calculated'][$id] ?? 0);
                 if ($rawDelta != 0) {
                     $inv = RawInventory::firstOrCreate(['product_id' => $id]);
@@ -304,7 +297,6 @@ class ImportController extends Controller
                     $inv->save();
                 }
 
-                // ۳) موجودی ۱۳۰۰ درجه
                 $g1300Delta =
                     (($after['glaze1300_produced'][$id] ?? 0) - ($before['glaze1300_produced'][$id] ?? 0))
                     - (($after['glaze1300_packaged'][$id] ?? 0) - ($before['glaze1300_packaged'][$id] ?? 0));
@@ -315,7 +307,6 @@ class ImportController extends Controller
                     $inv->save();
                 }
 
-                // ۴) شانه شده
                 $shoulderDelta = ($after['shoulder_records'][$id] ?? 0) - ($before['shoulder_records'][$id] ?? 0);
                 if ($shoulderDelta != 0) {
                     $inv = ShoulderInventory::firstOrCreate(['product_id' => $id]);
@@ -323,7 +314,6 @@ class ImportController extends Controller
                     $inv->save();
                 }
 
-                // ۵) ضایعات موم
                 $wasteDelta = ($after['waste_records'][$id] ?? 0) - ($before['waste_records'][$id] ?? 0);
                 if ($wasteDelta != 0) {
                     $inv = WasteMumInventory::firstOrCreate(['product_id' => $id]);
@@ -331,7 +321,6 @@ class ImportController extends Controller
                     $inv->save();
                 }
 
-                // ۶) موجودی موم
                 $waxDelta =
                     (($after['mum_produced'][$id] ?? 0) - ($before['mum_produced'][$id] ?? 0))
                     - $shoulderDelta
@@ -344,7 +333,6 @@ class ImportController extends Controller
                 }
             }
 
-            // ۷) مواد اولیه
             $allMaterialIds = array_unique(array_merge(
                 array_keys($before['raw_material_used']),
                 array_keys($after['raw_material_used'])
@@ -360,33 +348,36 @@ class ImportController extends Controller
                 }
             }
 
-            // ۸) کارتن و لایه
-            $allPackagingIds = array_unique(array_merge(
-                array_keys($before['packaging_used']),
-                array_keys($after['packaging_used'])
-            ));
-            foreach ($allPackagingIds as $pkgId) {
-                $delta = ($after['packaging_used'][$pkgId] ?? 0) - ($before['packaging_used'][$pkgId] ?? 0);
-                if ($delta != 0) {
-                    $pkg = Packaging::find($pkgId);
-                    if ($pkg) {
+            foreach (Packaging::all() as $pkg) {
+                $consumedAfter = $after['packaging_used'][$pkg->id] ?? 0;
+
+                if ($pkg->baseline_consumed !== null) {
+                    $delta = $consumedAfter - $pkg->baseline_consumed;
+
+                    if ($delta != 0) {
                         $pkg->stock = max(0, $pkg->stock - $delta);
-                        $pkg->save();
+                    }
+
+                    $pkg->baseline_consumed = $consumedAfter;
+                } else {
+                    $consumedBefore = $before['packaging_used'][$pkg->id] ?? 0;
+                    $delta = $consumedAfter - $consumedBefore;
+
+                    if ($delta != 0) {
+                        $pkg->stock = max(0, $pkg->stock - $delta);
                     }
                 }
+
+                $pkg->save();
             }
 
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('applyInventoryDeltas failed: ' . $e->getMessage());
+            Log::error('applyInventoryDeltas failed: ' . $e->getMessage());
             throw $e;
         }
     }
-
-    // ============================================================
-    //  واردات برگه‌ها از Spreadsheet
-    // ============================================================
 
     private function importProductionsFromSpreadsheet($spreadsheet)
     {
@@ -467,6 +458,7 @@ class ImportController extends Controller
 
                     $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
                     $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
+
                     $product = $this->findOrCreateProduct($productName);
                     $packaged = ($isPackaged == '1' || $isPackaged == 'بله') ? 1 : 0;
 
@@ -519,6 +511,7 @@ class ImportController extends Controller
 
                 $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
                 $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
+
                 $product = $this->findOrCreateProduct($productName);
                 $kilnType = $this->mapKilnNumberToType($kilnNumber, $firingType);
                 $packaged = ($kilnType === 'packaging') ? 1 : (($isPackaged == '1' || $isPackaged == 'بله') ? 1 : 0);
@@ -661,7 +654,7 @@ class ImportController extends Controller
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Error in importInformalSalesFromSpreadsheet: ' . $e->getMessage());
+            Log::error('Error in importInformalSalesFromSpreadsheet: ' . $e->getMessage());
         }
     }
 
@@ -778,7 +771,7 @@ class ImportController extends Controller
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Error in importFormalSalesFromSpreadsheet: ' . $e->getMessage());
+            Log::error('Error in importFormalSalesFromSpreadsheet: ' . $e->getMessage());
         } finally {
             DB::statement('PRAGMA foreign_keys = ON');
         }
@@ -864,16 +857,12 @@ class ImportController extends Controller
                         'quantity' => $quantity, 'mill_weight' => $millWeightGram,
                     ]);
                 } catch (\Exception $e) {
-                    \Log::warning("خطا در ردیف مواد سازی: " . $e->getMessage());
+                    Log::warning("خطا در ردیف مواد سازی: " . $e->getMessage());
                 }
             }
             DB::commit();
         } catch (\Exception $e) { DB::rollBack(); throw $e; }
     }
-
-    // ============================================================
-    //  متدهای کمکی
-    // ============================================================
 
     private $operatorsCache = [];
     private $productsCache = [];

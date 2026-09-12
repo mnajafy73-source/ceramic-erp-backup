@@ -3,12 +3,129 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<style>
+    .column-drag { width: 40px; text-align: center; }
+
+    .drag-handle {
+        cursor: grab;
+        color: #adb5bd;
+        font-size: 18px;
+        transition: color 0.2s;
+        user-select: none;
+        padding: 4px 8px;
+    }
+    .drag-handle:hover { color: #0d6efd; }
+    .drag-handle:active { cursor: grabbing; }
+
+    .drag-handle.disabled {
+        cursor: not-allowed;
+        opacity: 0.25;
+    }
+
+    .sortable-ghost { background: #cfe2ff !important; opacity: 0.5; }
+    .sortable-chosen { background: #e7f1ff !important; }
+
+    .editable-cell {
+        position: relative;
+        padding: 6px 4px;
+    }
+    .editable-cell .cell-value {
+        font-weight: 600;
+        color: #212529;
+    }
+    .editable-cell .btn-edit-cell {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        font-size: 10px;
+        border-radius: 50%;
+        margin-right: 4px;
+        opacity: 0;
+        transition: opacity 0.2s, transform 0.2s;
+        background: transparent;
+        border: 1px solid #0d6efd;
+        color: #0d6efd;
+        cursor: pointer;
+        vertical-align: middle;
+    }
+    .editable-cell:hover .btn-edit-cell { opacity: 1; }
+    .editable-cell .btn-edit-cell:hover {
+        background: #0d6efd;
+        color: #fff;
+        transform: scale(1.15);
+    }
+    @media (max-width: 991px) {
+        .editable-cell .btn-edit-cell { opacity: 0.6; }
+    }
+
+    .reorder-notice {
+        background: #e7f1ff;
+        color: #084298;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid #b6d4fe;
+        display: inline-block;
+        margin-bottom: 12px;
+    }
+
+    /* Modal */
+    .edit-stock-material-name {
+        background: #f1f3f5;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-weight: bold;
+        margin-bottom: 14px;
+    }
+    .edit-stock-material-name small {
+        color: #6c757d;
+        font-weight: normal;
+        font-size: 12px;
+    }
+    .unit-toggle {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .unit-toggle .btn {
+        flex: 1;
+        padding: 8px;
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .edit-stock-input {
+        font-size: 22px;
+        font-weight: bold;
+        text-align: center;
+        direction: ltr;
+        font-family: 'Courier New', monospace;
+        min-height: 50px;
+    }
+    .edit-stock-hint {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 6px;
+    }
+</style>
 @endpush
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
+    var CSRF_TOKEN = '{{ csrf_token() }}';
+    var REORDER_URL = '{{ route("inventory.raw-materials.reorder") }}';
+    var UPDATE_STOCK_URL_TEMPLATE = '{{ route("inventory.raw-materials.update-stock", ["material" => 0]) }}';
+    var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
+
+    // ============================================================
+    //  Select2
+    // ============================================================
     $(document).ready(function() {
         $('.material-search-select').select2({
             placeholder: 'جستجو...',
@@ -21,10 +138,277 @@
             }
         });
     });
+
+    // ============================================================
+    //  Drag & Drop
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        if (HAS_SEARCH_FILTER) return;
+
+        var tbody = document.getElementById('materialsTableBody');
+        if (!tbody) return;
+
+        if (tbody.querySelectorAll('tr[data-material-id]').length < 2) return;
+
+        new Sortable(tbody, {
+            handle: '.drag-handle',
+            animation: 180,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: function(evt) {
+                saveMaterialsOrder();
+            }
+        });
+    });
+
+    function saveMaterialsOrder() {
+        var rows = document.querySelectorAll('#materialsTableBody tr[data-material-id]');
+        var order = [];
+
+        rows.forEach(function(row) {
+            var id = row.getAttribute('data-material-id');
+            if (id) order.push(parseInt(id));
+        });
+
+        fetch(REORDER_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF_TOKEN,
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ order: order }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) showToast('✅ ترتیب ذخیره شد.', '#198754');
+            else showToast('خطا: ' + (data.error || 'نامشخص'), '#dc3545');
+        })
+        .catch(function(err) {
+            console.error(err);
+            showToast('خطا در ذخیره.', '#dc3545');
+        });
+    }
+
+    // ============================================================
+    //  تبدیل اعداد فارسی/عربی
+    // ============================================================
+    function toLatinDigits(str) {
+        return String(str).replace(/[۰-۹]/g, function(d) {
+            return String.fromCharCode(d.charCodeAt(0) - 1776);
+        }).replace(/[٠-٩]/g, function(d) {
+            return String.fromCharCode(d.charCodeAt(0) - 1584);
+        });
+    }
+
+    function formatNumber(value) {
+        var num = String(value).replace(/,/g, '');
+        if (num === '' || isNaN(num)) return '0';
+        var parts = num.split('.');
+        var integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        return parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
+    }
+
+    // ============================================================
+    //  باز کردن Modal ویرایش
+    // ============================================================
+    function openEditStockModal(materialId, materialName, stockInGram) {
+        document.getElementById('editStockMaterialId').value = materialId;
+        document.getElementById('editStockMaterialName').innerHTML = materialName;
+
+        // پیش‌فرض روی گرم
+        setUnit('gram');
+
+        // مقدار فعلی رو به گرم نشون بده
+        document.getElementById('editStockInput').value = formatNumber(stockInGram);
+
+        // ذخیره برای استفاده در تغییر واحد
+        window.currentStockInGram = stockInGram;
+
+        document.getElementById('editStockError').style.display = 'none';
+
+        var modal = new bootstrap.Modal(document.getElementById('editStockModal'));
+        modal.show();
+
+        setTimeout(function() {
+            var input = document.getElementById('editStockInput');
+            input.focus();
+            input.select();
+        }, 400);
+    }
+
+    // ============================================================
+    //  تعویض واحد (گرم/تن)
+    // ============================================================
+    var currentUnit = 'gram';
+    function setUnit(unit) {
+        currentUnit = unit;
+        document.getElementById('editStockUnit').value = unit;
+
+        var gramBtn = document.getElementById('btnUnitGram');
+        var tonBtn = document.getElementById('btnUnitTon');
+
+        if (unit === 'gram') {
+            gramBtn.classList.remove('btn-outline-primary');
+            gramBtn.classList.add('btn-primary');
+            tonBtn.classList.remove('btn-primary');
+            tonBtn.classList.add('btn-outline-primary');
+            document.getElementById('inputUnitLabel').textContent = 'گرم';
+        } else {
+            tonBtn.classList.remove('btn-outline-primary');
+            tonBtn.classList.add('btn-primary');
+            gramBtn.classList.remove('btn-primary');
+            gramBtn.classList.add('btn-outline-primary');
+            document.getElementById('inputUnitLabel').textContent = 'تن';
+        }
+
+        // تبدیل مقدار فعلی ورودی
+        var input = document.getElementById('editStockInput');
+        var raw = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
+
+        if (raw !== '' && !isNaN(raw)) {
+            var val = parseFloat(raw);
+            if (unit === 'ton') {
+                // گرم → تن
+                input.value = formatNumber(val / 1000000);
+            } else {
+                // تن → گرم
+                input.value = formatNumber(val * 1000000);
+            }
+        }
+    }
+
+    // ============================================================
+    //  ذخیره مقدار
+    // ============================================================
+    function saveMaterialStock() {
+        var materialId = document.getElementById('editStockMaterialId').value;
+        var input = document.getElementById('editStockInput');
+        var saveBtn = document.getElementById('editStockSaveBtn');
+        var errorBox = document.getElementById('editStockError');
+        var rawValue = toLatinDigits(input.value).replace(/[^0-9.]/g, '');
+
+        if (rawValue === '' || isNaN(rawValue)) {
+            errorBox.textContent = 'عدد معتبر وارد کنید.';
+            errorBox.style.display = 'block';
+            return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> در حال ذخیره...';
+        errorBox.style.display = 'none';
+
+        var url = UPDATE_STOCK_URL_TEMPLATE.replace(/\/0\/update-stock$/, '/' + materialId + '/update-stock');
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF_TOKEN,
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ quantity: rawValue, unit: currentUnit }),
+        })
+        .then(function(response) {
+            return response.json().then(function(data) {
+                return { status: response.status, data: data };
+            });
+        })
+        .then(function(result) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save me-1"></i> ذخیره';
+
+            if (result.status !== 200 || !result.data.success) {
+                var errMsg = result.data.error || result.data.message || 'خطا در ذخیره‌سازی (کد ' + result.status + ')';
+                errorBox.textContent = errMsg;
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            var data = result.data;
+
+            // آپدیت سلول گرم
+            var row = document.querySelector('tr[data-material-id="' + materialId + '"]');
+            if (row) {
+                var gramCell = row.querySelector('.gram-value');
+                if (gramCell) gramCell.textContent = formatNumber(data.stock);
+
+                var tonCell = row.querySelector('.ton-value');
+                if (tonCell) {
+                    var tonVal = data.stock_in_ton;
+                    var tonStr = tonVal.toFixed(3).replace(/\.?0+$/, '');
+                    if (tonStr === '' || tonStr === '-') tonStr = '0';
+                    tonCell.textContent = tonStr;
+                }
+
+                row.style.transition = 'background-color 0.4s';
+                row.style.backgroundColor = '#d1e7dd';
+                setTimeout(function() { row.style.backgroundColor = ''; }, 800);
+            }
+
+            var modalEl = document.getElementById('editStockModal');
+            var modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) modalInstance.hide();
+
+            showToast(data.message || 'موجودی به‌روزرسانی شد.', '#198754');
+        })
+        .catch(function(err) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save me-1"></i> ذخیره';
+            errorBox.textContent = 'خطای ارتباط: ' + err.message;
+            errorBox.style.display = 'block';
+            console.error(err);
+        });
+    }
+
+    // ============================================================
+    //  Toast
+    // ============================================================
+    function showToast(message, bgColor) {
+        bgColor = bgColor || '#198754';
+        var toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; ' +
+                              'background:' + bgColor + '; color:#fff; padding:12px 24px; border-radius:8px; ' +
+                              'font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.2); font-size:14px;';
+        toast.innerHTML = message;
+        document.body.appendChild(toast);
+        setTimeout(function() {
+            toast.style.transition = 'opacity 0.5s';
+            toast.style.opacity = '0';
+            setTimeout(function() { toast.remove(); }, 500);
+        }, 2200);
+    }
+
+    // فرمت‌دهی زنده ورودی
+    document.addEventListener('DOMContentLoaded', function() {
+        var input = document.getElementById('editStockInput');
+        if (input) {
+            input.addEventListener('input', function() {
+                var cursor = this.selectionStart;
+                var raw = toLatinDigits(this.value).replace(/[^0-9.]/g, '');
+                this.value = formatNumber(raw);
+                try { this.setSelectionRange(cursor, cursor); } catch(e) {}
+            });
+
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveMaterialStock();
+                }
+            });
+        }
+    });
 </script>
 @endpush
 
 @section('content')
+@php
+    $hasSearch = request('search') ? true : false;
+    $rowCount = $materials->count();
+@endphp
+
 <div class="mb-4">
     <h4 class="fw-bold mb-1">موجودی مواد اولیه</h4>
     <nav aria-label="breadcrumb">
@@ -37,6 +421,8 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
+
+        {{-- فرم جستجو --}}
         <form action="{{ route('inventory.raw-materials') }}" method="GET" class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="input-group">
@@ -52,7 +438,7 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search"></i> جستجو
                     </button>
-                    @if(request('search'))
+                    @if($hasSearch)
                         <a href="{{ route('inventory.raw-materials') }}" class="btn btn-secondary">
                             <i class="fas fa-times"></i> پاک کردن
                         </a>
@@ -61,36 +447,80 @@
             </div>
         </form>
 
+        {{-- راهنمای جابه‌جایی --}}
+        @if(!$hasSearch && $rowCount >= 2)
+            <div class="reorder-notice">
+                <i class="fas fa-arrows-alt me-1"></i>
+                برای تغییر ترتیب، ردیف‌ها را از آیکون <strong>⋮⋮</strong> بکشید — برای ویرایش روی <strong>✏️</strong> بزنید
+            </div>
+        @endif
+
         <div class="table-responsive">
-            <table class="table table-bordered table-hover">
-                <thead>
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-dark">
                     <tr>
+                        <th class="column-drag">
+                            <i class="fas fa-grip-vertical"></i>
+                        </th>
                         <th>نام ماده</th>
-                        <th>موجودی (گرم)</th>
-                        <th>موجودی (تن)</th>
+                        <th class="text-center">موجودی (گرم)</th>
+                        <th class="text-center">موجودی (تن)</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="materialsTableBody">
                     @forelse($materials as $material)
                         @php
                             $stockInGram = (int) $material->stock;
                             $stockInTon = $stockInGram / 1000000;
-                            
+
                             $formattedGram = number_format($stockInGram, 0);
                             $formattedTon = rtrim(rtrim(number_format($stockInTon, 3, '.', ''), '0'), '.');
                             if ($formattedTon === '') {
                                 $formattedTon = '0';
                             }
                         @endphp
-                        <tr>
+                        <tr data-material-id="{{ $material->id }}">
+
+                            {{-- دستگیره جابه‌جایی --}}
+                            <td class="column-drag">
+                                @if(!$hasSearch && $rowCount >= 2)
+                                    <div class="drag-handle" title="برای جابه‌جایی بکشید">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                @else
+                                    <div class="drag-handle disabled">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                @endif
+                            </td>
+
                             <td>{{ $material->name }}</td>
-                            <td>{{ $formattedGram }}</td>
-                            <td>{{ $formattedTon }}</td>
+
+                            {{-- موجودی گرم --}}
+                            <td class="text-center editable-cell">
+                                <span class="cell-value gram-value">{{ $formattedGram }}</span>
+                                <button type="button"
+                                        class="btn-edit-cell"
+                                        onclick="openEditStockModal(
+                                            {{ $material->id }},
+                                            '{{ addslashes($material->name) }}',
+                                            {{ $stockInGram }}
+                                        )"
+                                        title="ویرایش موجودی">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                            </td>
+
+                            {{-- موجودی تن --}}
+                            <td class="text-center">
+                                <span class="ton-value">{{ $formattedTon }}</span>
+                            </td>
                         </tr>
                     @empty
                     <tr>
-                        <td colspan="3" class="text-center">
-                            @if(request('search'))
+                        <td colspan="4" class="text-center py-4">
+                            <i class="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
+                            @if($hasSearch)
                                 ماده‌ای با این شناسه یافت نشد.
                             @else
                                 هیچ ماده اولیه‌ای ثبت نشده است.
@@ -100,6 +530,68 @@
                     @endforelse
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+{{-- ============================================================== --}}
+{{--  Modal ویرایش موجودی                                          --}}
+{{-- ============================================================== --}}
+<div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-pen me-2"></i>
+                    ویرایش موجودی ماده اولیه
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+
+                <div class="edit-stock-material-name" id="editStockMaterialName"></div>
+
+                <input type="hidden" id="editStockMaterialId">
+                <input type="hidden" id="editStockUnit" value="gram">
+
+                <label class="form-label fw-bold">واحد ورودی:</label>
+                <div class="unit-toggle">
+                    <button type="button" class="btn btn-primary" id="btnUnitGram" onclick="setUnit('gram')">
+                        <i class="fas fa-weight me-1"></i> گرم
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="btnUnitTon" onclick="setUnit('ton')">
+                        <i class="fas fa-truck me-1"></i> تن
+                    </button>
+                </div>
+
+                <label class="form-label fw-bold">
+                    موجودی جدید (<span id="inputUnitLabel">گرم</span>):
+                </label>
+                <input type="text"
+                       id="editStockInput"
+                       class="form-control edit-stock-input"
+                       placeholder="0"
+                       autocomplete="off"
+                       inputmode="numeric">
+
+                <div class="edit-stock-hint">
+                    <i class="fas fa-info-circle me-1"></i>
+                    می‌توانید با اعداد فارسی یا انگلیسی وارد کنید. با تعویض واحد، مقدار به‌صورت خودکار تبدیل می‌شود.
+                </div>
+
+                <div id="editStockError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> انصراف
+                </button>
+                <button type="button"
+                        class="btn btn-primary"
+                        id="editStockSaveBtn"
+                        onclick="saveMaterialStock()">
+                    <i class="fas fa-save me-1"></i> ذخیره
+                </button>
+            </div>
         </div>
     </div>
 </div>

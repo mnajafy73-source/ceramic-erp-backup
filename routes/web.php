@@ -103,33 +103,35 @@ Route::middleware(['auth'])->group(function () {
 
     // موجودی
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+
+    // مواد اولیه موجودی
     Route::get('/inventory/raw-materials', [InventoryController::class, 'rawMaterialsStock'])->name('inventory.raw-materials');
+    Route::post('/inventory/raw-materials/reorder', [InventoryController::class, 'reorderRawMaterials'])->name('inventory.raw-materials.reorder');
+    Route::post('/inventory/raw-materials/{material}/update-stock', [InventoryController::class, 'updateRawMaterialStock'])->name('inventory.raw-materials.update-stock');
+
     Route::get('/inventory/raw', [InventoryController::class, 'raw'])->name('inventory.raw');
     Route::get('/inventory/mum', [InventoryController::class, 'mum'])->name('inventory.mum');
     Route::get('/inventory/glaze1300', [InventoryController::class, 'glaze1300'])->name('inventory.glaze1300');
+
+    // کارتن و لایه
     Route::get('/inventory/packaging-stock', [InventoryController::class, 'packagingStock'])->name('inventory.packaging-stock');
+    Route::post('/inventory/packaging-stock/reorder', [InventoryController::class, 'reorderPackagings'])->name('inventory.packaging-stock.reorder');
+    Route::post('/inventory/packaging-stock/{packaging}/update-stock', [InventoryController::class, 'updatePackagingStock'])->name('inventory.packaging-stock.update-stock');
+
+    // موجودی انبار
     Route::get('/inventory/warehouse', [InventoryController::class, 'warehouse'])->name('inventory.warehouse');
-    Route::get('/inventory/shoulder', [InventoryController::class, 'shoulder'])->name('inventory.shoulder');
-    Route::get('/inventory/all-stocks', [InventoryController::class, 'allStocks'])->name('inventory.all-stocks');
-
-    // مخفی/نمایش در گزارش جامع موجودی‌ها
-    Route::post('/inventory/all-stocks/{product}/hide', [InventoryController::class, 'hideFromAllStocks'])->name('inventory.all-stocks.hide');
-    Route::post('/inventory/all-stocks/{product}/unhide', [InventoryController::class, 'unhideFromAllStocks'])->name('inventory.all-stocks.unhide');
-
-    // مخفی/نمایش در موجودی انبار
+    Route::post('/inventory/warehouse/reorder', [InventoryController::class, 'reorderWarehouse'])->name('inventory.warehouse.reorder');
     Route::post('/inventory/warehouse/{product}/hide', [InventoryController::class, 'hideFromWarehouse'])->name('inventory.warehouse.hide');
     Route::post('/inventory/warehouse/{product}/unhide', [InventoryController::class, 'unhideFromWarehouse'])->name('inventory.warehouse.unhide');
-
-    // به‌روزرسانی موجودی از صفحه موجودی انبار
     Route::post('/inventory/warehouse/{product}/update-stock', [InventoryController::class, 'updateWarehouseStock'])->name('inventory.warehouse.update-stock');
 
-    // ذخیره ترتیب سفارشی موجودی انبار
-    Route::post('/inventory/warehouse/reorder', [InventoryController::class, 'reorderWarehouse'])->name('inventory.warehouse.reorder');
+    Route::get('/inventory/shoulder', [InventoryController::class, 'shoulder'])->name('inventory.shoulder');
 
-    // ذخیره ترتیب سفارشی گزارش جامع
+    // گزارش جامع
+    Route::get('/inventory/all-stocks', [InventoryController::class, 'allStocks'])->name('inventory.all-stocks');
     Route::post('/inventory/all-stocks/reorder', [InventoryController::class, 'reorderAllStocks'])->name('inventory.all-stocks.reorder');
-
-    // به‌روزرسانی هر سلول از گزارش جامع
+    Route::post('/inventory/all-stocks/{product}/hide', [InventoryController::class, 'hideFromAllStocks'])->name('inventory.all-stocks.hide');
+    Route::post('/inventory/all-stocks/{product}/unhide', [InventoryController::class, 'unhideFromAllStocks'])->name('inventory.all-stocks.unhide');
     Route::post('/inventory/all-stocks/{product}/update-field', [InventoryController::class, 'updateAllStocksField'])->name('inventory.all-stocks.update-field');
 
     // موجودی اول دوره

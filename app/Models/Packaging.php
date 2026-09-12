@@ -13,9 +13,16 @@ class Packaging extends Model
         'type',
         'name',
         'stock',
+        'sort_order',
+        'baseline_consumed',   // ✅ جدید
     ];
 
-    // رابطه با آیتم‌های خرید کارتن و لایه
+    protected $casts = [
+        'stock'              => 'integer',
+        'sort_order'         => 'integer',
+        'baseline_consumed'  => 'integer',
+    ];
+
     public function purchaseItems()
     {
         return $this->hasMany(PackagingPurchaseItem::class);

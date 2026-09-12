@@ -4,14 +4,14 @@ namespace App\Observers;
 
 use App\Models\TonneliFiring;
 use App\Models\Packaging;
+use App\Helpers\ImportFlag;
 
 class TonneliFiringObserver
 {
-    /**
-     * بعد از ثبت پخت تونلی
-     */
     public function created(TonneliFiring $tonneliFiring)
     {
+        if (ImportFlag::$isImporting) return;
+
         $tonneliFiring->load('items.product');
         foreach ($tonneliFiring->items as $item) {
             if ($item->is_packaged && $item->output_quantity > 0) {
@@ -20,22 +20,18 @@ class TonneliFiringObserver
         }
     }
 
-    /**
-     * بعد از ویرایش پخت تونلی
-     */
     public function updated(TonneliFiring $tonneliFiring)
     {
-        // آیتم‌های قدیمی را از دیتابیس می‌خوانیم
+        if (ImportFlag::$isImporting) return;
+
         $oldItems = $tonneliFiring->items()->with('product')->get();
 
-        // ۱. برگرداندن موجودی آیتم‌های قدیمی
         foreach ($oldItems as $oldItem) {
             if ($oldItem->is_packaged && $oldItem->output_quantity > 0) {
                 $this->updatePackagingForItem($oldItem, 'add');
             }
         }
 
-        // ۲. کسر موجودی آیتم‌های جدید (که در رکورد فعلی بارگذاری شده‌اند)
         $tonneliFiring->load('items.product');
         foreach ($tonneliFiring->items as $newItem) {
             if ($newItem->is_packaged && $newItem->output_quantity > 0) {
@@ -44,12 +40,10 @@ class TonneliFiringObserver
         }
     }
 
-    /**
-     * قبل از حذف پخت تونلی (با استفاده از رویداد deleting)
-     */
     public function deleting(TonneliFiring $tonneliFiring)
     {
-        // بارگذاری آیتم‌ها با رابطه product (قبل از حذف آیتم‌ها)
+        if (ImportFlag::$isImporting) return;
+
         $tonneliFiring->load('items.product');
         foreach ($tonneliFiring->items as $item) {
             if ($item->is_packaged && $item->output_quantity > 0) {
@@ -58,9 +52,6 @@ class TonneliFiringObserver
         }
     }
 
-    /**
-     * متد کمکی برای کسر یا افزودن موجودی کارتن/لایه برای یک آیتم
-     */
     private function updatePackagingForItem($item, $operation)
     {
         $product = $item->product;
@@ -70,7 +61,6 @@ class TonneliFiringObserver
             return;
         }
 
-        // کارتن
         if ($product->carton_packaging_id && $product->per_box > 0) {
             $cartonCount = ceil($quantity / $product->per_box);
             $carton = Packaging::find($product->carton_packaging_id);
@@ -84,7 +74,6 @@ class TonneliFiringObserver
             }
         }
 
-        // لایه
         if ($product->layer_packaging_id && $product->layers_per_box > 0 && $product->per_box > 0) {
             $cartonCount = ceil($quantity / $product->per_box);
             $layerCount = $cartonCount * $product->layers_per_box;

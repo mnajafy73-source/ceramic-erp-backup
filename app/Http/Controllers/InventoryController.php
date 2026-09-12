@@ -13,6 +13,7 @@ use App\Models\ShoulderInventory;
 use App\Models\WasteMumInventory;
 use App\Models\OpeningInventory;
 use App\Models\RawInventory;
+use App\Models\TonneliFiringItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -23,9 +24,19 @@ class InventoryController extends Controller
         return view('inventory.index');
     }
 
-    public function rawMaterialsStock()
+    public function rawMaterialsStock(Request $request)
     {
-        $materials = RawMaterial::orderBy('name')->get();
+        $query = RawMaterial::query();
+
+        if ($request->filled('search')) {
+            $query->where('id', $request->search);
+        }
+
+        $materials = $query
+            ->orderByRaw('CASE WHEN sort_order > 0 THEN sort_order ELSE 999999 END ASC')
+            ->orderBy('name')
+            ->get();
+
         return view('inventory.raw-materials', compact('materials'));
     }
 
@@ -101,9 +112,20 @@ class InventoryController extends Controller
         return view('inventory.glaze1300', compact('inventories'));
     }
 
-    public function packagingStock()
+    public function packagingStock(Request $request)
     {
-        $packagings = Packaging::orderBy('type')->orderBy('name')->get();
+        $query = Packaging::query();
+
+        if ($request->filled('search')) {
+            $query->where('id', $request->search);
+        }
+
+        $packagings = $query
+            ->orderByRaw('CASE WHEN sort_order > 0 THEN sort_order ELSE 999999 END ASC')
+            ->orderBy('type')
+            ->orderBy('name')
+            ->get();
+
         return view('inventory.packaging-stock', compact('packagings'));
     }
 
@@ -144,6 +166,45 @@ class InventoryController extends Controller
             ->sum('output_quantity');
 
         return max(0, (float) $unpackaged);
+    }
+
+    /**
+     * ✅ محاسبه مصرف فعلی یک کارتن/لایه خاص
+     * (از تونلی و شاتل، برای همه محصولاتی که از این کارتن/لایه استفاده می‌کنن)
+     */
+    private function calculatePackagingConsumed(Packaging $packaging)
+    {
+        $total = 0;
+
+        // تونلی
+        foreach (TonneliFiringItem::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
+            $product = $item->product;
+            if (!$product) continue;
+            $qty = $item->output_quantity;
+
+            if ($product->carton_packaging_id == $packaging->id && $product->per_box > 0) {
+                $total += ceil($qty / $product->per_box);
+            }
+            if ($product->layer_packaging_id == $packaging->id && $product->layers_per_box > 0 && $product->per_box > 0) {
+                $total += ceil($qty / $product->per_box) * $product->layers_per_box;
+            }
+        }
+
+        // شاتل
+        foreach (ShuttleFiring::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
+            $product = $item->product;
+            if (!$product) continue;
+            $qty = $item->output_quantity;
+
+            if ($product->carton_packaging_id == $packaging->id && $product->per_box > 0) {
+                $total += ceil($qty / $product->per_box);
+            }
+            if ($product->layer_packaging_id == $packaging->id && $product->layers_per_box > 0 && $product->per_box > 0) {
+                $total += ceil($qty / $product->per_box) * $product->layers_per_box;
+            }
+        }
+
+        return $total;
     }
 
     public function warehouse(Request $request)
@@ -226,9 +287,6 @@ class InventoryController extends Controller
         return view('inventory.shoulder', compact('inventories'));
     }
 
-    /**
-     * گزارش جامع موجودی‌ها
-     */
     public function allStocks(Request $request)
     {
         $showHidden = $request->input('show_hidden') == '1';
@@ -242,7 +300,6 @@ class InventoryController extends Controller
             });
         }
 
-        // ✅ فیلتر جستجو
         if ($request->filled('search')) {
             $query->where('id', $request->search);
         }
@@ -278,9 +335,6 @@ class InventoryController extends Controller
         return view('inventory.all-stocks', compact('stocks'));
     }
 
-    // ============================================================
-    //  مخفی/نمایش از گزارش جامع
-    // ============================================================
     public function hideFromAllStocks(Product $product)
     {
         $product->hidden_from_all_stocks = true;
@@ -297,9 +351,6 @@ class InventoryController extends Controller
         return back()->with('success', '✅ محصول به گزارش جامع برگردانده شد.');
     }
 
-    // ============================================================
-    //  مخفی/نمایش از موجودی انبار
-    // ============================================================
     public function hideFromWarehouse(Product $product)
     {
         $product->hidden_from_warehouse = true;
@@ -316,9 +367,6 @@ class InventoryController extends Controller
         return back()->with('success', '✅ محصول به موجودی انبار برگردانده شد.');
     }
 
-    // ============================================================
-    //  به‌روزرسانی موجودی انبار
-    // ============================================================
     public function updateWarehouseStock(Request $request, Product $product)
     {
         $request->validate([
@@ -385,9 +433,109 @@ class InventoryController extends Controller
         ]);
     }
 
-    // ============================================================
-    //  به‌روزرسانی هر سلول از گزارش جامع
-    // ============================================================
+    public function updateRawMaterialStock(Request $request, RawMaterial $material)
+    {
+        $request->validate([
+            'quantity' => 'required|string',
+            'unit'     => 'nullable|in:gram,ton',
+        ]);
+
+        $unit = $request->input('unit', 'gram');
+
+        $rawInput = (string) $request->input('quantity');
+        $rawInput = str_replace(
+            ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
+             '٠','١','٢','٣','٤','٥','٦','٧','٨','٩',
+             '،'],
+            ['0','1','2','3','4','5','6','7','8','9',
+             '0','1','2','3','4','5','6','7','8','9',
+             ''],
+            $rawInput
+        );
+
+        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+
+        if ($cleanQty === '' || !is_numeric($cleanQty)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'عدد معتبر وارد کنید.',
+            ], 422);
+        }
+
+        $quantity = (float) $cleanQty;
+
+        if ($quantity < 0) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'مقدار نمی‌تواند منفی باشد.',
+            ], 422);
+        }
+
+        $quantityInGram = ($unit === 'ton') ? $quantity * 1000000 : $quantity;
+
+        $material->stock = $quantityInGram;
+        $material->save();
+
+        return response()->json([
+            'success'      => true,
+            'stock'        => $quantityInGram,
+            'stock_in_ton' => $quantityInGram / 1000000,
+            'message'      => 'موجودی با موفقیت به‌روزرسانی شد.',
+        ]);
+    }
+
+    /**
+     * ✅ به‌روزرسانی موجودی کارتن/لایه
+     * + ذخیره baseline (مصرف فعلی) برای محاسبات بعدی
+     */
+    public function updatePackagingStock(Request $request, Packaging $packaging)
+    {
+        $request->validate([
+            'quantity' => 'required|string',
+        ]);
+
+        $rawInput = (string) $request->input('quantity');
+        $rawInput = str_replace(
+            ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
+             '٠','١','٢','٣','٤','٥','٦','٧','٨','٩',
+             '،'],
+            ['0','1','2','3','4','5','6','7','8','9',
+             '0','1','2','3','4','5','6','7','8','9',
+             ''],
+            $rawInput
+        );
+
+        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+
+        if ($cleanQty === '' || !is_numeric($cleanQty)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'عدد معتبر وارد کنید.',
+            ], 422);
+        }
+
+        $quantity = (float) $cleanQty;
+
+        if ($quantity < 0) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'مقدار نمی‌تواند منفی باشد.',
+            ], 422);
+        }
+
+        // ✅ ذخیره موجودی جدید + snapshot مصرف فعلی به عنوان baseline
+        $packaging->stock = $quantity;
+        $packaging->baseline_consumed = $this->calculatePackagingConsumed($packaging);
+        $packaging->save();
+
+        return response()->json([
+            'success'            => true,
+            'stock'              => $quantity,
+            'baseline_consumed'  => $packaging->baseline_consumed,
+            'message'            => 'موجودی با موفقیت به‌روزرسانی شد.',
+        ]);
+    }
+
     public function updateAllStocksField(Request $request, Product $product)
     {
         $request->validate([
@@ -514,9 +662,6 @@ class InventoryController extends Controller
         }
     }
 
-    // ============================================================
-    //  ذخیره ترتیب سفارشی موجودی انبار
-    // ============================================================
     public function reorderWarehouse(Request $request)
     {
         $request->validate([
@@ -568,9 +713,6 @@ class InventoryController extends Controller
         }
     }
 
-    // ============================================================
-    //  ذخیره ترتیب سفارشی گزارش جامع
-    // ============================================================
     public function reorderAllStocks(Request $request)
     {
         $request->validate([
@@ -615,6 +757,109 @@ class InventoryController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('reorderAllStocks failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function reorderRawMaterials(Request $request)
+    {
+        $request->validate([
+            'order'   => 'required|array|min:1',
+            'order.*' => 'integer|exists:raw_materials,id',
+        ]);
+
+        $order = $request->input('order');
+
+        DB::beginTransaction();
+        try {
+            foreach ($order as $index => $materialId) {
+                RawMaterial::where('id', $materialId)
+                    ->update(['sort_order' => $index + 1]);
+            }
+
+            $allIds = RawMaterial::pluck('id')->toArray();
+            $remaining = array_values(array_diff($allIds, $order));
+
+            if (!empty($remaining)) {
+                $startPos = count($order) + 1;
+
+                $hiddenMaterials = RawMaterial::whereIn('id', $remaining)
+                    ->orderByRaw('CASE WHEN sort_order > 0 THEN sort_order ELSE 999999 END ASC')
+                    ->orderBy('name')
+                    ->pluck('id')
+                    ->toArray();
+
+                foreach ($hiddenMaterials as $i => $materialId) {
+                    RawMaterial::where('id', $materialId)
+                        ->update(['sort_order' => $startPos + $i]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'ترتیب با موفقیت ذخیره شد.',
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('reorderRawMaterials failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function reorderPackagings(Request $request)
+    {
+        $request->validate([
+            'order'   => 'required|array|min:1',
+            'order.*' => 'integer|exists:packagings,id',
+        ]);
+
+        $order = $request->input('order');
+
+        DB::beginTransaction();
+        try {
+            foreach ($order as $index => $packagingId) {
+                Packaging::where('id', $packagingId)
+                    ->update(['sort_order' => $index + 1]);
+            }
+
+            $allIds = Packaging::pluck('id')->toArray();
+            $remaining = array_values(array_diff($allIds, $order));
+
+            if (!empty($remaining)) {
+                $startPos = count($order) + 1;
+
+                $hiddenItems = Packaging::whereIn('id', $remaining)
+                    ->orderByRaw('CASE WHEN sort_order > 0 THEN sort_order ELSE 999999 END ASC')
+                    ->orderBy('type')
+                    ->orderBy('name')
+                    ->pluck('id')
+                    ->toArray();
+
+                foreach ($hiddenItems as $i => $packagingId) {
+                    Packaging::where('id', $packagingId)
+                        ->update(['sort_order' => $startPos + $i]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'ترتیب با موفقیت ذخیره شد.',
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('reorderPackagings failed: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),

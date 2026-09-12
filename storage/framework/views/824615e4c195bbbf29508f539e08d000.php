@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@push('styles')
+<?php $__env->startPush('styles'); ?>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
@@ -73,32 +71,29 @@
         margin-bottom: 12px;
     }
 
-    .type-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 10px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-    }
-    .type-badge.carton {
-        background: #d1e7dd;
-        color: #0f5132;
-        border: 1px solid #badbcc;
-    }
-    .type-badge.layer {
-        background: #cff4fc;
-        color: #055160;
-        border: 1px solid #b6effb;
-    }
-
-    .edit-stock-packaging-name {
+    /* Modal */
+    .edit-stock-material-name {
         background: #f1f3f5;
         padding: 10px 14px;
         border-radius: 8px;
         font-weight: bold;
         margin-bottom: 14px;
+    }
+    .edit-stock-material-name small {
+        color: #6c757d;
+        font-weight: normal;
+        font-size: 12px;
+    }
+    .unit-toggle {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .unit-toggle .btn {
+        flex: 1;
+        padding: 8px;
+        font-weight: 600;
+        font-size: 13px;
     }
     .edit-stock-input {
         font-size: 22px;
@@ -114,23 +109,23 @@
         margin-top: 6px;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    var CSRF_TOKEN = '{{ csrf_token() }}';
-    var REORDER_URL = '{{ route("inventory.packaging-stock.reorder") }}';
-    var UPDATE_STOCK_URL_TEMPLATE = '{{ route("inventory.packaging-stock.update-stock", ["packaging" => 0]) }}';
-    var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
+    var CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
+    var REORDER_URL = '<?php echo e(route("inventory.raw-materials.reorder")); ?>';
+    var UPDATE_STOCK_URL_TEMPLATE = '<?php echo e(route("inventory.raw-materials.update-stock", ["material" => 0])); ?>';
+    var HAS_SEARCH_FILTER = <?php echo e(request('search') ? 'true' : 'false'); ?>;
 
     // ============================================================
     //  Select2
     // ============================================================
     $(document).ready(function() {
-        $('.product-search-select').select2({
+        $('.material-search-select').select2({
             placeholder: 'جستجو...',
             allowClear: true,
             width: '100%',
@@ -148,10 +143,10 @@
     document.addEventListener('DOMContentLoaded', function() {
         if (HAS_SEARCH_FILTER) return;
 
-        var tbody = document.getElementById('packagingsTableBody');
+        var tbody = document.getElementById('materialsTableBody');
         if (!tbody) return;
 
-        if (tbody.querySelectorAll('tr[data-packaging-id]').length < 2) return;
+        if (tbody.querySelectorAll('tr[data-material-id]').length < 2) return;
 
         new Sortable(tbody, {
             handle: '.drag-handle',
@@ -159,17 +154,17 @@
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             onEnd: function(evt) {
-                savePackagingsOrder();
+                saveMaterialsOrder();
             }
         });
     });
 
-    function savePackagingsOrder() {
-        var rows = document.querySelectorAll('#packagingsTableBody tr[data-packaging-id]');
+    function saveMaterialsOrder() {
+        var rows = document.querySelectorAll('#materialsTableBody tr[data-material-id]');
         var order = [];
 
         rows.forEach(function(row) {
-            var id = row.getAttribute('data-packaging-id');
+            var id = row.getAttribute('data-material-id');
             if (id) order.push(parseInt(id));
         });
 
@@ -216,15 +211,19 @@
     // ============================================================
     //  باز کردن Modal ویرایش
     // ============================================================
-    function openEditStockModal(packagingId, packagingName, packagingType, currentStock) {
-        document.getElementById('editStockPackagingId').value = packagingId;
+    function openEditStockModal(materialId, materialName, stockInGram) {
+        document.getElementById('editStockMaterialId').value = materialId;
+        document.getElementById('editStockMaterialName').innerHTML = materialName;
 
-        var typeLabel = (packagingType === 'carton') ? 'کارتن' : 'لایه';
-        document.getElementById('editStockPackagingName').innerHTML =
-            '<i class="fas fa-box me-2"></i>' + packagingName +
-            ' <small class="text-muted">(' + typeLabel + ')</small>';
+        // پیش‌فرض روی گرم
+        setUnit('gram');
 
-        document.getElementById('editStockInput').value = formatNumber(currentStock);
+        // مقدار فعلی رو به گرم نشون بده
+        document.getElementById('editStockInput').value = formatNumber(stockInGram);
+
+        // ذخیره برای استفاده در تغییر واحد
+        window.currentStockInGram = stockInGram;
+
         document.getElementById('editStockError').style.display = 'none';
 
         var modal = new bootstrap.Modal(document.getElementById('editStockModal'));
@@ -238,10 +237,51 @@
     }
 
     // ============================================================
+    //  تعویض واحد (گرم/تن)
+    // ============================================================
+    var currentUnit = 'gram';
+    function setUnit(unit) {
+        currentUnit = unit;
+        document.getElementById('editStockUnit').value = unit;
+
+        var gramBtn = document.getElementById('btnUnitGram');
+        var tonBtn = document.getElementById('btnUnitTon');
+
+        if (unit === 'gram') {
+            gramBtn.classList.remove('btn-outline-primary');
+            gramBtn.classList.add('btn-primary');
+            tonBtn.classList.remove('btn-primary');
+            tonBtn.classList.add('btn-outline-primary');
+            document.getElementById('inputUnitLabel').textContent = 'گرم';
+        } else {
+            tonBtn.classList.remove('btn-outline-primary');
+            tonBtn.classList.add('btn-primary');
+            gramBtn.classList.remove('btn-primary');
+            gramBtn.classList.add('btn-outline-primary');
+            document.getElementById('inputUnitLabel').textContent = 'تن';
+        }
+
+        // تبدیل مقدار فعلی ورودی
+        var input = document.getElementById('editStockInput');
+        var raw = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
+
+        if (raw !== '' && !isNaN(raw)) {
+            var val = parseFloat(raw);
+            if (unit === 'ton') {
+                // گرم → تن
+                input.value = formatNumber(val / 1000000);
+            } else {
+                // تن → گرم
+                input.value = formatNumber(val * 1000000);
+            }
+        }
+    }
+
+    // ============================================================
     //  ذخیره مقدار
     // ============================================================
-    function savePackagingStock() {
-        var packagingId = document.getElementById('editStockPackagingId').value;
+    function saveMaterialStock() {
+        var materialId = document.getElementById('editStockMaterialId').value;
         var input = document.getElementById('editStockInput');
         var saveBtn = document.getElementById('editStockSaveBtn');
         var errorBox = document.getElementById('editStockError');
@@ -257,7 +297,7 @@
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> در حال ذخیره...';
         errorBox.style.display = 'none';
 
-        var url = UPDATE_STOCK_URL_TEMPLATE.replace(/\/0\/update-stock$/, '/' + packagingId + '/update-stock');
+        var url = UPDATE_STOCK_URL_TEMPLATE.replace(/\/0\/update-stock$/, '/' + materialId + '/update-stock');
 
         fetch(url, {
             method: 'POST',
@@ -267,7 +307,7 @@
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            body: JSON.stringify({ quantity: rawValue }),
+            body: JSON.stringify({ quantity: rawValue, unit: currentUnit }),
         })
         .then(function(response) {
             return response.json().then(function(data) {
@@ -287,11 +327,19 @@
 
             var data = result.data;
 
-            // آپدیت سلول
-            var row = document.querySelector('tr[data-packaging-id="' + packagingId + '"]');
+            // آپدیت سلول گرم
+            var row = document.querySelector('tr[data-material-id="' + materialId + '"]');
             if (row) {
-                var cell = row.querySelector('.cell-value');
-                if (cell) cell.textContent = formatNumber(data.stock);
+                var gramCell = row.querySelector('.gram-value');
+                if (gramCell) gramCell.textContent = formatNumber(data.stock);
+
+                var tonCell = row.querySelector('.ton-value');
+                if (tonCell) {
+                    var tonVal = data.stock_in_ton;
+                    var tonStr = tonVal.toFixed(3).replace(/\.?0+$/, '');
+                    if (tonStr === '' || tonStr === '-') tonStr = '0';
+                    tonCell.textContent = tonStr;
+                }
 
                 row.style.transition = 'background-color 0.4s';
                 row.style.backgroundColor = '#d1e7dd';
@@ -345,26 +393,26 @@
             input.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    savePackagingStock();
+                    saveMaterialStock();
                 }
             });
         }
     });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
-@php
+<?php $__env->startSection('content'); ?>
+<?php
     $hasSearch = request('search') ? true : false;
-    $rowCount = $packagings->count();
-@endphp
+    $rowCount = $materials->count();
+?>
 
 <div class="mb-4">
-    <h4 class="fw-bold mb-1">موجودی کارتن و لایه</h4>
+    <h4 class="fw-bold mb-1">موجودی مواد اولیه</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('inventory.index') }}">موجودی</a></li>
-            <li class="breadcrumb-item active">کارتن و لایه</li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('inventory.index')); ?>">موجودی</a></li>
+            <li class="breadcrumb-item active">مواد اولیه</li>
         </ol>
     </nav>
 </div>
@@ -372,38 +420,39 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
-        {{-- فرم جستجو --}}
-        <form action="{{ route('inventory.packaging-stock') }}" method="GET" class="row g-3 mb-3">
+        
+        <form action="<?php echo e(route('inventory.raw-materials')); ?>" method="GET" class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-search"></i></span>
-                    <select name="search" class="form-select product-search-select" style="width: 100%;">
-                        <option value="">همه کارتن‌ها و لایه‌ها...</option>
-                        @foreach(\App\Models\Packaging::orderBy('type')->orderBy('name')->get() as $packaging)
-                            <option value="{{ $packaging->id }}" {{ request('search') == $packaging->id ? 'selected' : '' }}>
-                                {{ $packaging->type == 'carton' ? '[کارتن]' : '[لایه]' }} {{ $packaging->name }}
+                    <select name="search" class="form-select material-search-select" style="width: 100%;">
+                        <option value="">همه مواد...</option>
+                        <?php $__currentLoopData = \App\Models\RawMaterial::orderBy('name')->get(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $material): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($material->id); ?>" <?php echo e(request('search') == $material->id ? 'selected' : ''); ?>>
+                                <?php echo e($material->name); ?>
+
                             </option>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </select>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search"></i> جستجو
                     </button>
-                    @if($hasSearch)
-                        <a href="{{ route('inventory.packaging-stock') }}" class="btn btn-secondary">
+                    <?php if($hasSearch): ?>
+                        <a href="<?php echo e(route('inventory.raw-materials')); ?>" class="btn btn-secondary">
                             <i class="fas fa-times"></i> پاک کردن
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </form>
 
-        {{-- راهنمای جابه‌جایی --}}
-        @if(!$hasSearch && $rowCount >= 2)
+        
+        <?php if(!$hasSearch && $rowCount >= 2): ?>
             <div class="reorder-notice">
                 <i class="fas fa-arrows-alt me-1"></i>
                 برای تغییر ترتیب، ردیف‌ها را از آیکون <strong>⋮⋮</strong> بکشید — برای ویرایش روی <strong>✏️</strong> بزنید
             </div>
-        @endif
+        <?php endif; ?>
 
         <div class="table-responsive">
             <table class="table table-bordered table-hover align-middle">
@@ -412,96 +461,112 @@
                         <th class="column-drag">
                             <i class="fas fa-grip-vertical"></i>
                         </th>
-                        <th>نوع</th>
-                        <th>نام</th>
-                        <th class="text-center">موجودی (عدد)</th>
+                        <th>نام ماده</th>
+                        <th class="text-center">موجودی (گرم)</th>
+                        <th class="text-center">موجودی (تن)</th>
                     </tr>
                 </thead>
-                <tbody id="packagingsTableBody">
-                    @forelse($packagings as $packaging)
-                    <tr data-packaging-id="{{ $packaging->id }}">
+                <tbody id="materialsTableBody">
+                    <?php $__empty_1 = true; $__currentLoopData = $materials; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $material): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
+                            $stockInGram = (int) $material->stock;
+                            $stockInTon = $stockInGram / 1000000;
 
-                        {{-- دستگیره جابه‌جایی --}}
-                        <td class="column-drag">
-                            @if(!$hasSearch && $rowCount >= 2)
-                                <div class="drag-handle" title="برای جابه‌جایی بکشید">
-                                    <i class="fas fa-grip-vertical"></i>
-                                </div>
-                            @else
-                                <div class="drag-handle disabled">
-                                    <i class="fas fa-grip-vertical"></i>
-                                </div>
-                            @endif
-                        </td>
+                            $formattedGram = number_format($stockInGram, 0);
+                            $formattedTon = rtrim(rtrim(number_format($stockInTon, 3, '.', ''), '0'), '.');
+                            if ($formattedTon === '') {
+                                $formattedTon = '0';
+                            }
+                        ?>
+                        <tr data-material-id="<?php echo e($material->id); ?>">
 
-                        <td>
-                            @if($packaging->type == 'carton')
-                                <span class="type-badge carton">
-                                    <i class="fas fa-box"></i> کارتن
-                                </span>
-                            @else
-                                <span class="type-badge layer">
-                                    <i class="fas fa-layer-group"></i> لایه
-                                </span>
-                            @endif
-                        </td>
+                            
+                            <td class="column-drag">
+                                <?php if(!$hasSearch && $rowCount >= 2): ?>
+                                    <div class="drag-handle" title="برای جابه‌جایی بکشید">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="drag-handle disabled">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
 
-                        <td>{{ $packaging->name }}</td>
+                            <td><?php echo e($material->name); ?></td>
 
-                        {{-- موجودی + دکمه ویرایش --}}
-                        <td class="text-center editable-cell">
-                            <span class="cell-value">{{ number_format($packaging->stock) }}</span>
-                            <button type="button"
-                                    class="btn-edit-cell"
-                                    onclick="openEditStockModal(
-                                        {{ $packaging->id }},
-                                        '{{ addslashes($packaging->name) }}',
-                                        '{{ $packaging->type }}',
-                                        {{ (int) $packaging->stock }}
-                                    )"
-                                    title="ویرایش موجودی">
-                                <i class="fas fa-pen"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    @empty
+                            
+                            <td class="text-center editable-cell">
+                                <span class="cell-value gram-value"><?php echo e($formattedGram); ?></span>
+                                <button type="button"
+                                        class="btn-edit-cell"
+                                        onclick="openEditStockModal(
+                                            <?php echo e($material->id); ?>,
+                                            '<?php echo e(addslashes($material->name)); ?>',
+                                            <?php echo e($stockInGram); ?>
+
+                                        )"
+                                        title="ویرایش موجودی">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                            </td>
+
+                            
+                            <td class="text-center">
+                                <span class="ton-value"><?php echo e($formattedTon); ?></span>
+                            </td>
+                        </tr>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="4" class="text-center py-4">
                             <i class="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
-                            @if($hasSearch)
-                                موردی با این شناسه یافت نشد.
-                            @else
-                                هیچ کارتن یا لایه‌ای تعریف نشده است.
-                            @endif
+                            <?php if($hasSearch): ?>
+                                ماده‌ای با این شناسه یافت نشد.
+                            <?php else: ?>
+                                هیچ ماده اولیه‌ای ثبت نشده است.
+                            <?php endif; ?>
                         </td>
                     </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-{{-- ============================================================== --}}
-{{--  Modal ویرایش موجودی                                          --}}
-{{-- ============================================================== --}}
+
+
+
 <div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">
                     <i class="fas fa-pen me-2"></i>
-                    ویرایش موجودی
+                    ویرایش موجودی ماده اولیه
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
 
-                <div class="edit-stock-packaging-name" id="editStockPackagingName"></div>
+                <div class="edit-stock-material-name" id="editStockMaterialName"></div>
 
-                <input type="hidden" id="editStockPackagingId">
+                <input type="hidden" id="editStockMaterialId">
+                <input type="hidden" id="editStockUnit" value="gram">
 
-                <label class="form-label fw-bold">موجودی جدید (عدد):</label>
+                <label class="form-label fw-bold">واحد ورودی:</label>
+                <div class="unit-toggle">
+                    <button type="button" class="btn btn-primary" id="btnUnitGram" onclick="setUnit('gram')">
+                        <i class="fas fa-weight me-1"></i> گرم
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="btnUnitTon" onclick="setUnit('ton')">
+                        <i class="fas fa-truck me-1"></i> تن
+                    </button>
+                </div>
+
+                <label class="form-label fw-bold">
+                    موجودی جدید (<span id="inputUnitLabel">گرم</span>):
+                </label>
                 <input type="text"
                        id="editStockInput"
                        class="form-control edit-stock-input"
@@ -511,7 +576,7 @@
 
                 <div class="edit-stock-hint">
                     <i class="fas fa-info-circle me-1"></i>
-                    می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.
+                    می‌توانید با اعداد فارسی یا انگلیسی وارد کنید. با تعویض واحد، مقدار به‌صورت خودکار تبدیل می‌شود.
                 </div>
 
                 <div id="editStockError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
@@ -523,11 +588,12 @@
                 <button type="button"
                         class="btn btn-primary"
                         id="editStockSaveBtn"
-                        onclick="savePackagingStock()">
+                        onclick="saveMaterialStock()">
                     <i class="fas fa-save me-1"></i> ذخیره
                 </button>
             </div>
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/inventory/raw-materials.blade.php ENDPATH**/ ?>

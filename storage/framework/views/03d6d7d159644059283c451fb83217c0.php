@@ -1,6 +1,6 @@
-@extends('layouts.app')
 
-@push('styles')
+
+<?php $__env->startPush('styles'); ?>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
@@ -114,17 +114,17 @@
         margin-top: 6px;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    var CSRF_TOKEN = '{{ csrf_token() }}';
-    var REORDER_URL = '{{ route("inventory.packaging-stock.reorder") }}';
-    var UPDATE_STOCK_URL_TEMPLATE = '{{ route("inventory.packaging-stock.update-stock", ["packaging" => 0]) }}';
-    var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
+    var CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
+    var REORDER_URL = '<?php echo e(route("inventory.packaging-stock.reorder")); ?>';
+    var UPDATE_STOCK_URL_TEMPLATE = '<?php echo e(route("inventory.packaging-stock.update-stock", ["packaging" => 0])); ?>';
+    var HAS_SEARCH_FILTER = <?php echo e(request('search') ? 'true' : 'false'); ?>;
 
     // ============================================================
     //  Select2
@@ -351,19 +351,19 @@
         }
     });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
-@php
+<?php $__env->startSection('content'); ?>
+<?php
     $hasSearch = request('search') ? true : false;
     $rowCount = $packagings->count();
-@endphp
+?>
 
 <div class="mb-4">
     <h4 class="fw-bold mb-1">موجودی کارتن و لایه</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('inventory.index') }}">موجودی</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('inventory.index')); ?>">موجودی</a></li>
             <li class="breadcrumb-item active">کارتن و لایه</li>
         </ol>
     </nav>
@@ -372,38 +372,39 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
-        {{-- فرم جستجو --}}
-        <form action="{{ route('inventory.packaging-stock') }}" method="GET" class="row g-3 mb-3">
+        
+        <form action="<?php echo e(route('inventory.packaging-stock')); ?>" method="GET" class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="input-group">
                     <span class="input-group-text"><i class="fas fa-search"></i></span>
                     <select name="search" class="form-select product-search-select" style="width: 100%;">
                         <option value="">همه کارتن‌ها و لایه‌ها...</option>
-                        @foreach(\App\Models\Packaging::orderBy('type')->orderBy('name')->get() as $packaging)
-                            <option value="{{ $packaging->id }}" {{ request('search') == $packaging->id ? 'selected' : '' }}>
-                                {{ $packaging->type == 'carton' ? '[کارتن]' : '[لایه]' }} {{ $packaging->name }}
+                        <?php $__currentLoopData = \App\Models\Packaging::orderBy('type')->orderBy('name')->get(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $packaging): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($packaging->id); ?>" <?php echo e(request('search') == $packaging->id ? 'selected' : ''); ?>>
+                                <?php echo e($packaging->type == 'carton' ? '[کارتن]' : '[لایه]'); ?> <?php echo e($packaging->name); ?>
+
                             </option>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </select>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search"></i> جستجو
                     </button>
-                    @if($hasSearch)
-                        <a href="{{ route('inventory.packaging-stock') }}" class="btn btn-secondary">
+                    <?php if($hasSearch): ?>
+                        <a href="<?php echo e(route('inventory.packaging-stock')); ?>" class="btn btn-secondary">
                             <i class="fas fa-times"></i> پاک کردن
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </form>
 
-        {{-- راهنمای جابه‌جایی --}}
-        @if(!$hasSearch && $rowCount >= 2)
+        
+        <?php if(!$hasSearch && $rowCount >= 2): ?>
             <div class="reorder-notice">
                 <i class="fas fa-arrows-alt me-1"></i>
                 برای تغییر ترتیب، ردیف‌ها را از آیکون <strong>⋮⋮</strong> بکشید — برای ویرایش روی <strong>✏️</strong> بزنید
             </div>
-        @endif
+        <?php endif; ?>
 
         <div class="table-responsive">
             <table class="table table-bordered table-hover align-middle">
@@ -418,73 +419,74 @@
                     </tr>
                 </thead>
                 <tbody id="packagingsTableBody">
-                    @forelse($packagings as $packaging)
-                    <tr data-packaging-id="{{ $packaging->id }}">
+                    <?php $__empty_1 = true; $__currentLoopData = $packagings; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $packaging): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                    <tr data-packaging-id="<?php echo e($packaging->id); ?>">
 
-                        {{-- دستگیره جابه‌جایی --}}
+                        
                         <td class="column-drag">
-                            @if(!$hasSearch && $rowCount >= 2)
+                            <?php if(!$hasSearch && $rowCount >= 2): ?>
                                 <div class="drag-handle" title="برای جابه‌جایی بکشید">
                                     <i class="fas fa-grip-vertical"></i>
                                 </div>
-                            @else
+                            <?php else: ?>
                                 <div class="drag-handle disabled">
                                     <i class="fas fa-grip-vertical"></i>
                                 </div>
-                            @endif
+                            <?php endif; ?>
                         </td>
 
                         <td>
-                            @if($packaging->type == 'carton')
+                            <?php if($packaging->type == 'carton'): ?>
                                 <span class="type-badge carton">
                                     <i class="fas fa-box"></i> کارتن
                                 </span>
-                            @else
+                            <?php else: ?>
                                 <span class="type-badge layer">
                                     <i class="fas fa-layer-group"></i> لایه
                                 </span>
-                            @endif
+                            <?php endif; ?>
                         </td>
 
-                        <td>{{ $packaging->name }}</td>
+                        <td><?php echo e($packaging->name); ?></td>
 
-                        {{-- موجودی + دکمه ویرایش --}}
+                        
                         <td class="text-center editable-cell">
-                            <span class="cell-value">{{ number_format($packaging->stock) }}</span>
+                            <span class="cell-value"><?php echo e(number_format($packaging->stock)); ?></span>
                             <button type="button"
                                     class="btn-edit-cell"
                                     onclick="openEditStockModal(
-                                        {{ $packaging->id }},
-                                        '{{ addslashes($packaging->name) }}',
-                                        '{{ $packaging->type }}',
-                                        {{ (int) $packaging->stock }}
+                                        <?php echo e($packaging->id); ?>,
+                                        '<?php echo e(addslashes($packaging->name)); ?>',
+                                        '<?php echo e($packaging->type); ?>',
+                                        <?php echo e((int) $packaging->stock); ?>
+
                                     )"
                                     title="ویرایش موجودی">
                                 <i class="fas fa-pen"></i>
                             </button>
                         </td>
                     </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="4" class="text-center py-4">
                             <i class="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
-                            @if($hasSearch)
+                            <?php if($hasSearch): ?>
                                 موردی با این شناسه یافت نشد.
-                            @else
+                            <?php else: ?>
                                 هیچ کارتن یا لایه‌ای تعریف نشده است.
-                            @endif
+                            <?php endif; ?>
                         </td>
                     </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-{{-- ============================================================== --}}
-{{--  Modal ویرایش موجودی                                          --}}
-{{-- ============================================================== --}}
+
+
+
 <div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -530,4 +532,5 @@
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/inventory/packaging-stock.blade.php ENDPATH**/ ?>

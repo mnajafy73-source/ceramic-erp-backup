@@ -13,7 +13,13 @@ class RawMaterial extends Model
     protected $fillable = [
         'name',
         'unit',
-        'stock', // این فیلد را می‌توانیم نگه داریم، اما برای محاسبه دقیق‌تر از متد استفاده می‌کنیم
+        'stock',
+        'sort_order',    // ✅ اضافه شد
+    ];
+
+    protected $casts = [
+        'stock'      => 'integer',
+        'sort_order' => 'integer',
     ];
 
     public function purchaseItems()
@@ -31,10 +37,8 @@ class RawMaterial extends Model
      */
     public function getActualStockAttribute()
     {
-        // مجموع خریدهای این ماده (به گرم)
         $totalPurchased = $this->purchaseItems()->sum('quantity');
 
-        // مجموع مصرف در تولیدات (بر اساس فرمول محصولات)
         $totalConsumed = DB::table('productions')
             ->join('products', 'productions.product_id', '=', 'products.id')
             ->join('formula_items', 'products.formula_id', '=', 'formula_items.formula_id')
