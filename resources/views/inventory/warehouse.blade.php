@@ -4,7 +4,10 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
-    .hidden-row { background: #fff3cd !important; opacity: 0.75; }
+    .hidden-row {
+        background: #fff3cd !important;
+        opacity: 0.75;
+    }
     .hidden-row:hover { opacity: 1; }
 
     .btn-icon {
@@ -13,27 +16,6 @@
         border-radius: 50%; font-size: 13px;
     }
     .column-action { width: 100px; text-align: center; }
-    .column-drag   { width: 40px;  text-align: center; }
-
-    .drag-handle {
-        cursor: grab;
-        color: #adb5bd;
-        font-size: 18px;
-        transition: color 0.2s;
-        user-select: none;
-        padding: 4px 8px;
-    }
-    .drag-handle:hover { color: #0d6efd; }
-    .drag-handle:active { cursor: grabbing; }
-
-    /* وقتی جابه‌جا می‌شه */
-    .sortable-ghost {
-        background: #cfe2ff !important;
-        opacity: 0.5;
-    }
-    .sortable-chosen {
-        background: #e7f1ff !important;
-    }
 
     .filter-bar {
         display: flex; justify-content: space-between; align-items: center;
@@ -50,16 +32,6 @@
         background: #ffc107; color: #333;
         padding: 3px 10px; border-radius: 20px;
         font-size: 12px; font-weight: bold;
-    }
-    .reorder-notice {
-        background: #e7f1ff; color: #084298;
-        padding: 6px 14px; border-radius: 8px;
-        font-size: 12px; font-weight: 600;
-        border: 1px solid #b6d4fe;
-    }
-    .reorder-notice.disabled {
-        background: #f1f3f5; color: #6c757d;
-        border-color: #dee2e6;
     }
 
     .stat-badge {
@@ -98,12 +70,9 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
     var CSRF_TOKEN = '{{ csrf_token() }}';
     var UPDATE_STOCK_URL_TEMPLATE = '{{ route("inventory.warehouse.update-stock", ["product" => 0]) }}';
-    var REORDER_URL = '{{ route("inventory.warehouse.reorder") }}';
-    var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
 
     $(document).ready(function() {
         $('.product-search-select').select2({
@@ -120,75 +89,7 @@
         $('[data-bs-toggle="tooltip"]').tooltip();
     });
 
-    // ============================================================
-    //  Drag & Drop - فعال‌سازی Sortable
-    // ============================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        // اگه فیلتر جستجو فعال باشه، جابه‌جایی غیرفعاله
-        if (HAS_SEARCH_FILTER) {
-            return;
-        }
-
-        var tbody = document.getElementById('warehouseTableBody');
-        if (!tbody) return;
-
-        // اگه کمتر از 2 ردیف داره، نیازی به sort نیست
-        if (tbody.querySelectorAll('tr[data-product-id]').length < 2) {
-            return;
-        }
-
-        new Sortable(tbody, {
-            handle: '.drag-handle',
-            animation: 180,
-            ghostClass: 'sortable-ghost',
-            chosenClass: 'sortable-chosen',
-            onEnd: function(evt) {
-                saveWarehouseOrder();
-            }
-        });
-    });
-
-    // ============================================================
-    //  ذخیره ترتیب جدید
-    // ============================================================
-    function saveWarehouseOrder() {
-        var rows = document.querySelectorAll('#warehouseTableBody tr[data-product-id]');
-        var order = [];
-
-        rows.forEach(function(row) {
-            var id = row.getAttribute('data-product-id');
-            if (id) order.push(parseInt(id));
-        });
-
-        console.log('[Warehouse] Saving new order:', order);
-
-        fetch(REORDER_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN,
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: JSON.stringify({ order: order }),
-        })
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
-            if (data.success) {
-                showToast('✅ ترتیب با موفقیت ذخیره شد.', '#198754');
-            } else {
-                showToast('خطا: ' + (data.error || 'نامشخص'), '#dc3545');
-            }
-        })
-        .catch(function(err) {
-            console.error('[Warehouse] Reorder error:', err);
-            showToast('خطا در ذخیره ترتیب.', '#dc3545');
-        });
-    }
-
-    // ============================================================
-    //  تبدیل اعداد فارسی/عربی به لاتین
-    // ============================================================
+    // تبدیل اعداد فارسی/عربی به لاتین
     function toLatinDigits(str) {
         return String(str).replace(/[۰-۹]/g, function(d) {
             return String.fromCharCode(d.charCodeAt(0) - 1776);
@@ -197,9 +98,7 @@
         });
     }
 
-    // ============================================================
-    //  فرمت‌دهی عدد با ویرگول
-    // ============================================================
+    // فرمت‌دهی عدد با ویرگول
     function formatNumber(value) {
         var num = String(value).replace(/,/g, '');
         if (num === '' || isNaN(num)) return '0';
@@ -208,9 +107,6 @@
         return parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
     }
 
-    // ============================================================
-    //  باز کردن Modal ویرایش موجودی
-    // ============================================================
     function openEditStockModal(productId, productName, productCode, currentStock) {
         document.getElementById('editStockProductId').value = productId;
         document.getElementById('editStockProductName').innerHTML =
@@ -228,9 +124,6 @@
         }, 400);
     }
 
-    // ============================================================
-    //  ذخیره تغییرات موجودی
-    // ============================================================
     function saveWarehouseStock() {
         var productId  = document.getElementById('editStockProductId').value;
         var input      = document.getElementById('editStockInput');
@@ -307,13 +200,10 @@
             saveBtn.innerHTML = '<i class="fas fa-save me-1"></i> ذخیره';
             errorBox.textContent = 'خطای ارتباط با سرور: ' + err.message;
             errorBox.style.display = 'block';
-            console.error('[Warehouse] Error:', err);
+            console.error(err);
         });
     }
 
-    // ============================================================
-    //  نمایش پیام Toast
-    // ============================================================
     function showToast(message, bgColor) {
         bgColor = bgColor || '#198754';
         var toast = document.createElement('div');
@@ -330,25 +220,53 @@
     }
 
     // ============================================================
-    //  فرمت‌دهی زنده‌ی فیلد ورودی
+    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         var input = document.getElementById('editStockInput');
-        if (input) {
-            input.addEventListener('input', function() {
-                var cursor = this.selectionStart;
-                var raw = toLatinDigits(this.value).replace(/[^0-9.]/g, '');
-                this.value = formatNumber(raw);
-                try { this.setSelectionRange(cursor, cursor); } catch(e) {}
-            });
+        if (!input) return;
 
-            input.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveWarehouseStock();
+        input.addEventListener('input', function() {
+            var cursorPos = this.selectionStart;
+            var valueBeforeCursor = this.value.substring(0, cursorPos);
+
+            // تعداد ارقام عددی قبل از مکان‌نما
+            var digitsBeforeCursor = toLatinDigits(valueBeforeCursor).replace(/[^0-9]/g, '').length;
+
+            // فقط اعداد لاتین
+            var raw = toLatinDigits(this.value).replace(/[^0-9]/g, '');
+
+            // فرمت کن
+            var formatted = raw === '' ? '' : formatNumber(raw);
+            this.value = formatted;
+
+            // پیدا کردن مکان‌نمای جدید: بعد از همون تعداد رقم
+            if (digitsBeforeCursor === 0) {
+                this.setSelectionRange(0, 0);
+                return;
+            }
+
+            var newCursor = 0;
+            var digitCount = 0;
+            for (var i = 0; i < formatted.length; i++) {
+                newCursor = i + 1;
+                if (/[0-9]/.test(formatted[i])) {
+                    digitCount++;
+                    if (digitCount >= digitsBeforeCursor) break;
                 }
-            });
-        }
+            }
+
+            try {
+                this.setSelectionRange(newCursor, newCursor);
+            } catch (e) {}
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveWarehouseStock();
+            }
+        });
     });
 </script>
 @endpush
@@ -356,7 +274,6 @@
 @section('content')
 @php
     $showHidden = request('show_hidden') == '1';
-    $hasSearchFilter = request('search') ? true : false;
     $rowCount = count($inventories);
 @endphp
 
@@ -407,30 +324,14 @@
         <div class="filter-bar">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="badge-count">{{ $rowCount }} محصول</span>
-
                 @if($showHidden)
                     <span class="badge-count-hidden">
                         <i class="fas fa-eye me-1"></i> حالت نمایش همه
                     </span>
                 @endif
-
-                {{-- راهنمای جابه‌جایی --}}
-                @if($hasSearchFilter)
-                    <span class="reorder-notice disabled">
-                        <i class="fas fa-lock me-1"></i>
-                        برای مرتب‌سازی، فیلتر جستجو را بردارید
-                    </span>
-                @elseif($rowCount < 2)
-                    <span class="reorder-notice disabled">
-                        <i class="fas fa-info-circle me-1"></i>
-                        حداقل ۲ محصول برای مرتب‌سازی لازمه
-                    </span>
-                @else
-                    <span class="reorder-notice">
-                        <i class="fas fa-arrows-alt me-1"></i>
-                        برای تغییر ترتیب، ردیف‌ها را از آیکون <strong>⋮⋮</strong> بکشید
-                    </span>
-                @endif
+                <span class="text-muted small">
+                    — برای ویرایش موجودی روی ✏️ و برای حذف از گزارش روی ❌ بزنید
+                </span>
             </div>
 
             <div>
@@ -452,9 +353,6 @@
             <table class="table table-bordered table-hover align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th class="column-drag">
-                            <i class="fas fa-grip-vertical"></i>
-                        </th>
                         <th>نام محصول</th>
                         <th class="text-center">موجودی کل</th>
                         <th class="text-center"><i class="fas fa-box me-1"></i> کارتن</th>
@@ -463,26 +361,12 @@
                         <th class="column-action">عملیات</th>
                     </tr>
                 </thead>
-                <tbody id="warehouseTableBody">
+                <tbody>
                     @forelse($inventories as $item)
                         @php
                             $isHidden = (bool) $item['product']->hidden_from_warehouse;
                         @endphp
                         <tr data-product-id="{{ $item['product']->id }}" class="{{ $isHidden ? 'hidden-row' : '' }}">
-
-                            {{-- ✅ دستگیره جابه‌جایی --}}
-                            <td class="column-drag">
-                                @if(!$hasSearchFilter && $rowCount >= 2)
-                                    <div class="drag-handle" title="برای جابه‌جایی بکشید">
-                                        <i class="fas fa-grip-vertical"></i>
-                                    </div>
-                                @else
-                                    <span class="text-muted" style="opacity:0.3;">
-                                        <i class="fas fa-grip-vertical"></i>
-                                    </span>
-                                @endif
-                            </td>
-
                             <td>
                                 <div class="fw-bold">{{ $item['product']->name }}</div>
                                 <small class="text-muted">کد: {{ $item['product']->code }}</small>
@@ -576,7 +460,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center py-4">
+                            <td colspan="6" class="text-center py-4">
                                 <i class="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
                                 هیچ محصولی یافت نشد.
                             </td>
@@ -588,7 +472,6 @@
     </div>
 </div>
 
-{{-- Modal ویرایش موجودی --}}
 <div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

@@ -53,7 +53,13 @@ class InventoryController extends Controller
         $inventories = [];
 
         foreach ($products as $product) {
-            $raw = RawInventory::where('product_id', $product->id)->value('stock') ?? 0;
+            // ✅ اگه مقدار دستی هست، همون؛ وگرنه از فرمول
+            $rawInv = RawInventory::where('product_id', $product->id)->first();
+            if ($rawInv !== null && $rawInv->stock > 0) {
+                $raw = $rawInv->stock;
+            } else {
+                $raw = ShuttleFiring::getRawStock($product->id);
+            }
 
             $inventories[] = [
                 'product' => $product,
@@ -168,15 +174,10 @@ class InventoryController extends Controller
         return max(0, (float) $unpackaged);
     }
 
-    /**
-     * ✅ محاسبه مصرف فعلی یک کارتن/لایه خاص
-     * (از تونلی و شاتل، برای همه محصولاتی که از این کارتن/لایه استفاده می‌کنن)
-     */
     private function calculatePackagingConsumed(Packaging $packaging)
     {
         $total = 0;
 
-        // تونلی
         foreach (TonneliFiringItem::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
             $product = $item->product;
             if (!$product) continue;
@@ -190,7 +191,6 @@ class InventoryController extends Controller
             }
         }
 
-        // شاتل
         foreach (ShuttleFiring::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
             $product = $item->product;
             if (!$product) continue;
@@ -315,7 +315,14 @@ class InventoryController extends Controller
             $unpackaged = $this->calculateUnpackagedStock($product);
             $isManualUnpackaged = $product->unpackaged_manual_stock !== null;
 
-            $raw = RawInventory::where('product_id', $product->id)->value('stock') ?? 0;
+            // ✅ اگه مقدار دستی هست، همون؛ وگرنه از فرمول
+            $rawInv = RawInventory::where('product_id', $product->id)->first();
+            if ($rawInv !== null && $rawInv->stock > 0) {
+                $raw = $rawInv->stock;
+            } else {
+                $raw = ShuttleFiring::getRawStock($product->id);
+            }
+
             $warehouseStock = $this->calculateTotalWarehouseStock($product);
 
             $stocks->push((object) [
@@ -484,10 +491,6 @@ class InventoryController extends Controller
         ]);
     }
 
-    /**
-     * ✅ به‌روزرسانی موجودی کارتن/لایه
-     * + ذخیره baseline (مصرف فعلی) برای محاسبات بعدی
-     */
     public function updatePackagingStock(Request $request, Packaging $packaging)
     {
         $request->validate([
@@ -523,7 +526,6 @@ class InventoryController extends Controller
             ], 422);
         }
 
-        // ✅ ذخیره موجودی جدید + snapshot مصرف فعلی به عنوان baseline
         $packaging->stock = $quantity;
         $packaging->baseline_consumed = $this->calculatePackagingConsumed($packaging);
         $packaging->save();

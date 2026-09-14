@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@push('styles')
+<?php $__env->startPush('styles'); ?>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
@@ -92,17 +90,17 @@
     .edit-cell-hint { font-size: 12px; color: #6c757d; margin-top: 6px; }
     .btn-auto-reset { font-size: 12px; padding: 4px 12px; }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    var CSRF_TOKEN = '{{ csrf_token() }}';
-    var REORDER_URL = '{{ route("inventory.all-stocks.reorder") }}';
-    var UPDATE_FIELD_URL_TEMPLATE = '{{ route("inventory.all-stocks.update-field", ["product" => 0]) }}';
-    var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
+    var CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
+    var REORDER_URL = '<?php echo e(route("inventory.all-stocks.reorder")); ?>';
+    var UPDATE_FIELD_URL_TEMPLATE = '<?php echo e(route("inventory.all-stocks.update-field", ["product" => 0])); ?>';
+    var HAS_SEARCH_FILTER = <?php echo e(request('search') ? 'true' : 'false'); ?>;
 
     $(document).ready(function() {
         $('.product-search-select').select2({
@@ -390,40 +388,41 @@
         });
     });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
-@php
+<?php $__env->startSection('content'); ?>
+<?php
     $showHidden = request('show_hidden') == '1';
     $hasSearchFilter = request('search') ? true : false;
     $rowCount = $stocks->count();
-@endphp
+?>
 
 <div class="mb-4">
     <h4 class="fw-bold mb-1">گزارش جامع موجودی‌ها</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('inventory.index') }}">موجودی</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('inventory.index')); ?>">موجودی</a></li>
             <li class="breadcrumb-item active">گزارش جامع</li>
         </ol>
     </nav>
 </div>
 
-@if(session('success'))
+<?php if(session('success')): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
+        <?php echo e(session('success')); ?>
+
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-@endif
+<?php endif; ?>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
         <div class="search-wrapper">
-            <form action="{{ route('inventory.all-stocks') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                @if($showHidden)
+            <form action="<?php echo e(route('inventory.all-stocks')); ?>" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+                <?php if($showHidden): ?>
                     <input type="hidden" name="show_hidden" value="1">
-                @endif
+                <?php endif; ?>
 
                 <div class="input-group flex-grow-1">
                     <span class="input-group-text">
@@ -431,38 +430,38 @@
                     </span>
                     <select name="search" class="form-select product-search-select">
                         <option value="">همه محصولات...</option>
-                        @foreach(\App\Models\Product::where('status', 1)->orderBy('name')->get() as $product)
-                            <option value="{{ $product->id }}" {{ request('search') == $product->id ? 'selected' : '' }}>
-                                {{ $product->name }} ({{ $product->code }})
+                        <?php $__currentLoopData = \App\Models\Product::where('status', 1)->orderBy('name')->get(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($product->id); ?>" <?php echo e(request('search') == $product->id ? 'selected' : ''); ?>>
+                                <?php echo e($product->name); ?> (<?php echo e($product->code); ?>)
                             </option>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </select>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-search me-1"></i> جستجو
                     </button>
-                    @if($hasSearchFilter)
-                        <a href="{{ route('inventory.all-stocks', $showHidden ? ['show_hidden' => 1] : []) }}"
+                    <?php if($hasSearchFilter): ?>
+                        <a href="<?php echo e(route('inventory.all-stocks', $showHidden ? ['show_hidden' => 1] : [])); ?>"
                            class="btn btn-outline-secondary"
                            title="پاک کردن فیلتر">
                             <i class="fas fa-times"></i>
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
 
                 <div>
-                    @if($showHidden)
-                        <a href="{{ route('inventory.all-stocks', $hasSearchFilter ? ['search' => request('search')] : []) }}"
+                    <?php if($showHidden): ?>
+                        <a href="<?php echo e(route('inventory.all-stocks', $hasSearchFilter ? ['search' => request('search')] : [])); ?>"
                            class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-eye-slash me-1"></i>
                             پنهان کردن مخفی‌ها
                         </a>
-                    @else
-                        <a href="{{ route('inventory.all-stocks', array_merge($hasSearchFilter ? ['search' => request('search')] : [], ['show_hidden' => 1])) }}"
+                    <?php else: ?>
+                        <a href="<?php echo e(route('inventory.all-stocks', array_merge($hasSearchFilter ? ['search' => request('search')] : [], ['show_hidden' => 1]))); ?>"
                            class="btn btn-sm btn-outline-warning">
                             <i class="fas fa-eye me-1"></i>
                             نمایش مخفی‌ها
                         </a>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </form>
         </div>
@@ -487,47 +486,48 @@
                     </tr>
                 </thead>
                 <tbody id="allStocksTableBody">
-                    @forelse($stocks as $index => $item)
-                        @php
+                    <?php $__empty_1 = true; $__currentLoopData = $stocks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $isHidden = (bool) $item->product->hidden_from_all_stocks;
                             $hasChildren = $item->product->children()->where('status', 1)->exists();
-                        @endphp
-                        <tr data-product-id="{{ $item->product->id }}" class="{{ $isHidden ? 'hidden-row' : '' }}">
+                        ?>
+                        <tr data-product-id="<?php echo e($item->product->id); ?>" class="<?php echo e($isHidden ? 'hidden-row' : ''); ?>">
 
                             <td class="column-drag">
-                                @if(!$hasSearchFilter && $rowCount >= 2)
+                                <?php if(!$hasSearchFilter && $rowCount >= 2): ?>
                                     <div class="drag-handle" title="برای جابه‌جایی بکشید">
                                         <i class="fas fa-grip-vertical"></i>
                                     </div>
-                                @else
+                                <?php else: ?>
                                     <div class="drag-handle disabled">
                                         <i class="fas fa-grip-vertical"></i>
                                     </div>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
-                            <td>{{ $loop->iteration }}</td>
+                            <td><?php echo e($loop->iteration); ?></td>
 
                             <td>
-                                {{ $item->product->name }}
-                                <span id="code-{{ $item->product->id }}" style="display:none;">{{ $item->product->code }}</span>
-                                @if($isHidden)
+                                <?php echo e($item->product->name); ?>
+
+                                <span id="code-<?php echo e($item->product->id); ?>" style="display:none;"><?php echo e($item->product->code); ?></span>
+                                <?php if($isHidden): ?>
                                     <span class="badge bg-warning text-dark ms-1">
                                         <i class="fas fa-eye-slash me-1"></i>مخفی
                                     </span>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
                             <td class="text-center editable-cell" data-field="raw">
-                                <span class="cell-value">{{ number_format($item->raw) }}</span>
+                                <span class="cell-value"><?php echo e(number_format($item->raw)); ?></span>
                                 <button type="button"
                                         class="btn-edit-cell"
                                         onclick="openEditCellModal(
-                                            {{ $item->product->id }},
-                                            '{{ addslashes($item->product->name) }}',
+                                            <?php echo e($item->product->id); ?>,
+                                            '<?php echo e(addslashes($item->product->name)); ?>',
                                             'raw',
                                             'موجودی خام',
-                                            {{ $item->raw }},
+                                            <?php echo e($item->raw); ?>,
                                             false
                                         )"
                                         title="ویرایش موجودی خام">
@@ -536,15 +536,15 @@
                             </td>
 
                             <td class="text-center editable-cell" data-field="wax">
-                                <span class="cell-value">{{ number_format($item->wax) }}</span>
+                                <span class="cell-value"><?php echo e(number_format($item->wax)); ?></span>
                                 <button type="button"
                                         class="btn-edit-cell"
                                         onclick="openEditCellModal(
-                                            {{ $item->product->id }},
-                                            '{{ addslashes($item->product->name) }}',
+                                            <?php echo e($item->product->id); ?>,
+                                            '<?php echo e(addslashes($item->product->name)); ?>',
                                             'wax',
                                             'موجودی موم (۹۰۰°)',
-                                            {{ $item->wax }},
+                                            <?php echo e($item->wax); ?>,
                                             false
                                         )"
                                         title="ویرایش موجودی موم">
@@ -553,15 +553,15 @@
                             </td>
 
                             <td class="text-center editable-cell" data-field="shoulder">
-                                <span class="cell-value">{{ number_format($item->shoulder) }}</span>
+                                <span class="cell-value"><?php echo e(number_format($item->shoulder)); ?></span>
                                 <button type="button"
                                         class="btn-edit-cell"
                                         onclick="openEditCellModal(
-                                            {{ $item->product->id }},
-                                            '{{ addslashes($item->product->name) }}',
+                                            <?php echo e($item->product->id); ?>,
+                                            '<?php echo e(addslashes($item->product->name)); ?>',
                                             'shoulder',
                                             'موجودی شانه شده',
-                                            {{ $item->shoulder }},
+                                            <?php echo e($item->shoulder); ?>,
                                             false
                                         )"
                                         title="ویرایش موجودی شانه شده">
@@ -570,15 +570,15 @@
                             </td>
 
                             <td class="text-center editable-cell" data-field="waste_mum">
-                                <span class="cell-value">{{ number_format($item->waste_mum) }}</span>
+                                <span class="cell-value"><?php echo e(number_format($item->waste_mum)); ?></span>
                                 <button type="button"
                                         class="btn-edit-cell"
                                         onclick="openEditCellModal(
-                                            {{ $item->product->id }},
-                                            '{{ addslashes($item->product->name) }}',
+                                            <?php echo e($item->product->id); ?>,
+                                            '<?php echo e(addslashes($item->product->name)); ?>',
                                             'waste_mum',
                                             'ضایعات موم',
-                                            {{ $item->waste_mum }},
+                                            <?php echo e($item->waste_mum); ?>,
                                             false
                                         )"
                                         title="ویرایش ضایعات موم">
@@ -587,15 +587,15 @@
                             </td>
 
                             <td class="text-center editable-cell" data-field="glaze1300">
-                                <span class="cell-value">{{ number_format($item->glaze1300) }}</span>
+                                <span class="cell-value"><?php echo e(number_format($item->glaze1300)); ?></span>
                                 <button type="button"
                                         class="btn-edit-cell"
                                         onclick="openEditCellModal(
-                                            {{ $item->product->id }},
-                                            '{{ addslashes($item->product->name) }}',
+                                            <?php echo e($item->product->id); ?>,
+                                            '<?php echo e(addslashes($item->product->name)); ?>',
                                             'glaze1300',
                                             'موجودی ۱۳۰۰ درجه',
-                                            {{ $item->glaze1300 }},
+                                            <?php echo e($item->glaze1300); ?>,
                                             false
                                         )"
                                         title="ویرایش موجودی ۱۳۰۰ درجه">
@@ -604,95 +604,96 @@
                             </td>
 
                             <td class="text-center editable-cell" data-field="unpackaged">
-                                <span class="cell-value">{{ number_format($item->unpackaged ?? 0) }}</span>
-                                @if($item->is_manual_unpackaged)
+                                <span class="cell-value"><?php echo e(number_format($item->unpackaged ?? 0)); ?></span>
+                                <?php if($item->is_manual_unpackaged): ?>
                                     <span class="manual-badge" title="مقدار دستی">
                                         <i class="fas fa-pen me-1"></i>دستی
                                     </span>
-                                @else
+                                <?php else: ?>
                                     <span class="auto-badge" title="محاسبه‌شده از سیستم">
                                         <i class="fas fa-calculator me-1"></i>خودکار
                                     </span>
-                                @endif
+                                <?php endif; ?>
                                 <button type="button"
                                         class="btn-edit-cell"
                                         onclick="openEditCellModal(
-                                            {{ $item->product->id }},
-                                            '{{ addslashes($item->product->name) }}',
+                                            <?php echo e($item->product->id); ?>,
+                                            '<?php echo e(addslashes($item->product->name)); ?>',
                                             'unpackaged',
                                             'موجودی بسته بندی نشده',
-                                            {{ $item->unpackaged ?? 0 }},
-                                            {{ $item->is_manual_unpackaged ? 'true' : 'false' }}
+                                            <?php echo e($item->unpackaged ?? 0); ?>,
+                                            <?php echo e($item->is_manual_unpackaged ? 'true' : 'false'); ?>
+
                                         )"
                                         title="ویرایش موجودی بسته بندی نشده">
                                     <i class="fas fa-pen"></i>
                                 </button>
                             </td>
 
-                            <td class="text-center {{ $hasChildren ? '' : 'editable-cell' }}" data-field="warehouse">
-                                <span class="cell-value">{{ number_format($item->warehouse) }}</span>
-                                @if($hasChildren)
+                            <td class="text-center <?php echo e($hasChildren ? '' : 'editable-cell'); ?>" data-field="warehouse">
+                                <span class="cell-value"><?php echo e(number_format($item->warehouse)); ?></span>
+                                <?php if($hasChildren): ?>
                                     <span class="locked-cell"
                                           title="این محصول فرزند دارد — برای ویرایش از صفحه موجودی انبار استفاده کنید">
                                         <i class="fas fa-lock"></i>
                                     </span>
-                                @else
+                                <?php else: ?>
                                     <button type="button"
                                             class="btn-edit-cell"
                                             onclick="openEditCellModal(
-                                                {{ $item->product->id }},
-                                                '{{ addslashes($item->product->name) }}',
+                                                <?php echo e($item->product->id); ?>,
+                                                '<?php echo e(addslashes($item->product->name)); ?>',
                                                 'warehouse',
                                                 'موجودی انبار',
-                                                {{ $item->warehouse }},
+                                                <?php echo e($item->warehouse); ?>,
                                                 false
                                             )"
                                             title="ویرایش موجودی انبار">
                                         <i class="fas fa-pen"></i>
                                     </button>
-                                @endif
+                                <?php endif; ?>
                             </td>
 
                             <td class="column-action">
-                                @if($isHidden)
-                                    <form action="{{ route('inventory.all-stocks.unhide', $item->product) }}"
+                                <?php if($isHidden): ?>
+                                    <form action="<?php echo e(route('inventory.all-stocks.unhide', $item->product)); ?>"
                                           method="POST"
                                           class="d-inline"
                                           onsubmit="return confirm('این محصول به گزارش برگردانده شود؟')">
-                                        @csrf
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit"
                                                 class="btn btn-sm btn-success btn-icon"
                                                 title="برگرداندن به گزارش">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
-                                @else
-                                    <form action="{{ route('inventory.all-stocks.hide', $item->product) }}"
+                                <?php else: ?>
+                                    <form action="<?php echo e(route('inventory.all-stocks.hide', $item->product)); ?>"
                                           method="POST"
                                           class="d-inline"
                                           onsubmit="return confirm('این محصول از گزارش حذف شود؟\n(در دیتابیس می‌ماند و می‌توانید بعداً برگردانید)')">
-                                        @csrf
+                                        <?php echo csrf_field(); ?>
                                         <button type="submit"
                                                 class="btn btn-sm btn-outline-danger btn-icon"
                                                 title="حذف از این گزارش">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     </form>
-                                @endif
+                                <?php endif; ?>
                             </td>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="11" class="text-center py-4">
                                 <i class="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
-                                @if($hasSearchFilter)
+                                <?php if($hasSearchFilter): ?>
                                     محصولی با این فیلتر یافت نشد.
-                                @else
+                                <?php else: ?>
                                     هیچ محصولی یافت نشد.
-                                @endif
+                                <?php endif; ?>
                             </td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -758,4 +759,5 @@
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/inventory/all-stocks.blade.php ENDPATH**/ ?>

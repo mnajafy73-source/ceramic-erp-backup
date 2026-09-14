@@ -16,103 +16,52 @@
     }
     .drag-handle:hover { color: #0d6efd; }
     .drag-handle:active { cursor: grabbing; }
-
-    .drag-handle.disabled {
-        cursor: not-allowed;
-        opacity: 0.25;
-    }
+    .drag-handle.disabled { cursor: not-allowed; opacity: 0.25; }
 
     .sortable-ghost { background: #cfe2ff !important; opacity: 0.5; }
     .sortable-chosen { background: #e7f1ff !important; }
 
-    .editable-cell {
-        position: relative;
-        padding: 6px 4px;
-    }
-    .editable-cell .cell-value {
-        font-weight: 600;
-        color: #212529;
-    }
+    .editable-cell { position: relative; padding: 6px 4px; }
+    .editable-cell .cell-value { font-weight: 600; color: #212529; }
     .editable-cell .btn-edit-cell {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 22px;
-        height: 22px;
-        padding: 0;
-        font-size: 10px;
-        border-radius: 50%;
-        margin-right: 4px;
-        opacity: 0;
-        transition: opacity 0.2s, transform 0.2s;
-        background: transparent;
-        border: 1px solid #0d6efd;
-        color: #0d6efd;
-        cursor: pointer;
-        vertical-align: middle;
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 22px; height: 22px; padding: 0; font-size: 10px;
+        border-radius: 50%; margin-right: 4px;
+        opacity: 0; transition: opacity 0.2s, transform 0.2s;
+        background: transparent; border: 1px solid #0d6efd;
+        color: #0d6efd; cursor: pointer; vertical-align: middle;
     }
     .editable-cell:hover .btn-edit-cell { opacity: 1; }
     .editable-cell .btn-edit-cell:hover {
-        background: #0d6efd;
-        color: #fff;
-        transform: scale(1.15);
+        background: #0d6efd; color: #fff; transform: scale(1.15);
     }
-    @media (max-width: 991px) {
-        .editable-cell .btn-edit-cell { opacity: 0.6; }
-    }
+    @media (max-width: 991px) { .editable-cell .btn-edit-cell { opacity: 0.6; } }
 
     .reorder-notice {
-        background: #e7f1ff;
-        color: #084298;
-        padding: 6px 14px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 600;
+        background: #e7f1ff; color: #084298;
+        padding: 6px 14px; border-radius: 8px;
+        font-size: 12px; font-weight: 600;
         border: 1px solid #b6d4fe;
-        display: inline-block;
-        margin-bottom: 12px;
+        display: inline-block; margin-bottom: 12px;
     }
 
     .type-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 10px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 3px 10px; border-radius: 6px;
+        font-size: 12px; font-weight: 600;
     }
-    .type-badge.carton {
-        background: #d1e7dd;
-        color: #0f5132;
-        border: 1px solid #badbcc;
-    }
-    .type-badge.layer {
-        background: #cff4fc;
-        color: #055160;
-        border: 1px solid #b6effb;
-    }
+    .type-badge.carton { background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+    .type-badge.layer  { background: #cff4fc; color: #055160; border: 1px solid #b6effb; }
 
     .edit-stock-packaging-name {
-        background: #f1f3f5;
-        padding: 10px 14px;
-        border-radius: 8px;
-        font-weight: bold;
-        margin-bottom: 14px;
+        background: #f1f3f5; padding: 10px 14px;
+        border-radius: 8px; font-weight: bold; margin-bottom: 14px;
     }
     .edit-stock-input {
-        font-size: 22px;
-        font-weight: bold;
-        text-align: center;
-        direction: ltr;
-        font-family: 'Courier New', monospace;
-        min-height: 50px;
+        font-size: 22px; font-weight: bold; text-align: center;
+        direction: ltr; font-family: 'Courier New', monospace; min-height: 50px;
     }
-    .edit-stock-hint {
-        font-size: 12px;
-        color: #6c757d;
-        margin-top: 6px;
-    }
+    .edit-stock-hint { font-size: 12px; color: #6c757d; margin-top: 6px; }
 </style>
 @endpush
 
@@ -126,9 +75,6 @@
     var UPDATE_STOCK_URL_TEMPLATE = '{{ route("inventory.packaging-stock.update-stock", ["packaging" => 0]) }}';
     var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
 
-    // ============================================================
-    //  Select2
-    // ============================================================
     $(document).ready(function() {
         $('.product-search-select').select2({
             placeholder: 'جستجو...',
@@ -142,9 +88,6 @@
         });
     });
 
-    // ============================================================
-    //  Drag & Drop
-    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         if (HAS_SEARCH_FILTER) return;
 
@@ -194,9 +137,6 @@
         });
     }
 
-    // ============================================================
-    //  تبدیل اعداد فارسی/عربی
-    // ============================================================
     function toLatinDigits(str) {
         return String(str).replace(/[۰-۹]/g, function(d) {
             return String.fromCharCode(d.charCodeAt(0) - 1776);
@@ -213,9 +153,6 @@
         return parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
     }
 
-    // ============================================================
-    //  باز کردن Modal ویرایش
-    // ============================================================
     function openEditStockModal(packagingId, packagingName, packagingType, currentStock) {
         document.getElementById('editStockPackagingId').value = packagingId;
 
@@ -237,9 +174,6 @@
         }, 400);
     }
 
-    // ============================================================
-    //  ذخیره مقدار
-    // ============================================================
     function savePackagingStock() {
         var packagingId = document.getElementById('editStockPackagingId').value;
         var input = document.getElementById('editStockInput');
@@ -287,7 +221,6 @@
 
             var data = result.data;
 
-            // آپدیت سلول
             var row = document.querySelector('tr[data-packaging-id="' + packagingId + '"]');
             if (row) {
                 var cell = row.querySelector('.cell-value');
@@ -313,9 +246,6 @@
         });
     }
 
-    // ============================================================
-    //  Toast
-    // ============================================================
     function showToast(message, bgColor) {
         bgColor = bgColor || '#198754';
         var toast = document.createElement('div');
@@ -331,24 +261,47 @@
         }, 2200);
     }
 
-    // فرمت‌دهی زنده ورودی
+    // ============================================================
+    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما
+    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         var input = document.getElementById('editStockInput');
-        if (input) {
-            input.addEventListener('input', function() {
-                var cursor = this.selectionStart;
-                var raw = toLatinDigits(this.value).replace(/[^0-9.]/g, '');
-                this.value = formatNumber(raw);
-                try { this.setSelectionRange(cursor, cursor); } catch(e) {}
-            });
+        if (!input) return;
 
-            input.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    savePackagingStock();
+        input.addEventListener('input', function() {
+            var cursorPos = this.selectionStart;
+            var valueBeforeCursor = this.value.substring(0, cursorPos);
+            var digitsBeforeCursor = toLatinDigits(valueBeforeCursor).replace(/[^0-9]/g, '').length;
+            var raw = toLatinDigits(this.value).replace(/[^0-9]/g, '');
+            var formatted = raw === '' ? '' : formatNumber(raw);
+            this.value = formatted;
+
+            if (digitsBeforeCursor === 0) {
+                this.setSelectionRange(0, 0);
+                return;
+            }
+
+            var newCursor = 0;
+            var digitCount = 0;
+            for (var i = 0; i < formatted.length; i++) {
+                newCursor = i + 1;
+                if (/[0-9]/.test(formatted[i])) {
+                    digitCount++;
+                    if (digitCount >= digitsBeforeCursor) break;
                 }
-            });
-        }
+            }
+
+            try {
+                this.setSelectionRange(newCursor, newCursor);
+            } catch (e) {}
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                savePackagingStock();
+            }
+        });
     });
 </script>
 @endpush
@@ -372,7 +325,6 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
-        {{-- فرم جستجو --}}
         <form action="{{ route('inventory.packaging-stock') }}" method="GET" class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="input-group">
@@ -397,7 +349,6 @@
             </div>
         </form>
 
-        {{-- راهنمای جابه‌جایی --}}
         @if(!$hasSearch && $rowCount >= 2)
             <div class="reorder-notice">
                 <i class="fas fa-arrows-alt me-1"></i>
@@ -421,7 +372,6 @@
                     @forelse($packagings as $packaging)
                     <tr data-packaging-id="{{ $packaging->id }}">
 
-                        {{-- دستگیره جابه‌جایی --}}
                         <td class="column-drag">
                             @if(!$hasSearch && $rowCount >= 2)
                                 <div class="drag-handle" title="برای جابه‌جایی بکشید">
@@ -448,7 +398,6 @@
 
                         <td>{{ $packaging->name }}</td>
 
-                        {{-- موجودی + دکمه ویرایش --}}
                         <td class="text-center editable-cell">
                             <span class="cell-value">{{ number_format($packaging->stock) }}</span>
                             <button type="button"
@@ -482,9 +431,6 @@
     </div>
 </div>
 
-{{-- ============================================================== --}}
-{{--  Modal ویرایش موجودی                                          --}}
-{{-- ============================================================== --}}
 <div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

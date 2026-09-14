@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@push('styles')
+<?php $__env->startPush('styles'); ?>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
@@ -37,9 +35,9 @@
         margin-bottom: 12px;
     }
 </style>
-@endpush
+<?php $__env->stopPush(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
@@ -47,14 +45,14 @@
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h3 class="card-title mb-0">داشبورد مدیریت</h3>
 
-                    <form action="{{ route('dashboard.add-product') }}" method="POST" class="d-flex align-items-center gap-2 flex-wrap">
-                        @csrf
+                    <form action="<?php echo e(route('dashboard.add-product')); ?>" method="POST" class="d-flex align-items-center gap-2 flex-wrap">
+                        <?php echo csrf_field(); ?>
                         <div class="form-group mb-0" style="min-width: 280px;">
                             <select name="product_id" class="form-control product-search-select" style="width: 100%;" required>
                                 <option value="">جستجو و انتخاب محصول...</option>
-                                @foreach($allProductsList as $product)
-                                    <option value="{{ $product->id }}">{{ $product->name }} ({{ $product->code }})</option>
-                                @endforeach
+                                <?php $__currentLoopData = $allProductsList; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($product->id); ?>"><?php echo e($product->name); ?> (<?php echo e($product->code); ?>)</option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </select>
                         </div>
                         <button type="submit" class="btn btn-primary btn-sm">
@@ -64,27 +62,29 @@
                 </div>
                 <div class="card-body">
 
-                    @if(session('success'))
+                    <?php if(session('success')): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            {{ session('success') }}
+                            <?php echo e(session('success')); ?>
+
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
-                    @endif
-                    @if(session('info'))
+                    <?php endif; ?>
+                    <?php if(session('info')): ?>
                         <div class="alert alert-info alert-dismissible fade show" role="alert">
-                            {{ session('info') }}
+                            <?php echo e(session('info')); ?>
+
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
-                    @endif
+                    <?php endif; ?>
 
-                    @if(isset($allProducts) && $allProducts->count() > 0)
+                    <?php if(isset($allProducts) && $allProducts->count() > 0): ?>
 
-                        @if($allProducts->count() >= 2)
+                        <?php if($allProducts->count() >= 2): ?>
                             <div class="reorder-notice">
                                 <i class="fas fa-arrows-alt me-1"></i>
                                 برای تغییر ترتیب، ردیف‌ها را از آیکون <strong>⋮⋮</strong> بکشید
                             </div>
-                        @endif
+                        <?php endif; ?>
 
                         <div class="table-responsive">
                             <table class="table table-bordered table-hover align-middle">
@@ -100,66 +100,66 @@
                                     </tr>
                                 </thead>
                                 <tbody id="dashboardTableBody">
-                                    @foreach($allProducts as $product)
-                                    <tr data-product-id="{{ $product->id }}">
+                                    <?php $__currentLoopData = $allProducts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $product): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <tr data-product-id="<?php echo e($product->id); ?>">
 
                                         <td class="column-drag">
-                                            @if($allProducts->count() >= 2)
+                                            <?php if($allProducts->count() >= 2): ?>
                                                 <div class="drag-handle" title="برای جابه‌جایی بکشید">
                                                     <i class="fas fa-grip-vertical"></i>
                                                 </div>
-                                            @else
+                                            <?php else: ?>
                                                 <div class="drag-handle disabled">
                                                     <i class="fas fa-grip-vertical"></i>
                                                 </div>
-                                            @endif
+                                            <?php endif; ?>
                                         </td>
 
-                                        <td>{{ $product->name }}</td>
+                                        <td><?php echo e($product->name); ?></td>
 
-                                        <td class="text-center">{{ number_format($product->stock ?? 0) }}</td>
+                                        <td class="text-center"><?php echo e(number_format($product->stock ?? 0)); ?></td>
 
                                         <td class="text-center">
-                                            @if($product->tonneli_time !== null)
-                                                {{ number_format($product->tonneli_time, 1) }} ساعت
-                                            @else
+                                            <?php if($product->tonneli_time !== null): ?>
+                                                <?php echo e(number_format($product->tonneli_time, 1)); ?> ساعت
+                                            <?php else: ?>
                                                 <span class="text-muted">نامشخص</span>
-                                            @endif
+                                            <?php endif; ?>
                                         </td>
 
                                         <td class="text-center">
-                                            <form action="{{ route('dashboard.remove-product') }}" method="POST" style="display:inline;">
-                                                @csrf
-                                                <input type="hidden" name="product_id" value="{{ $product->id }}">
+                                            <form action="<?php echo e(route('dashboard.remove-product')); ?>" method="POST" style="display:inline;">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="product_id" value="<?php echo e($product->id); ?>">
                                                 <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('آیا از حذف این محصول از داشبورد مطمئن هستید؟')">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </form>
                                         </td>
                                     </tr>
-                                    @endforeach
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </tbody>
                             </table>
                         </div>
-                    @else
+                    <?php else: ?>
                         <div class="alert alert-info">
                             هیچ محصولی به داشبورد اضافه نشده است. از قسمت بالا محصول مورد نظر را جستجو و اضافه کنید.
                         </div>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
-    var CSRF_TOKEN = '{{ csrf_token() }}';
-    var REORDER_URL = '{{ route("dashboard.reorder") }}';
+    var CSRF_TOKEN = '<?php echo e(csrf_token()); ?>';
+    var REORDER_URL = '<?php echo e(route("dashboard.reorder")); ?>';
 
     // ============================================================
     //  Select2
@@ -245,4 +245,5 @@
         }, 2200);
     }
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/dashboard.blade.php ENDPATH**/ ?>

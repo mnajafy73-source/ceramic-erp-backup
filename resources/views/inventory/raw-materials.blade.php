@@ -73,7 +73,6 @@
         margin-bottom: 12px;
     }
 
-    /* Modal */
     .edit-stock-material-name {
         background: #f1f3f5;
         padding: 10px 14px;
@@ -123,9 +122,6 @@
     var UPDATE_STOCK_URL_TEMPLATE = '{{ route("inventory.raw-materials.update-stock", ["material" => 0]) }}';
     var HAS_SEARCH_FILTER = {{ request('search') ? 'true' : 'false' }};
 
-    // ============================================================
-    //  Select2
-    // ============================================================
     $(document).ready(function() {
         $('.material-search-select').select2({
             placeholder: 'جستجو...',
@@ -139,9 +135,6 @@
         });
     });
 
-    // ============================================================
-    //  Drag & Drop
-    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         if (HAS_SEARCH_FILTER) return;
 
@@ -191,9 +184,6 @@
         });
     }
 
-    // ============================================================
-    //  تبدیل اعداد فارسی/عربی
-    // ============================================================
     function toLatinDigits(str) {
         return String(str).replace(/[۰-۹]/g, function(d) {
             return String.fromCharCode(d.charCodeAt(0) - 1776);
@@ -210,22 +200,13 @@
         return parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
     }
 
-    // ============================================================
-    //  باز کردن Modal ویرایش
-    // ============================================================
     function openEditStockModal(materialId, materialName, stockInGram) {
         document.getElementById('editStockMaterialId').value = materialId;
         document.getElementById('editStockMaterialName').innerHTML = materialName;
 
-        // پیش‌فرض روی گرم
         setUnit('gram');
-
-        // مقدار فعلی رو به گرم نشون بده
         document.getElementById('editStockInput').value = formatNumber(stockInGram);
-
-        // ذخیره برای استفاده در تغییر واحد
         window.currentStockInGram = stockInGram;
-
         document.getElementById('editStockError').style.display = 'none';
 
         var modal = new bootstrap.Modal(document.getElementById('editStockModal'));
@@ -238,9 +219,6 @@
         }, 400);
     }
 
-    // ============================================================
-    //  تعویض واحد (گرم/تن)
-    // ============================================================
     var currentUnit = 'gram';
     function setUnit(unit) {
         currentUnit = unit;
@@ -263,25 +241,19 @@
             document.getElementById('inputUnitLabel').textContent = 'تن';
         }
 
-        // تبدیل مقدار فعلی ورودی
         var input = document.getElementById('editStockInput');
         var raw = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
 
         if (raw !== '' && !isNaN(raw)) {
             var val = parseFloat(raw);
             if (unit === 'ton') {
-                // گرم → تن
                 input.value = formatNumber(val / 1000000);
             } else {
-                // تن → گرم
                 input.value = formatNumber(val * 1000000);
             }
         }
     }
 
-    // ============================================================
-    //  ذخیره مقدار
-    // ============================================================
     function saveMaterialStock() {
         var materialId = document.getElementById('editStockMaterialId').value;
         var input = document.getElementById('editStockInput');
@@ -329,7 +301,6 @@
 
             var data = result.data;
 
-            // آپدیت سلول گرم
             var row = document.querySelector('tr[data-material-id="' + materialId + '"]');
             if (row) {
                 var gramCell = row.querySelector('.gram-value');
@@ -363,9 +334,6 @@
         });
     }
 
-    // ============================================================
-    //  Toast
-    // ============================================================
     function showToast(message, bgColor) {
         bgColor = bgColor || '#198754';
         var toast = document.createElement('div');
@@ -381,24 +349,47 @@
         }, 2200);
     }
 
-    // فرمت‌دهی زنده ورودی
+    // ============================================================
+    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما
+    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         var input = document.getElementById('editStockInput');
-        if (input) {
-            input.addEventListener('input', function() {
-                var cursor = this.selectionStart;
-                var raw = toLatinDigits(this.value).replace(/[^0-9.]/g, '');
-                this.value = formatNumber(raw);
-                try { this.setSelectionRange(cursor, cursor); } catch(e) {}
-            });
+        if (!input) return;
 
-            input.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveMaterialStock();
+        input.addEventListener('input', function() {
+            var cursorPos = this.selectionStart;
+            var valueBeforeCursor = this.value.substring(0, cursorPos);
+            var digitsBeforeCursor = toLatinDigits(valueBeforeCursor).replace(/[^0-9]/g, '').length;
+            var raw = toLatinDigits(this.value).replace(/[^0-9]/g, '');
+            var formatted = raw === '' ? '' : formatNumber(raw);
+            this.value = formatted;
+
+            if (digitsBeforeCursor === 0) {
+                this.setSelectionRange(0, 0);
+                return;
+            }
+
+            var newCursor = 0;
+            var digitCount = 0;
+            for (var i = 0; i < formatted.length; i++) {
+                newCursor = i + 1;
+                if (/[0-9]/.test(formatted[i])) {
+                    digitCount++;
+                    if (digitCount >= digitsBeforeCursor) break;
                 }
-            });
-        }
+            }
+
+            try {
+                this.setSelectionRange(newCursor, newCursor);
+            } catch (e) {}
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveMaterialStock();
+            }
+        });
     });
 </script>
 @endpush
@@ -422,7 +413,6 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body">
 
-        {{-- فرم جستجو --}}
         <form action="{{ route('inventory.raw-materials') }}" method="GET" class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="input-group">
@@ -447,7 +437,6 @@
             </div>
         </form>
 
-        {{-- راهنمای جابه‌جایی --}}
         @if(!$hasSearch && $rowCount >= 2)
             <div class="reorder-notice">
                 <i class="fas fa-arrows-alt me-1"></i>
@@ -481,7 +470,6 @@
                         @endphp
                         <tr data-material-id="{{ $material->id }}">
 
-                            {{-- دستگیره جابه‌جایی --}}
                             <td class="column-drag">
                                 @if(!$hasSearch && $rowCount >= 2)
                                     <div class="drag-handle" title="برای جابه‌جایی بکشید">
@@ -496,7 +484,6 @@
 
                             <td>{{ $material->name }}</td>
 
-                            {{-- موجودی گرم --}}
                             <td class="text-center editable-cell">
                                 <span class="cell-value gram-value">{{ $formattedGram }}</span>
                                 <button type="button"
@@ -511,7 +498,6 @@
                                 </button>
                             </td>
 
-                            {{-- موجودی تن --}}
                             <td class="text-center">
                                 <span class="ton-value">{{ $formattedTon }}</span>
                             </td>
@@ -534,9 +520,6 @@
     </div>
 </div>
 
-{{-- ============================================================== --}}
-{{--  Modal ویرایش موجودی                                          --}}
-{{-- ============================================================== --}}
 <div class="modal fade" id="editStockModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -576,7 +559,7 @@
 
                 <div class="edit-stock-hint">
                     <i class="fas fa-info-circle me-1"></i>
-                    می‌توانید با اعداد فارسی یا انگلیسی وارد کنید. با تعویض واحد، مقدار به‌صورت خودکار تبدیل می‌شود.
+                    می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.
                 </div>
 
                 <div id="editStockError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>

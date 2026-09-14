@@ -39,6 +39,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/add-product', [DashboardController::class, 'addProduct'])->name('dashboard.add-product');
     Route::post('/dashboard/remove-product', [DashboardController::class, 'removeProduct'])->name('dashboard.remove-product');
+    Route::post('/dashboard/reorder', [DashboardController::class, 'reorder'])->name('dashboard.reorder');
 
     // تولید
     Route::resource('productions', ProductionController::class);

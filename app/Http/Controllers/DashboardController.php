@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Production;
 use App\Models\DashboardProduct;
 use App\Models\ShuttleFiring;
+use App\Models\RawInventory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
@@ -28,8 +29,8 @@ class DashboardController extends Controller
             ->get();
 
         foreach ($allProducts as $product) {
-            // ✅ موجودی خام دقیقاً از همان متد موجودی خام (منوی موجودی خام)
-            $stock = ShuttleFiring::getRawStock($product->id);
+            // ✅ موجودی خام از جدول raw_inventories خونده می‌شه (هماهنگ با گزارش جامع)
+            $stock = RawInventory::where('product_id', $product->id)->value('stock') ?? 0;
 
             // جمع تولیدات (برای نمایش در کارت)
             $productionSum = Production::where('product_id', $product->id)
@@ -62,7 +63,7 @@ class DashboardController extends Controller
             $product->production_sum = $productionSum;
             $product->tonneli_sum = $tonneliSum;
             $product->shuttle_sum = $shuttleSum;
-            $product->stock = $stock; // ✅ موجودی خام هماهنگ با منوی موجودی خام
+            $product->stock = $stock;
             $product->tonneli_time = $tonneliTime;
         }
 
@@ -112,5 +113,42 @@ class DashboardController extends Controller
             ->delete();
 
         return redirect()->route('dashboard')->with('success', 'محصول با موفقیت از داشبورد حذف شد.');
+    }
+
+    // ============================================================
+    //  ✅ ذخیره ترتیب سفارشی داشبورد
+    // ============================================================
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'order'   => 'required|array|min:1',
+            'order.*' => 'integer|exists:products,id',
+        ]);
+
+        $userId = auth()->id();
+        $order = $request->input('order');
+
+        DB::beginTransaction();
+        try {
+            foreach ($order as $index => $productId) {
+                DashboardProduct::where('user_id', $userId)
+                    ->where('product_id', $productId)
+                    ->update(['order' => $index + 1]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'ترتیب با موفقیت ذخیره شد.',
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Dashboard reorder failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

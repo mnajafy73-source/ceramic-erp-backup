@@ -50,7 +50,6 @@ class ImportController extends Controller
                 ->withErrors(['file' => 'مسیر فایل اکسل در فایل .env تنظیم نشده یا فایل وجود ندارد.']);
         }
 
-        // ✅ Observer ها رو خاموش کن
         ImportFlag::$isImporting = true;
 
         $errors = [];
@@ -92,7 +91,6 @@ class ImportController extends Controller
                 }
             }
 
-            // ✅ Observer ها رو روشن کن
             ImportFlag::$isImporting = false;
 
             $afterSnapshot = $this->takeInventorySnapshot();
@@ -173,6 +171,9 @@ class ImportController extends Controller
             'shoulder_records'    => [],
             'waste_records'       => [],
             'raw_calculated'      => [],
+            'raw_production'      => [],
+            'raw_tonneli'         => [],
+            'raw_shuttle'         => [],
             'raw_material_used'   => [],
             'packaging_used'      => [],
         ];
@@ -201,6 +202,18 @@ class ImportController extends Controller
 
         $mumOutput = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
             ->where('kiln_type', 'kiln_3')->where('firing_subtype', 'mum')
+            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
+
+        // ✅ داده‌های تجمعی تولید و مصرف برای محاسبه دلتای موجودی خام
+        $rawProductionAgg = Production::select('product_id', DB::raw('SUM(quantity) as total'))
+            ->whereNotNull('press_id')
+            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
+
+        $rawTonneliAgg = TonneliFiringItem::select('product_id', DB::raw('SUM(input_quantity) as total'))
+            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
+
+        $rawShuttleAgg = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+            ->whereIn('kiln_type', ['kiln_1', 'kiln_2', 'kiln_3', 'kiln_4'])
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
         $rawConsumed = [];
@@ -255,6 +268,22 @@ class ImportController extends Controller
 
         foreach (Product::where('status', 1)->get() as $product) {
             $id = $product->id;
+
+            $rawProd = $rawProductionAgg[$id] ?? 0;
+            $rawTon  = $rawTonneliAgg[$id] ?? 0;
+            $rawSh   = ($product->name === 'بلسن') ? 0 : ($rawShuttleAgg[$id] ?? 0);
+
+            foreach ($product->children as $child) {
+                $childTon = $rawTonneliAgg[$child->id] ?? 0;
+                if ($childTon > 0) {
+                    $rawTon += $childTon;
+                }
+                if ($child->name !== 'بلسن') {
+                    $childSh = $rawShuttleAgg[$child->id] ?? 0;
+                    $rawSh += $childSh;
+                }
+            }
+
             $snapshot['warehouse_produced'][$id] = ($tonneliPackaged[$id] ?? 0) + ($shuttlePackaged[$id] ?? 0);
             $snapshot['formal_sales'][$id]       = $formalSales[$id] ?? 0;
             $snapshot['informal_sales'][$id]     = $informalSales[$id] ?? 0;
@@ -263,7 +292,11 @@ class ImportController extends Controller
             $snapshot['mum_produced'][$id]       = $mumOutput[$id] ?? 0;
             $snapshot['shoulder_records'][$id]   = $shoulderRecords[$product->name] ?? 0;
             $snapshot['waste_records'][$id]      = $wasteRecords[$product->name] ?? 0;
-            $snapshot['raw_calculated'][$id]     = $this->calculateRawStock($product);
+
+            $snapshot['raw_production'][$id]     = $rawProd;
+            $snapshot['raw_tonneli'][$id]        = $rawTon;
+            $snapshot['raw_shuttle'][$id]        = $rawSh;
+            $snapshot['raw_calculated'][$id]     = max(0, $rawProd - $rawTon - $rawSh);
         }
 
         $snapshot['raw_material_used'] = $rawConsumed;
@@ -290,7 +323,14 @@ class ImportController extends Controller
                     $inv->save();
                 }
 
-                $rawDelta = ($after['raw_calculated'][$id] ?? 0) - ($before['raw_calculated'][$id] ?? 0);
+                // ✅ موجودی خام: دلتا از تفاضل تولید و مصرف (نه از تفاضل calc تجمعی)
+                // این باعث میشه حتی وقتی calc تجمعی صفر باشه (مثل ترموکوپل)، دلتای واقعی اعمال بشه
+                $prodDelta    = ($after['raw_production'][$id] ?? 0) - ($before['raw_production'][$id] ?? 0);
+                $tonneliDelta = ($after['raw_tonneli'][$id]    ?? 0) - ($before['raw_tonneli'][$id]    ?? 0);
+                $shuttleDelta = ($after['raw_shuttle'][$id]    ?? 0) - ($before['raw_shuttle'][$id]    ?? 0);
+
+                $rawDelta = $prodDelta - $tonneliDelta - $shuttleDelta;
+
                 if ($rawDelta != 0) {
                     $inv = RawInventory::firstOrCreate(['product_id' => $id]);
                     $inv->stock = max(0, $inv->stock + $rawDelta);
@@ -353,16 +393,13 @@ class ImportController extends Controller
 
                 if ($pkg->baseline_consumed !== null) {
                     $delta = $consumedAfter - $pkg->baseline_consumed;
-
                     if ($delta != 0) {
                         $pkg->stock = max(0, $pkg->stock - $delta);
                     }
-
                     $pkg->baseline_consumed = $consumedAfter;
                 } else {
                     $consumedBefore = $before['packaging_used'][$pkg->id] ?? 0;
                     $delta = $consumedAfter - $consumedBefore;
-
                     if ($delta != 0) {
                         $pkg->stock = max(0, $pkg->stock - $delta);
                     }
