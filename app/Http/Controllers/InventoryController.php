@@ -521,12 +521,8 @@ class InventoryController extends Controller
     {
         $request->validate([
             'quantity' => 'required|string',
-            'mode'     => 'nullable|in:set,adjust',
         ]);
 
-        $mode = $request->input('mode', 'set');
-
-        // ✅ پاکسازی: اعداد فارسی/عربی + علامت منفی + نقطه
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
             ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
@@ -538,8 +534,7 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        // ✅ فقط اعداد، نقطه و علامت منفی مجاز
-        $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
+        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
             return response()->json([
@@ -550,34 +545,27 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        // ✅ در حالت set، منفی مجاز نیست
-        if ($mode === 'set' && $quantity < 0) {
+        if ($quantity < 0) {
             return response()->json([
                 'success' => false,
                 'error'   => 'مقدار نمی‌تواند منفی باشد.',
             ], 422);
         }
 
-        // ✅ اعمال بر اساس mode
-        if ($mode === 'adjust') {
-            $newStock = max(0, (float) $packaging->stock + $quantity);
-        } else {
-            $newStock = max(0, $quantity);
-        }
+        // ✅ موجودی جدید رو ست کن
+        $packaging->stock = (int) $quantity;
 
-        $packaging->stock = $newStock;
-
-        // ✅ محاسبه مجدد baseline_consumed
+        // ✅✅ مبنای مصرف رو ریست کن به مصرف فعلی
+        // اینطوری از این لحظه به بعد، فقط مصرف‌های جدید از موجودی کم میشه
         $packaging->baseline_consumed = $this->calculatePackagingConsumed($packaging);
-        $packaging->save();
 
-        $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
+        $packaging->save();
 
         return response()->json([
             'success'            => true,
-            'stock'              => $newStock,
+            'stock'              => $packaging->stock,
             'baseline_consumed'  => $packaging->baseline_consumed,
-            'message'            => 'موجودی با موفقیت به‌روزرسانی شد' . $modeLabel . '.',
+            'message'            => 'موجودی ذخیره شد. از این لحظه، فقط مصرف‌های جدید از این عدد کم می‌شه.',
         ]);
     }
 
