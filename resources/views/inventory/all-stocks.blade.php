@@ -91,6 +91,31 @@
     }
     .edit-cell-hint { font-size: 12px; color: #6c757d; margin-top: 6px; }
     .btn-auto-reset { font-size: 12px; padding: 4px 12px; }
+
+    .mode-toggle-wrapper {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 12px 14px;
+        background: #f8f9fa;
+    }
+    .mode-toggle-wrapper .btn-group { width: 100%; }
+    .mode-toggle-wrapper .btn { flex: 1; font-weight: 600; }
+
+    .edit-cell-input.mode-adjust {
+        border-color: #198754 !important;
+        background: #f0fff4 !important;
+        box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.15) !important;
+    }
+
+    .current-stock-info {
+        background: #fffbea;
+        border: 1px solid #ffe58f;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 13px;
+        margin-top: 8px;
+    }
+    .current-stock-info .value { font-weight: bold; color: #b8860b; direction: ltr; display: inline-block; }
 </style>
 @endpush
 
@@ -178,11 +203,38 @@
     }
 
     function formatNumber(value) {
-        var num = String(value).replace(/,/g, '');
-        if (num === '' || isNaN(num)) return '0';
-        var parts = num.split('.');
+        if (value === null || value === undefined || value === '') return '0';
+
+        var num = parseFloat(String(value).replace(/,/g, ''));
+        if (isNaN(num)) return '0';
+
+        var str = num.toString();
+        var isNegative = str.startsWith('-');
+        if (isNegative) str = str.substring(1);
+
+        var parts = str.split('.');
         var integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        return parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
+
+        var result = parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
+        return (isNegative ? '-' : '') + result;
+    }
+
+    // ✅ مقدار فعلی رو از سلول جدول می‌خونه (نه از onclick)
+    function getCurrentValueFromTable(productId, field) {
+        var row = document.querySelector('tr[data-product-id="' + productId + '"]');
+        if (!row) return 0;
+
+        var cell = row.querySelector('[data-field="' + field + '"] .cell-value');
+        if (!cell) return 0;
+
+        var text = cell.textContent.trim().replace(/,/g, '').replace(/[۰-۹]/g, function(d) {
+            return String.fromCharCode(d.charCodeAt(0) - 1776);
+        }).replace(/[٠-٩]/g, function(d) {
+            return String.fromCharCode(d.charCodeAt(0) - 1584);
+        });
+
+        var num = parseFloat(text);
+        return isNaN(num) ? 0 : num;
     }
 
     function openEditCellModal(productId, productName, field, fieldLabel, currentValue, isManual) {
@@ -191,8 +243,21 @@
         document.getElementById('editCellProductName').innerHTML =
             productName + '<br><small>کد: ' + document.getElementById('code-' + productId).textContent + '</small>';
         document.getElementById('editCellFieldLabel').textContent = fieldLabel;
-        document.getElementById('editCellInput').value = formatNumber(currentValue);
+
+        // ✅ مقدار فعلی رو از جدول می‌خونیم (نه از onclick)
+        var tableValue = getCurrentValueFromTable(productId, field);
+
+        // اگه توی جدول مقدار بود، از اون استفاده می‌کنیم؛ وگرنه fallback به مقدار اولیه
+        var actualValue = (tableValue !== 0 || currentValue === 0) ? tableValue : currentValue;
+
+        document.getElementById('editCellInput').value = formatNumber(actualValue);
         document.getElementById('editCellError').style.display = 'none';
+
+        document.getElementById('currentStockValue').textContent = formatNumber(actualValue);
+
+        // ✅ ریست به حالت پیش‌فرض (set)
+        document.getElementById('modeSet').checked = true;
+        updateModeUI();
 
         var autoBtn = document.getElementById('btnAutoReset');
         if (field === 'unpackaged' && isManual) {
@@ -211,16 +276,49 @@
         }, 400);
     }
 
+    function updateModeUI() {
+        var mode = document.querySelector('input[name="editMode"]:checked').value;
+        var input = document.getElementById('editCellInput');
+        var hint = document.getElementById('editCellHint');
+        var currentInfo = document.getElementById('currentStockInfo');
+
+        if (mode === 'adjust') {
+            input.placeholder = 'مثلاً 200 یا -200';
+            input.classList.add('mode-adjust');
+            hint.innerHTML = '<i class="fas fa-info-circle me-1"></i> عدد مثبت = اضافه، عدد منفی = کسر';
+            currentInfo.style.display = 'block';
+        } else {
+            input.placeholder = '0';
+            input.classList.remove('mode-adjust');
+            hint.innerHTML = '<i class="fas fa-info-circle me-1"></i> می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.';
+            currentInfo.style.display = 'none';
+
+            var raw = toLatinDigits(input.value).replace(/[^0-9.]/g, '');
+            var cleanNum = parseFloat(raw);
+            input.value = (raw === '' || isNaN(cleanNum)) ? '' : formatNumber(cleanNum);
+        }
+
+        input.focus();
+    }
+
     function saveCellStock() {
         var productId = document.getElementById('editCellProductId').value;
         var field = document.getElementById('editCellField').value;
+        var mode = document.querySelector('input[name="editMode"]:checked').value;
         var input = document.getElementById('editCellInput');
         var saveBtn = document.getElementById('editCellSaveBtn');
         var errorBox = document.getElementById('editCellError');
-        var rawValue = toLatinDigits(input.value).replace(/[^0-9.]/g, '');
 
-        if (rawValue === '' || isNaN(rawValue)) {
+        var cleaned = toLatinDigits(input.value).trim().replace(/,/g, '');
+
+        if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
             errorBox.textContent = 'عدد معتبر وارد کنید.';
+            errorBox.style.display = 'block';
+            return;
+        }
+
+        if (mode === 'set' && cleaned.startsWith('-')) {
+            errorBox.textContent = 'در حالت «مقدار جدید»، عدد منفی مجاز نیست. لطفاً حالت «کسر / اضافه» را انتخاب کنید.';
             errorBox.style.display = 'block';
             return;
         }
@@ -229,7 +327,7 @@
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> در حال ذخیره...';
         errorBox.style.display = 'none';
 
-        sendUpdateRequest(productId, field, rawValue, saveBtn, errorBox);
+        sendUpdateRequest(productId, field, cleaned, mode, saveBtn, errorBox);
     }
 
     function resetToAuto() {
@@ -246,10 +344,10 @@
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> در حال ذخیره...';
         errorBox.style.display = 'none';
 
-        sendUpdateRequest(productId, field, 'auto', saveBtn, errorBox);
+        sendUpdateRequest(productId, field, 'auto', 'set', saveBtn, errorBox);
     }
 
-    function sendUpdateRequest(productId, field, value, saveBtn, errorBox) {
+    function sendUpdateRequest(productId, field, value, mode, saveBtn, errorBox) {
         var url = UPDATE_FIELD_URL_TEMPLATE.replace(/\/0\/update-field$/, '/' + productId + '/update-field');
 
         fetch(url, {
@@ -260,7 +358,7 @@
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            body: JSON.stringify({ field: field, quantity: value }),
+            body: JSON.stringify({ field: field, quantity: value, mode: mode }),
         })
         .then(function(response) {
             return response.json().then(function(data) {
@@ -347,29 +445,53 @@
         }, 2200);
     }
 
-    // ============================================================
-    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما
-    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         var input = document.getElementById('editCellInput');
         if (!input) return;
 
+        document.querySelectorAll('input[name="editMode"]').forEach(function(el) {
+            el.addEventListener('change', updateModeUI);
+        });
+
         input.addEventListener('input', function() {
+            var mode = document.querySelector('input[name="editMode"]:checked').value;
+            var allowNegative = (mode === 'adjust');
+
+            var originalValue = this.value;
+            var hasLeadingMinus = /^\s*-/.test(originalValue);
+            if (!allowNegative) hasLeadingMinus = false;
+
             var cursorPos = this.selectionStart;
-            var valueBeforeCursor = this.value.substring(0, cursorPos);
+            var valueBeforeCursor = originalValue.substring(0, cursorPos);
             var digitsBeforeCursor = toLatinDigits(valueBeforeCursor).replace(/[^0-9]/g, '').length;
-            var raw = toLatinDigits(this.value).replace(/[^0-9]/g, '');
-            var formatted = raw === '' ? '' : formatNumber(raw);
+
+            var raw = toLatinDigits(originalValue).replace(/[^0-9]/g, '');
+
+            var formatted;
+            if (raw === '') {
+                formatted = hasLeadingMinus ? '-' : '';
+            } else {
+                formatted = (hasLeadingMinus ? '-' : '') + formatNumber(raw);
+            }
+
             this.value = formatted;
 
+            if (raw === '') {
+                var pos = hasLeadingMinus ? 1 : 0;
+                try { this.setSelectionRange(pos, pos); } catch (e) {}
+                return;
+            }
+
             if (digitsBeforeCursor === 0) {
-                this.setSelectionRange(0, 0);
+                var pos2 = hasLeadingMinus ? 1 : 0;
+                try { this.setSelectionRange(pos2, pos2); } catch (e) {}
                 return;
             }
 
             var newCursor = 0;
             var digitCount = 0;
-            for (var i = 0; i < formatted.length; i++) {
+            var startAt = hasLeadingMinus ? 1 : 0;
+            for (var i = startAt; i < formatted.length; i++) {
                 newCursor = i + 1;
                 if (/[0-9]/.test(formatted[i])) {
                     digitCount++;
@@ -718,17 +840,39 @@
                 <input type="hidden" id="editCellProductId">
                 <input type="hidden" id="editCellField">
 
-                <label class="form-label fw-bold">مقدار جدید:</label>
+                <div class="mode-toggle-wrapper mb-3">
+                    <label class="form-label fw-bold mb-2">
+                        <i class="fas fa-sliders-h me-1"></i> حالت ویرایش:
+                    </label>
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="editMode" id="modeSet" value="set" checked>
+                        <label class="btn btn-outline-primary" for="modeSet">
+                            <i class="fas fa-pen me-1"></i> مقدار جدید
+                        </label>
+
+                        <input type="radio" class="btn-check" name="editMode" id="modeAdjust" value="adjust">
+                        <label class="btn btn-outline-success" for="modeAdjust">
+                            <i class="fas fa-exchange-alt me-1"></i> کسر / اضافه
+                        </label>
+                    </div>
+                </div>
+
+                <label class="form-label fw-bold">مقدار:</label>
                 <input type="text"
                        id="editCellInput"
                        class="form-control edit-cell-input"
                        placeholder="0"
-                       autocomplete="off"
-                       inputmode="numeric">
+                       autocomplete="off">
 
-                <div class="edit-cell-hint">
+                <div class="edit-cell-hint" id="editCellHint">
                     <i class="fas fa-info-circle me-1"></i>
                     می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.
+                </div>
+
+                <div class="current-stock-info" id="currentStockInfo" style="display:none;">
+                    <i class="fas fa-cube me-1 text-warning"></i>
+                    مقدار فعلی:
+                    <span class="value" id="currentStockValue">0</span>
                 </div>
 
                 <div class="mt-2">

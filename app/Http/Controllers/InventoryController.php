@@ -53,7 +53,6 @@ class InventoryController extends Controller
         $inventories = [];
 
         foreach ($products as $product) {
-            // ✅ اگه مقدار دستی هست، همون؛ وگرنه از فرمول
             $rawInv = RawInventory::where('product_id', $product->id)->first();
             if ($rawInv !== null && $rawInv->stock > 0) {
                 $raw = $rawInv->stock;
@@ -315,7 +314,6 @@ class InventoryController extends Controller
             $unpackaged = $this->calculateUnpackagedStock($product);
             $isManualUnpackaged = $product->unpackaged_manual_stock !== null;
 
-            // ✅ اگه مقدار دستی هست، همون؛ وگرنه از فرمول
             $rawInv = RawInventory::where('product_id', $product->id)->first();
             if ($rawInv !== null && $rawInv->stock > 0) {
                 $raw = $rawInv->stock;
@@ -378,8 +376,12 @@ class InventoryController extends Controller
     {
         $request->validate([
             'quantity' => 'required|string',
+            'mode'     => 'nullable|in:set,adjust',
         ]);
 
+        $mode = $request->input('mode', 'set');
+
+        // ✅ پاکسازی: اعداد فارسی/عربی + علامت منفی + نقطه
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
             ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
@@ -391,7 +393,8 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+        // ✅ فقط اعداد، نقطه و علامت منفی مجاز
+        $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
             return response()->json([
@@ -402,17 +405,23 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        if ($quantity < 0) {
+        // ✅ در حالت set، منفی مجاز نیست
+        if ($mode === 'set' && $quantity < 0) {
             return response()->json([
                 'success' => false,
                 'error'   => 'مقدار نمی‌تواند منفی باشد.',
             ], 422);
         }
 
-        WarehouseInventory::updateOrCreate(
-            ['product_id' => $product->id],
-            ['stock' => $quantity]
-        );
+        // ✅ اعمال بر اساس mode
+        $inv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
+
+        if ($mode === 'adjust') {
+            $inv->stock = max(0, (float) $inv->stock + $quantity);
+        } else {
+            $inv->stock = max(0, $quantity);
+        }
+        $inv->save();
 
         $totalStock = $this->calculateTotalWarehouseStock($product);
 
@@ -430,13 +439,15 @@ class InventoryController extends Controller
             $pallets = intval($totalStock / $product->per_pallet);
         }
 
+        $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
+
         return response()->json([
             'success' => true,
             'stock'   => $totalStock,
             'cartons' => $cartons,
             'packs'   => $packs,
             'pallets' => $pallets,
-            'message' => 'موجودی با موفقیت به‌روزرسانی شد.',
+            'message' => 'موجودی با موفقیت به‌روزرسانی شد' . $modeLabel . '.',
         ]);
     }
 
@@ -445,10 +456,13 @@ class InventoryController extends Controller
         $request->validate([
             'quantity' => 'required|string',
             'unit'     => 'nullable|in:gram,ton',
+            'mode'     => 'nullable|in:set,adjust',
         ]);
 
         $unit = $request->input('unit', 'gram');
+        $mode = $request->input('mode', 'set');
 
+        // ✅ پاکسازی: اعداد فارسی/عربی + علامت منفی + نقطه
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
             ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
@@ -460,7 +474,8 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+        // ✅ فقط اعداد، نقطه و علامت منفی مجاز
+        $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
             return response()->json([
@@ -471,23 +486,34 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        if ($quantity < 0) {
+        // ✅ در حالت set، منفی مجاز نیست
+        if ($mode === 'set' && $quantity < 0) {
             return response()->json([
                 'success' => false,
                 'error'   => 'مقدار نمی‌تواند منفی باشد.',
             ], 422);
         }
 
+        // ✅ تبدیل به گرم
         $quantityInGram = ($unit === 'ton') ? $quantity * 1000000 : $quantity;
 
-        $material->stock = $quantityInGram;
+        // ✅ اعمال بر اساس mode
+        if ($mode === 'adjust') {
+            $newStock = max(0, (float) $material->stock + $quantityInGram);
+        } else {
+            $newStock = max(0, $quantityInGram);
+        }
+
+        $material->stock = $newStock;
         $material->save();
+
+        $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
 
         return response()->json([
             'success'      => true,
-            'stock'        => $quantityInGram,
-            'stock_in_ton' => $quantityInGram / 1000000,
-            'message'      => 'موجودی با موفقیت به‌روزرسانی شد.',
+            'stock'        => $newStock,
+            'stock_in_ton' => $newStock / 1000000,
+            'message'      => 'موجودی با موفقیت به‌روزرسانی شد' . $modeLabel . '.',
         ]);
     }
 
@@ -495,8 +521,12 @@ class InventoryController extends Controller
     {
         $request->validate([
             'quantity' => 'required|string',
+            'mode'     => 'nullable|in:set,adjust',
         ]);
 
+        $mode = $request->input('mode', 'set');
+
+        // ✅ پاکسازی: اعداد فارسی/عربی + علامت منفی + نقطه
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
             ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
@@ -508,7 +538,8 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+        // ✅ فقط اعداد، نقطه و علامت منفی مجاز
+        $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
             return response()->json([
@@ -519,22 +550,34 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        if ($quantity < 0) {
+        // ✅ در حالت set، منفی مجاز نیست
+        if ($mode === 'set' && $quantity < 0) {
             return response()->json([
                 'success' => false,
                 'error'   => 'مقدار نمی‌تواند منفی باشد.',
             ], 422);
         }
 
-        $packaging->stock = $quantity;
+        // ✅ اعمال بر اساس mode
+        if ($mode === 'adjust') {
+            $newStock = max(0, (float) $packaging->stock + $quantity);
+        } else {
+            $newStock = max(0, $quantity);
+        }
+
+        $packaging->stock = $newStock;
+
+        // ✅ محاسبه مجدد baseline_consumed
         $packaging->baseline_consumed = $this->calculatePackagingConsumed($packaging);
         $packaging->save();
 
+        $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
+
         return response()->json([
             'success'            => true,
-            'stock'              => $quantity,
+            'stock'              => $newStock,
             'baseline_consumed'  => $packaging->baseline_consumed,
-            'message'            => 'موجودی با موفقیت به‌روزرسانی شد.',
+            'message'            => 'موجودی با موفقیت به‌روزرسانی شد' . $modeLabel . '.',
         ]);
     }
 
@@ -543,9 +586,11 @@ class InventoryController extends Controller
         $request->validate([
             'field'    => 'required|in:raw,wax,shoulder,waste_mum,glaze1300,warehouse,unpackaged',
             'quantity' => 'required|string',
+            'mode'     => 'nullable|in:set,adjust',
         ]);
 
         $field = $request->input('field');
+        $mode  = $request->input('mode', 'set');
 
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
@@ -558,7 +603,7 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+        $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($field === 'unpackaged' && ($cleanQty === '' || $rawInput === 'auto')) {
             $product->unpackaged_manual_stock = null;
@@ -581,7 +626,7 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        if ($quantity < 0) {
+        if ($mode === 'set' && $quantity < 0) {
             return response()->json([
                 'success' => false,
                 'error'   => 'مقدار نمی‌تواند منفی باشد.',
@@ -599,60 +644,94 @@ class InventoryController extends Controller
         }
 
         try {
+            $newStock = 0;
+
             switch ($field) {
                 case 'raw':
-                    RawInventory::updateOrCreate(
-                        ['product_id' => $product->id],
-                        ['stock' => $quantity]
-                    );
+                    $inv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                    if ($mode === 'adjust') {
+                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                    } else {
+                        $inv->stock = $quantity;
+                    }
+                    $inv->save();
+                    $newStock = $inv->stock;
                     break;
 
                 case 'wax':
-                    WaxInventory::updateOrCreate(
-                        ['product_id' => $product->id],
-                        ['stock' => $quantity]
-                    );
+                    $inv = WaxInventory::firstOrCreate(['product_id' => $product->id]);
+                    if ($mode === 'adjust') {
+                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                    } else {
+                        $inv->stock = $quantity;
+                    }
+                    $inv->save();
+                    $newStock = $inv->stock;
                     break;
 
                 case 'shoulder':
-                    ShoulderInventory::updateOrCreate(
-                        ['product_id' => $product->id],
-                        ['stock' => $quantity]
-                    );
+                    $inv = ShoulderInventory::firstOrCreate(['product_id' => $product->id]);
+                    if ($mode === 'adjust') {
+                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                    } else {
+                        $inv->stock = $quantity;
+                    }
+                    $inv->save();
+                    $newStock = $inv->stock;
                     break;
 
                 case 'waste_mum':
-                    WasteMumInventory::updateOrCreate(
-                        ['product_id' => $product->id],
-                        ['stock' => $quantity]
-                    );
+                    $inv = WasteMumInventory::firstOrCreate(['product_id' => $product->id]);
+                    if ($mode === 'adjust') {
+                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                    } else {
+                        $inv->stock = $quantity;
+                    }
+                    $inv->save();
+                    $newStock = $inv->stock;
                     break;
 
                 case 'glaze1300':
-                    Glaze1300Inventory::updateOrCreate(
-                        ['product_id' => $product->id],
-                        ['stock' => $quantity]
-                    );
+                    $inv = Glaze1300Inventory::firstOrCreate(['product_id' => $product->id]);
+                    if ($mode === 'adjust') {
+                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                    } else {
+                        $inv->stock = $quantity;
+                    }
+                    $inv->save();
+                    $newStock = $inv->stock;
                     break;
 
                 case 'warehouse':
-                    WarehouseInventory::updateOrCreate(
-                        ['product_id' => $product->id],
-                        ['stock' => $quantity]
-                    );
+                    $inv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
+                    if ($mode === 'adjust') {
+                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                    } else {
+                        $inv->stock = $quantity;
+                    }
+                    $inv->save();
+                    $newStock = $inv->stock;
                     break;
 
                 case 'unpackaged':
-                    $product->unpackaged_manual_stock = $quantity;
+                    if ($mode === 'adjust') {
+                        $current = $this->calculateUnpackagedStock($product);
+                        $product->unpackaged_manual_stock = max(0, $current + $quantity);
+                    } else {
+                        $product->unpackaged_manual_stock = $quantity;
+                    }
                     $product->save();
+                    $newStock = $product->unpackaged_manual_stock;
                     break;
             }
 
+            $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
+
             return response()->json([
                 'success' => true,
-                'stock'   => $quantity,
+                'stock'   => $newStock,
                 'is_auto' => false,
-                'message' => 'موجودی با موفقیت به‌روزرسانی شد.',
+                'message' => 'موجودی با موفقیت به‌روزرسانی شد' . $modeLabel . '.',
             ]);
 
         } catch (\Exception $e) {

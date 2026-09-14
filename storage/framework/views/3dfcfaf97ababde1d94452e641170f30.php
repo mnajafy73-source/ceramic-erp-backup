@@ -130,6 +130,47 @@
             display: flex;
             gap: 8px;
         }
+
+        /* ✅ لودینگ تمام‌صفحه برای واردات */
+        #importOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 9999;
+            color: white;
+            text-align: center;
+            padding-top: 25vh;
+        }
+        #importOverlay .spinner-border {
+            width: 5rem;
+            height: 5rem;
+            border-width: 0.5rem;
+        }
+        #importOverlay h4 {
+            margin-top: 2rem;
+            font-weight: bold;
+        }
+        #importOverlay p {
+            margin-top: 1rem;
+            opacity: 0.8;
+        }
+
+        /* ✅ Toast پیام */
+        .toast-container-custom {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            max-width: 90%;
+            width: 500px;
+        }
+        .toast-container-custom .alert {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+        }
+
         @media (max-width: 991px) {
             .sidebar {
                 transform: translateX(100%);
@@ -148,6 +189,16 @@
     <?php echo $__env->yieldPushContent('styles'); ?>
 </head>
 <body>
+
+    
+    <div id="importOverlay">
+        <div class="spinner-border text-warning" role="status"></div>
+        <h4>در حال واردات خودکار از فایل اکسل...</h4>
+        <p>لطفاً این پنجره را نبندید. این عملیات ممکن است چند دقیقه طول بکشد.</p>
+    </div>
+
+    
+    <div class="toast-container-custom" id="toastContainer"></div>
 
     <div id="sidebarOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1040;" onclick="closeSidebar()"></div>
 
@@ -231,10 +282,13 @@
                 <i class="fas fa-chart-line"></i> آمار
             </a>
 
-            <!-- ۱۰. وارد کردن -->
-            <a href="<?php echo e(route('import.index')); ?>" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>">
-                <i class="fas fa-upload"></i> وارد کردن
-            </a>
+            <!-- ۱۰. وارد کردن (✅ فرم POST با AJAX) -->
+            <form method="POST" action="<?php echo e(route('import.from-path')); ?>" id="sidebarImportForm" class="m-0 p-0">
+                <?php echo csrf_field(); ?>
+                <button type="submit" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>" id="sidebarImportBtn">
+                    <i class="fas fa-upload"></i> وارد کردن
+                </button>
+            </form>
 
             <hr class="text-white-50 mx-3 my-2">
 
@@ -353,6 +407,70 @@
             submenu.classList.toggle('open');
             button.classList.toggle('open');
         }
+
+        // ✅ نمایش Toast پیام
+        function showToast(message, type) {
+            const container = document.getElementById('toastContainer');
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-' + (type === 'success' ? 'success' : 'danger') + ' alert-dismissible fade show';
+            alert.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle') + ' me-2"></i>' + message +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            container.appendChild(alert);
+            setTimeout(function() {
+                if (alert.parentNode) alert.remove();
+            }, 8000);
+        }
+
+        // ✅ مدیریت دکمه «وارد کردن» در سایدبار با AJAX
+        document.getElementById('sidebarImportForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!confirm('آیا از شروع واردات خودکار مطمئن هستید؟\n\nتمام داده‌های تولید، کوره، فروش و مواد سازی از فایل اکسل بازنویسی می‌شوند.\n\nاین عملیات ممکن است چند دقیقه طول بکشد.')) {
+                return;
+            }
+
+            const overlayEl = document.getElementById('importOverlay');
+            const btn = document.getElementById('sidebarImportBtn');
+            const originalBtnHtml = btn.innerHTML;
+
+            overlayEl.style.display = 'block';
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال واردات...';
+
+            try {
+                const formData = new FormData(this);
+                const response = await fetch(this.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                overlayEl.style.display = 'none';
+                btn.disabled = false;
+                btn.innerHTML = originalBtnHtml;
+
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                    // ✅ رفرش صفحه فعلی بعد از 1.5 ثانیه (همون URL می‌مونه)
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showToast(data.message, 'error');
+                }
+
+            } catch (error) {
+                overlayEl.style.display = 'none';
+                btn.disabled = false;
+                btn.innerHTML = originalBtnHtml;
+                showToast('خطا در ارتباط با سرور: ' + error.message, 'error');
+            }
+        });
     </script>
     <?php echo $__env->yieldPushContent('scripts'); ?>
 </body>

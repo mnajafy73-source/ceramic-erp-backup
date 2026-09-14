@@ -29,6 +29,7 @@ use App\Models\WarehouseInventory;
 use App\Models\ShoulderInventory;
 use App\Models\WasteMumInventory;
 use App\Helpers\ImportFlag;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Morilog\Jalali\Jalalian;
@@ -41,13 +42,16 @@ class ImportController extends Controller
         return view('import.index');
     }
 
-    public function importFromPath()
+    public function importFromPath(Request $request)
     {
         $filePath = env('EXCEL_FILE_PATH');
 
         if (empty($filePath) || !file_exists($filePath)) {
-            return redirect()->route('import.index')
-                ->withErrors(['file' => 'مسیر فایل اکسل در فایل .env تنظیم نشده یا فایل وجود ندارد.']);
+            $msg = 'مسیر فایل اکسل در فایل .env تنظیم نشده یا فایل وجود ندارد.';
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'error', 'message' => $msg]);
+            }
+            return redirect()->back()->with('error', $msg);
         }
 
         ImportFlag::$isImporting = true;
@@ -98,22 +102,37 @@ class ImportController extends Controller
 
         } catch (\Exception $e) {
             ImportFlag::$isImporting = false;
-            return redirect()->route('import.index')
-                ->withErrors(['file' => 'خطا در خواندن فایل: ' . $e->getMessage()]);
+            $msg = 'خطا در خواندن فایل: ' . $e->getMessage();
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'error', 'message' => $msg]);
+            }
+            return redirect()->back()->with('error', $msg);
         }
 
         ImportFlag::$isImporting = false;
 
+        // ✅ ساخت پیام نهایی
         if ($anySuccess) {
-            $message = '✅ واردات خودکار با موفقیت انجام شد و موجودی‌ها به‌روز شدند.';
+            $message = 'واردات خودکار با موفقیت انجام شد و موجودی‌ها به‌روز شدند.';
             if (!empty($errors)) {
                 $message .= ' ⚠️ اما برخی خطاها رخ داد: ' . implode(' | ', $errors);
             }
-            return redirect()->route('import.index')->with('success', $message);
+            $status = 'success';
         } else {
-            return redirect()->route('import.index')
-                ->withErrors(['file' => '❌ هیچ برگه‌ای با موفقیت وارد نشد. خطاها: ' . implode(' | ', $errors)]);
+            $message = 'هیچ برگه‌ای با موفقیت وارد نشد. خطاها: ' . implode(' | ', $errors);
+            $status = 'error';
         }
+
+        // ✅ پاسخ JSON برای درخواست‌های AJAX (بدون تغییر صفحه)
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status'  => $status,
+                'message' => $message,
+            ]);
+        }
+
+        // ✅ fallback برای درخواست‌های معمولی (اگه JS غیرفعال بود)
+        return redirect()->back()->with($status === 'success' ? 'success' : 'error', $message);
     }
 
     private function calculateRawStock($product)
@@ -204,7 +223,6 @@ class ImportController extends Controller
             ->where('kiln_type', 'kiln_3')->where('firing_subtype', 'mum')
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        // ✅ داده‌های تجمعی تولید و مصرف برای محاسبه دلتای موجودی خام
         $rawProductionAgg = Production::select('product_id', DB::raw('SUM(quantity) as total'))
             ->whereNotNull('press_id')
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
@@ -323,8 +341,6 @@ class ImportController extends Controller
                     $inv->save();
                 }
 
-                // ✅ موجودی خام: دلتا از تفاضل تولید و مصرف (نه از تفاضل calc تجمعی)
-                // این باعث میشه حتی وقتی calc تجمعی صفر باشه (مثل ترموکوپل)، دلتای واقعی اعمال بشه
                 $prodDelta    = ($after['raw_production'][$id] ?? 0) - ($before['raw_production'][$id] ?? 0);
                 $tonneliDelta = ($after['raw_tonneli'][$id]    ?? 0) - ($before['raw_tonneli'][$id]    ?? 0);
                 $shuttleDelta = ($after['raw_shuttle'][$id]    ?? 0) - ($before['raw_shuttle'][$id]    ?? 0);

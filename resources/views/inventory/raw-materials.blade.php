@@ -109,6 +109,40 @@
         color: #6c757d;
         margin-top: 6px;
     }
+
+    /* ✅ استایل toggle حالت ویرایش */
+    .mode-toggle-wrapper {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 12px 14px;
+        background: #f8f9fa;
+        margin-bottom: 14px;
+    }
+    .mode-toggle-wrapper .btn-group { width: 100%; }
+    .mode-toggle-wrapper .btn { flex: 1; font-weight: 600; }
+
+    /* ✅ استایل input در حالت adjust */
+    .edit-stock-input.mode-adjust {
+        border-color: #198754 !important;
+        background: #f0fff4 !important;
+        box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.15) !important;
+    }
+
+    /* ✅ نمایش مقدار فعلی */
+    .current-stock-info {
+        background: #fffbea;
+        border: 1px solid #ffe58f;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 13px;
+        margin-top: 8px;
+    }
+    .current-stock-info .value {
+        font-weight: bold;
+        color: #b8860b;
+        direction: ltr;
+        display: inline-block;
+    }
 </style>
 @endpush
 
@@ -192,22 +226,75 @@
         });
     }
 
-    function formatNumber(value) {
-        var num = String(value).replace(/,/g, '');
-        if (num === '' || isNaN(num)) return '0';
-        var parts = num.split('.');
+    // ✅ formatNumber اصلاح‌شده: اعشار اضافی حذف میشه
+    // allowDecimal=true برای تن، false برای گرم
+    function formatNumber(value, allowDecimal) {
+        if (value === null || value === undefined || value === '') return '0';
+
+        var num = parseFloat(String(value).replace(/,/g, ''));
+        if (isNaN(num)) return '0';
+
+        var str;
+        if (allowDecimal) {
+            str = num.toString();
+        } else {
+            str = Math.round(num).toString();
+        }
+
+        var isNegative = str.startsWith('-');
+        if (isNegative) str = str.substring(1);
+
+        var parts = str.split('.');
         var integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        return parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
+
+        var result = parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
+        return (isNegative ? '-' : '') + result;
+    }
+
+    // ✅ مقدار فعلی رو از سلول جدول می‌خونه (به گرم)
+    function getCurrentValueFromTable(materialId) {
+        var row = document.querySelector('tr[data-material-id="' + materialId + '"]');
+        if (!row) return 0;
+
+        var cell = row.querySelector('.gram-value');
+        if (!cell) return 0;
+
+        var text = cell.textContent.trim().replace(/,/g, '').replace(/[۰-۹]/g, function(d) {
+            return String.fromCharCode(d.charCodeAt(0) - 1776);
+        }).replace(/[٠-٩]/g, function(d) {
+            return String.fromCharCode(d.charCodeAt(0) - 1584);
+        });
+
+        var num = parseFloat(text);
+        return isNaN(num) ? 0 : num;
     }
 
     function openEditStockModal(materialId, materialName, stockInGram) {
         document.getElementById('editStockMaterialId').value = materialId;
         document.getElementById('editStockMaterialName').innerHTML = materialName;
 
-        setUnit('gram');
-        document.getElementById('editStockInput').value = formatNumber(stockInGram);
-        window.currentStockInGram = stockInGram;
+        // ✅ مقدار رو از سلول جدول می‌خونیم (نه از onclick)
+        var tableValue = getCurrentValueFromTable(materialId);
+        var actualValue = (tableValue !== 0 || stockInGram === 0) ? tableValue : stockInGram;
+
+        // ✅ ریست به گرم و حالت set
+        currentUnit = 'gram';
+        document.getElementById('editStockUnit').value = 'gram';
+        document.getElementById('modeSet').checked = true;
+
+        // UI واحد
+        var gramBtn = document.getElementById('btnUnitGram');
+        var tonBtn = document.getElementById('btnUnitTon');
+        gramBtn.classList.add('btn-primary');
+        gramBtn.classList.remove('btn-outline-primary');
+        tonBtn.classList.remove('btn-primary');
+        tonBtn.classList.add('btn-outline-primary');
+        document.getElementById('inputUnitLabel').textContent = 'گرم';
+
+        document.getElementById('editStockInput').value = formatNumber(actualValue, false);
         document.getElementById('editStockError').style.display = 'none';
+
+        updateModeUI();
 
         var modal = new bootstrap.Modal(document.getElementById('editStockModal'));
         modal.show();
@@ -220,7 +307,58 @@
     }
 
     var currentUnit = 'gram';
+
+    // ✅ تغییر UI بر اساس حالت انتخاب‌شده
+    function updateModeUI() {
+        var mode = document.querySelector('input[name="editMode"]:checked').value;
+        var input = document.getElementById('editStockInput');
+        var hint = document.getElementById('editStockHint');
+        var currentInfo = document.getElementById('currentStockInfo');
+
+        if (mode === 'adjust') {
+            // ✅ در حالت adjust، مقدار پاک میشه
+            input.value = '';
+            input.placeholder = (currentUnit === 'gram') ? 'مثلاً 2000 یا -2000' : 'مثلاً 2 یا -2';
+            input.classList.add('mode-adjust');
+            hint.innerHTML = '<i class="fas fa-info-circle me-1"></i> عدد مثبت = اضافه، عدد منفی = کسر';
+            currentInfo.style.display = 'block';
+            updateCurrentStockDisplay();
+        } else {
+            input.placeholder = '0';
+            input.classList.remove('mode-adjust');
+            hint.innerHTML = '<i class="fas fa-info-circle me-1"></i> می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.';
+            currentInfo.style.display = 'none';
+
+            // ✅ در حالت set، مقدار فعلی رو با واحد فعلی نشون بده
+            var materialId = document.getElementById('editStockMaterialId').value;
+            var currentGram = getCurrentValueFromTable(materialId);
+            if (currentUnit === 'ton') {
+                input.value = formatNumber(currentGram / 1000000, true);
+            } else {
+                input.value = formatNumber(currentGram, false);
+            }
+        }
+
+        input.focus();
+    }
+
+    // ✅ نمایش مقدار فعلی در adjust
+    function updateCurrentStockDisplay() {
+        var materialId = document.getElementById('editStockMaterialId').value;
+        var currentGram = getCurrentValueFromTable(materialId);
+        var display;
+
+        if (currentUnit === 'ton') {
+            display = formatNumber(currentGram / 1000000, true) + ' تن';
+        } else {
+            display = formatNumber(currentGram, false) + ' گرم';
+        }
+
+        document.getElementById('currentStockValue').textContent = display;
+    }
+
     function setUnit(unit) {
+        var previousUnit = currentUnit;
         currentUnit = unit;
         document.getElementById('editStockUnit').value = unit;
 
@@ -241,28 +379,49 @@
             document.getElementById('inputUnitLabel').textContent = 'تن';
         }
 
+        var mode = document.querySelector('input[name="editMode"]:checked').value;
         var input = document.getElementById('editStockInput');
-        var raw = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
 
-        if (raw !== '' && !isNaN(raw)) {
-            var val = parseFloat(raw);
-            if (unit === 'ton') {
-                input.value = formatNumber(val / 1000000);
-            } else {
-                input.value = formatNumber(val * 1000000);
+        if (mode === 'set') {
+            // ✅ در حالت set، مقدار رو تبدیل کن
+            var raw = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
+            if (raw !== '' && !isNaN(raw)) {
+                var val = parseFloat(raw);
+                if (previousUnit === 'gram' && unit === 'ton') {
+                    input.value = formatNumber(val / 1000000, true);
+                } else if (previousUnit === 'ton' && unit === 'gram') {
+                    input.value = formatNumber(val * 1000000, false);
+                }
             }
+        } else {
+            // ✅ در حالت adjust، مقدار رو پاک کن (کاربر خودش با واحد جدید وارد کنه)
+            input.value = '';
+            input.placeholder = (unit === 'gram') ? 'مثلاً 2000 یا -2000' : 'مثلاً 2 یا -2';
+            updateCurrentStockDisplay();
         }
+
+        input.focus();
     }
 
     function saveMaterialStock() {
         var materialId = document.getElementById('editStockMaterialId').value;
+        var mode = document.querySelector('input[name="editMode"]:checked').value;
         var input = document.getElementById('editStockInput');
         var saveBtn = document.getElementById('editStockSaveBtn');
         var errorBox = document.getElementById('editStockError');
-        var rawValue = toLatinDigits(input.value).replace(/[^0-9.]/g, '');
 
-        if (rawValue === '' || isNaN(rawValue)) {
+        // ✅ پاکسازی با حفظ علامت منفی
+        var cleaned = toLatinDigits(input.value).trim().replace(/,/g, '');
+
+        if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
             errorBox.textContent = 'عدد معتبر وارد کنید.';
+            errorBox.style.display = 'block';
+            return;
+        }
+
+        // در حالت set، منفی مجاز نیست
+        if (mode === 'set' && cleaned.startsWith('-')) {
+            errorBox.textContent = 'در حالت «مقدار جدید»، عدد منفی مجاز نیست. لطفاً حالت «کسر / اضافه» را انتخاب کنید.';
             errorBox.style.display = 'block';
             return;
         }
@@ -281,7 +440,7 @@
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            body: JSON.stringify({ quantity: rawValue, unit: currentUnit }),
+            body: JSON.stringify({ quantity: cleaned, unit: currentUnit, mode: mode }),
         })
         .then(function(response) {
             return response.json().then(function(data) {
@@ -304,7 +463,7 @@
             var row = document.querySelector('tr[data-material-id="' + materialId + '"]');
             if (row) {
                 var gramCell = row.querySelector('.gram-value');
-                if (gramCell) gramCell.textContent = formatNumber(data.stock);
+                if (gramCell) gramCell.textContent = formatNumber(data.stock, false);
 
                 var tonCell = row.querySelector('.ton-value');
                 if (tonCell) {
@@ -350,28 +509,68 @@
     }
 
     // ============================================================
-    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما
+    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما + پشتیبانی از منفی
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         var input = document.getElementById('editStockInput');
         if (!input) return;
 
+        document.querySelectorAll('input[name="editMode"]').forEach(function(el) {
+            el.addEventListener('change', updateModeUI);
+        });
+
         input.addEventListener('input', function() {
+            var mode = document.querySelector('input[name="editMode"]:checked').value;
+            var allowNegative = (mode === 'adjust');
+            var allowDecimal = (currentUnit === 'ton');
+
+            var originalValue = this.value;
+            var hasLeadingMinus = /^\s*-/.test(originalValue);
+            if (!allowNegative) hasLeadingMinus = false;
+
             var cursorPos = this.selectionStart;
-            var valueBeforeCursor = this.value.substring(0, cursorPos);
+            var valueBeforeCursor = originalValue.substring(0, cursorPos);
             var digitsBeforeCursor = toLatinDigits(valueBeforeCursor).replace(/[^0-9]/g, '').length;
-            var raw = toLatinDigits(this.value).replace(/[^0-9]/g, '');
-            var formatted = raw === '' ? '' : formatNumber(raw);
+
+            // استخراج اعداد و نقطه (اگه اعشار مجاز باشه)
+            var raw;
+            if (allowDecimal) {
+                raw = toLatinDigits(originalValue).replace(/[^0-9.]/g, '');
+            } else {
+                raw = toLatinDigits(originalValue).replace(/[^0-9]/g, '');
+            }
+
+            var formatted;
+            if (raw === '' || raw === '.') {
+                formatted = hasLeadingMinus ? '-' : '';
+            } else {
+                // تبدیل به عدد و فرمت
+                var num = parseFloat(raw);
+                if (isNaN(num)) {
+                    formatted = hasLeadingMinus ? '-' : '';
+                } else {
+                    formatted = (hasLeadingMinus ? '-' : '') + formatNumber(num, allowDecimal);
+                }
+            }
+
             this.value = formatted;
 
+            if (raw === '' || raw === '.') {
+                var pos = hasLeadingMinus ? 1 : 0;
+                try { this.setSelectionRange(pos, pos); } catch (e) {}
+                return;
+            }
+
             if (digitsBeforeCursor === 0) {
-                this.setSelectionRange(0, 0);
+                var pos2 = hasLeadingMinus ? 1 : 0;
+                try { this.setSelectionRange(pos2, pos2); } catch (e) {}
                 return;
             }
 
             var newCursor = 0;
             var digitCount = 0;
-            for (var i = 0; i < formatted.length; i++) {
+            var startAt = hasLeadingMinus ? 1 : 0;
+            for (var i = startAt; i < formatted.length; i++) {
                 newCursor = i + 1;
                 if (/[0-9]/.test(formatted[i])) {
                     digitCount++;
@@ -537,6 +736,24 @@
                 <input type="hidden" id="editStockMaterialId">
                 <input type="hidden" id="editStockUnit" value="gram">
 
+                {{-- ✅ Toggle حالت ویرایش --}}
+                <div class="mode-toggle-wrapper">
+                    <label class="form-label fw-bold mb-2">
+                        <i class="fas fa-sliders-h me-1"></i> حالت ویرایش:
+                    </label>
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="editMode" id="modeSet" value="set" checked>
+                        <label class="btn btn-outline-primary" for="modeSet">
+                            <i class="fas fa-pen me-1"></i> مقدار جدید
+                        </label>
+
+                        <input type="radio" class="btn-check" name="editMode" id="modeAdjust" value="adjust">
+                        <label class="btn btn-outline-success" for="modeAdjust">
+                            <i class="fas fa-exchange-alt me-1"></i> کسر / اضافه
+                        </label>
+                    </div>
+                </div>
+
                 <label class="form-label fw-bold">واحد ورودی:</label>
                 <div class="unit-toggle">
                     <button type="button" class="btn btn-primary" id="btnUnitGram" onclick="setUnit('gram')">
@@ -548,18 +765,24 @@
                 </div>
 
                 <label class="form-label fw-bold">
-                    موجودی جدید (<span id="inputUnitLabel">گرم</span>):
+                    مقدار (<span id="inputUnitLabel">گرم</span>):
                 </label>
                 <input type="text"
                        id="editStockInput"
                        class="form-control edit-stock-input"
                        placeholder="0"
-                       autocomplete="off"
-                       inputmode="numeric">
+                       autocomplete="off">
 
-                <div class="edit-stock-hint">
+                <div class="edit-stock-hint" id="editStockHint">
                     <i class="fas fa-info-circle me-1"></i>
                     می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.
+                </div>
+
+                {{-- ✅ نمایش مقدار فعلی (فقط در حالت adjust) --}}
+                <div class="current-stock-info" id="currentStockInfo" style="display:none;">
+                    <i class="fas fa-cube me-1 text-warning"></i>
+                    مقدار فعلی:
+                    <span class="value" id="currentStockValue">0</span>
                 </div>
 
                 <div id="editStockError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
