@@ -96,6 +96,27 @@
         direction: ltr;
         display: inline-block;
     }
+
+    /* ✅ آخرین تغییرات */
+    .change-log-wrapper { margin-top: 16px; border-top: 1px dashed #dee2e6; padding-top: 12px; }
+    .change-log-list {
+        max-height: 220px; overflow-y: auto; background: #f8f9fa;
+        border-radius: 8px; padding: 4px 0; border: 1px solid #e9ecef;
+    }
+    .change-log-item {
+        padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 12px;
+        display: flex; justify-content: space-between; align-items: center;
+        gap: 8px; flex-wrap: wrap;
+    }
+    .change-log-item:last-child { border-bottom: none; }
+    .change-log-item .log-date { color: #6c757d; font-size: 11px; }
+    .change-log-item .log-change { direction: ltr; font-family: 'Courier New', monospace; font-weight: bold; }
+    .change-log-item .log-old { color: #dc3545; text-decoration: line-through; opacity: 0.7; }
+    .change-log-item .log-arrow { color: #6c757d; margin: 0 4px; }
+    .change-log-item .log-new { color: #198754; }
+    .change-log-item .log-mode { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+    .change-log-item .log-mode.adjust { background: #fff3cd; color: #664d03; }
+    .change-log-item .log-mode.set { background: #cfe2ff; color: #084298; }
 </style>
 @endpush
 
@@ -233,6 +254,9 @@
 
         updateModeUI();
 
+        // ✅ بارگذاری آخرین تغییرات
+        loadChangeLogs('packaging', packagingId);
+
         var modal = new bootstrap.Modal(document.getElementById('editStockModal'));
         modal.show();
 
@@ -365,6 +389,53 @@
             toast.style.opacity = '0';
             setTimeout(function() { toast.remove(); }, 500);
         }, 2200);
+    }
+
+    // ✅ بارگذاری آخرین تغییرات
+    function loadChangeLogs(type, id, field) {
+        var wrapper = document.getElementById('changeLogWrapper');
+        var list = document.getElementById('changeLogList');
+        if (!wrapper || !list) return;
+
+        wrapper.style.display = 'block';
+        list.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...</div>';
+
+        var url = '{{ route("inventory.change-logs") }}?type=' + encodeURIComponent(type) + '&id=' + id;
+        if (field) url += '&field=' + encodeURIComponent(field);
+
+        fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.logs || data.logs.length === 0) {
+                list.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-inbox me-1"></i> هنوز تغییری ثبت نشده</div>';
+                return;
+            }
+
+            var html = '';
+            data.logs.forEach(function(log) {
+                var modeLabel = (log.mode === 'adjust') ? 'کسر/اضافه' : 'مقدار جدید';
+                var modeClass = (log.mode === 'adjust') ? 'adjust' : 'set';
+                html += '<div class="change-log-item">' +
+                    '<span class="log-date"><i class="far fa-clock me-1"></i>' + log.jalali + '</span>' +
+                    '<span class="log-change">' +
+                        '<span class="log-old">' + formatNumber(log.old_value) + '</span>' +
+                        '<span class="log-arrow">←</span>' +
+                        '<span class="log-new">' + formatNumber(log.new_value) + '</span>' +
+                    '</span>' +
+                    '<span class="log-mode ' + modeClass + '">' + modeLabel + '</span>' +
+                '</div>';
+            });
+            list.innerHTML = html;
+        })
+        .catch(function(err) {
+            list.innerHTML = '<div class="text-center text-danger py-3">خطا در بارگذاری</div>';
+            console.error(err);
+        });
     }
 
     // ============================================================
@@ -618,6 +689,18 @@
                 </div>
 
                 <div id="editStockError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
+
+                {{-- ✅ آخرین تغییرات --}}
+                <div class="change-log-wrapper" id="changeLogWrapper" style="display:none;">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-history me-1"></i> آخرین تغییرات:
+                    </label>
+                    <div class="change-log-list" id="changeLogList">
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">

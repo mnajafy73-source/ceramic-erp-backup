@@ -90,21 +90,25 @@
     .edit-cell-hint { font-size: 12px; color: #6c757d; margin-top: 6px; }
     .btn-auto-reset { font-size: 12px; padding: 4px 12px; }
 
+    /* ✅ استایل toggle حالت ویرایش */
     .mode-toggle-wrapper {
         border: 1px solid #e9ecef;
         border-radius: 8px;
         padding: 12px 14px;
         background: #f8f9fa;
+        margin-bottom: 14px;
     }
     .mode-toggle-wrapper .btn-group { width: 100%; }
     .mode-toggle-wrapper .btn { flex: 1; font-weight: 600; }
 
+    /* ✅ استایل input در حالت adjust */
     .edit-cell-input.mode-adjust {
         border-color: #198754 !important;
         background: #f0fff4 !important;
         box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.15) !important;
     }
 
+    /* ✅ نمایش مقدار فعلی */
     .current-stock-info {
         background: #fffbea;
         border: 1px solid #ffe58f;
@@ -113,7 +117,33 @@
         font-size: 13px;
         margin-top: 8px;
     }
-    .current-stock-info .value { font-weight: bold; color: #b8860b; direction: ltr; display: inline-block; }
+    .current-stock-info .value {
+        font-weight: bold;
+        color: #b8860b;
+        direction: ltr;
+        display: inline-block;
+    }
+
+    /* ✅ آخرین تغییرات */
+    .change-log-wrapper { margin-top: 16px; border-top: 1px dashed #dee2e6; padding-top: 12px; }
+    .change-log-list {
+        max-height: 220px; overflow-y: auto; background: #f8f9fa;
+        border-radius: 8px; padding: 4px 0; border: 1px solid #e9ecef;
+    }
+    .change-log-item {
+        padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 12px;
+        display: flex; justify-content: space-between; align-items: center;
+        gap: 8px; flex-wrap: wrap;
+    }
+    .change-log-item:last-child { border-bottom: none; }
+    .change-log-item .log-date { color: #6c757d; font-size: 11px; }
+    .change-log-item .log-change { direction: ltr; font-family: 'Courier New', monospace; font-weight: bold; }
+    .change-log-item .log-old { color: #dc3545; text-decoration: line-through; opacity: 0.7; }
+    .change-log-item .log-arrow { color: #6c757d; margin: 0 4px; }
+    .change-log-item .log-new { color: #198754; }
+    .change-log-item .log-mode { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+    .change-log-item .log-mode.adjust { background: #fff3cd; color: #664d03; }
+    .change-log-item .log-mode.set { background: #cfe2ff; color: #084298; }
 </style>
 <?php $__env->stopPush(); ?>
 
@@ -200,24 +230,22 @@
         });
     }
 
+    // ✅ formatNumber اصلاح‌شده: اعشار اضافی حذف میشه
     function formatNumber(value) {
         if (value === null || value === undefined || value === '') return '0';
 
         var num = parseFloat(String(value).replace(/,/g, ''));
         if (isNaN(num)) return '0';
 
-        var str = num.toString();
+        var str = Math.round(num).toString();
         var isNegative = str.startsWith('-');
         if (isNegative) str = str.substring(1);
 
-        var parts = str.split('.');
-        var integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-
-        var result = parts.length > 1 ? integerPart + '.' + parts[1] : integerPart;
-        return (isNegative ? '-' : '') + result;
+        var integerPart = str.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        return (isNegative ? '-' : '') + integerPart;
     }
 
-    // ✅ مقدار فعلی رو از سلول جدول می‌خونه (نه از onclick)
+    // ✅ مقدار فعلی رو از سلول جدول می‌خونه
     function getCurrentValueFromTable(productId, field) {
         var row = document.querySelector('tr[data-product-id="' + productId + '"]');
         if (!row) return 0;
@@ -235,6 +263,20 @@
         return isNaN(num) ? 0 : num;
     }
 
+    // ✅ نقشه فیلد به type برای لاگ‌ها
+    function getLogTypeFromField(field) {
+        var typeMap = {
+            'raw': 'raw-inventory',
+            'wax': 'wax-inventory',
+            'shoulder': 'shoulder-inventory',
+            'waste_mum': 'waste-mum-inventory',
+            'glaze1300': 'glaze1300-inventory',
+            'warehouse': 'warehouse',
+            'unpackaged': 'product'
+        };
+        return typeMap[field] || 'product';
+    }
+
     function openEditCellModal(productId, productName, field, fieldLabel, currentValue, isManual) {
         document.getElementById('editCellProductId').value = productId;
         document.getElementById('editCellField').value = field;
@@ -242,18 +284,15 @@
             productName + '<br><small>کد: ' + document.getElementById('code-' + productId).textContent + '</small>';
         document.getElementById('editCellFieldLabel').textContent = fieldLabel;
 
-        // ✅ مقدار فعلی رو از جدول می‌خونیم (نه از onclick)
+        // ✅ مقدار فعلی رو از جدول می‌خونیم
         var tableValue = getCurrentValueFromTable(productId, field);
-
-        // اگه توی جدول مقدار بود، از اون استفاده می‌کنیم؛ وگرنه fallback به مقدار اولیه
         var actualValue = (tableValue !== 0 || currentValue === 0) ? tableValue : currentValue;
 
         document.getElementById('editCellInput').value = formatNumber(actualValue);
         document.getElementById('editCellError').style.display = 'none';
-
         document.getElementById('currentStockValue').textContent = formatNumber(actualValue);
 
-        // ✅ ریست به حالت پیش‌فرض (set)
+        // ✅ ریست به حالت set
         document.getElementById('modeSet').checked = true;
         updateModeUI();
 
@@ -263,6 +302,10 @@
         } else {
             autoBtn.style.display = 'none';
         }
+
+        // ✅ بارگذاری آخرین تغییرات
+        var logType = getLogTypeFromField(field);
+        loadChangeLogs(logType, productId, field);
 
         var modal = new bootstrap.Modal(document.getElementById('editCellModal'));
         modal.show();
@@ -274,6 +317,7 @@
         }, 400);
     }
 
+    // ✅ تغییر UI بر اساس حالت انتخاب‌شده
     function updateModeUI() {
         var mode = document.querySelector('input[name="editMode"]:checked').value;
         var input = document.getElementById('editCellInput');
@@ -281,6 +325,7 @@
         var currentInfo = document.getElementById('currentStockInfo');
 
         if (mode === 'adjust') {
+            input.value = '';
             input.placeholder = 'مثلاً 200 یا -200';
             input.classList.add('mode-adjust');
             hint.innerHTML = '<i class="fas fa-info-circle me-1"></i> عدد مثبت = اضافه، عدد منفی = کسر';
@@ -291,9 +336,10 @@
             hint.innerHTML = '<i class="fas fa-info-circle me-1"></i> می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.';
             currentInfo.style.display = 'none';
 
-            var raw = toLatinDigits(input.value).replace(/[^0-9.]/g, '');
-            var cleanNum = parseFloat(raw);
-            input.value = (raw === '' || isNaN(cleanNum)) ? '' : formatNumber(cleanNum);
+            var productId = document.getElementById('editCellProductId').value;
+            var field = document.getElementById('editCellField').value;
+            var currentVal = getCurrentValueFromTable(productId, field);
+            input.value = formatNumber(currentVal);
         }
 
         input.focus();
@@ -307,6 +353,7 @@
         var saveBtn = document.getElementById('editCellSaveBtn');
         var errorBox = document.getElementById('editCellError');
 
+        // ✅ پاکسازی
         var cleaned = toLatinDigits(input.value).trim().replace(/,/g, '');
 
         if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
@@ -316,7 +363,7 @@
         }
 
         if (mode === 'set' && cleaned.startsWith('-')) {
-            errorBox.textContent = 'در حالت «مقدار جدید»، عدد منفی مجاز نیست. لطفاً حالت «کسر / اضافه» را انتخاب کنید.';
+            errorBox.textContent = 'در حالت «مقدار جدید»، عدد منفی مجاز نیست.';
             errorBox.style.display = 'block';
             return;
         }
@@ -443,6 +490,56 @@
         }, 2200);
     }
 
+    // ✅ بارگذاری آخرین تغییرات
+    function loadChangeLogs(type, id, field) {
+        var wrapper = document.getElementById('changeLogWrapper');
+        var list = document.getElementById('changeLogList');
+        if (!wrapper || !list) return;
+
+        wrapper.style.display = 'block';
+        list.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...</div>';
+
+        var url = '<?php echo e(route("inventory.change-logs")); ?>?type=' + encodeURIComponent(type) + '&id=' + id;
+        if (field) url += '&field=' + encodeURIComponent(field);
+
+        fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.logs || data.logs.length === 0) {
+                list.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-inbox me-1"></i> هنوز تغییری ثبت نشده</div>';
+                return;
+            }
+
+            var html = '';
+            data.logs.forEach(function(log) {
+                var modeLabel = (log.mode === 'adjust') ? 'کسر/اضافه' : 'مقدار جدید';
+                var modeClass = (log.mode === 'adjust') ? 'adjust' : 'set';
+                html += '<div class="change-log-item">' +
+                    '<span class="log-date"><i class="far fa-clock me-1"></i>' + log.jalali + '</span>' +
+                    '<span class="log-change">' +
+                        '<span class="log-old">' + formatNumber(log.old_value) + '</span>' +
+                        '<span class="log-arrow">←</span>' +
+                        '<span class="log-new">' + formatNumber(log.new_value) + '</span>' +
+                    '</span>' +
+                    '<span class="log-mode ' + modeClass + '">' + modeLabel + '</span>' +
+                '</div>';
+            });
+            list.innerHTML = html;
+        })
+        .catch(function(err) {
+            list.innerHTML = '<div class="text-center text-danger py-3">خطا در بارگذاری</div>';
+            console.error(err);
+        });
+    }
+
+    // ============================================================
+    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما + پشتیبانی از منفی
+    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         var input = document.getElementById('editCellInput');
         if (!input) return;
@@ -841,7 +938,8 @@
                 <input type="hidden" id="editCellProductId">
                 <input type="hidden" id="editCellField">
 
-                <div class="mode-toggle-wrapper mb-3">
+                
+                <div class="mode-toggle-wrapper">
                     <label class="form-label fw-bold mb-2">
                         <i class="fas fa-sliders-h me-1"></i> حالت ویرایش:
                     </label>
@@ -870,6 +968,7 @@
                     می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.
                 </div>
 
+                
                 <div class="current-stock-info" id="currentStockInfo" style="display:none;">
                     <i class="fas fa-cube me-1 text-warning"></i>
                     مقدار فعلی:
@@ -888,6 +987,18 @@
                 </div>
 
                 <div id="editCellError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
+
+                
+                <div class="change-log-wrapper" id="changeLogWrapper" style="display:none;">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-history me-1"></i> آخرین تغییرات:
+                    </label>
+                    <div class="change-log-list" id="changeLogList">
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">

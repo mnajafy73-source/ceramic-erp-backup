@@ -98,6 +98,27 @@
         direction: ltr;
         display: inline-block;
     }
+
+    /* ✅ آخرین تغییرات */
+    .change-log-wrapper { margin-top: 16px; border-top: 1px dashed #dee2e6; padding-top: 12px; }
+    .change-log-list {
+        max-height: 220px; overflow-y: auto; background: #f8f9fa;
+        border-radius: 8px; padding: 4px 0; border: 1px solid #e9ecef;
+    }
+    .change-log-item {
+        padding: 6px 12px; border-bottom: 1px solid #e9ecef; font-size: 12px;
+        display: flex; justify-content: space-between; align-items: center;
+        gap: 8px; flex-wrap: wrap;
+    }
+    .change-log-item:last-child { border-bottom: none; }
+    .change-log-item .log-date { color: #6c757d; font-size: 11px; }
+    .change-log-item .log-change { direction: ltr; font-family: 'Courier New', monospace; font-weight: bold; }
+    .change-log-item .log-old { color: #dc3545; text-decoration: line-through; opacity: 0.7; }
+    .change-log-item .log-arrow { color: #6c757d; margin: 0 4px; }
+    .change-log-item .log-new { color: #198754; }
+    .change-log-item .log-mode { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+    .change-log-item .log-mode.adjust { background: #fff3cd; color: #664d03; }
+    .change-log-item .log-mode.set { background: #cfe2ff; color: #084298; }
 </style>
 @endpush
 
@@ -123,7 +144,6 @@
         $('[data-bs-toggle="tooltip"]').tooltip();
     });
 
-    // تبدیل اعداد فارسی/عربی به لاتین
     function toLatinDigits(str) {
         return String(str).replace(/[۰-۹]/g, function(d) {
             return String.fromCharCode(d.charCodeAt(0) - 1776);
@@ -132,7 +152,6 @@
         });
     }
 
-    // ✅ formatNumber اصلاح‌شده: اعشار اضافی حذف میشه
     function formatNumber(value) {
         if (value === null || value === undefined || value === '') return '0';
 
@@ -147,7 +166,6 @@
         return (isNegative ? '-' : '') + integerPart;
     }
 
-    // ✅ مقدار فعلی رو از سلول جدول می‌خونه
     function getCurrentValueFromTable(productId) {
         var row = document.querySelector('tr[data-product-id="' + productId + '"]');
         if (!row) return 0;
@@ -170,11 +188,10 @@
         document.getElementById('editStockProductName').innerHTML =
             productName + '<br><small>کد: ' + productCode + '</small>';
 
-        // ✅ مقدار رو از سلول جدول می‌خونیم (نه از onclick)
+        // ✅ مقدار رو از سلول جدول می‌خونیم
         var tableValue = getCurrentValueFromTable(productId);
         var actualValue = (tableValue !== 0 || currentStock === 0) ? tableValue : currentStock;
 
-        // ✅ ریست به حالت set
         document.getElementById('modeSet').checked = true;
 
         document.getElementById('editStockInput').value = formatNumber(actualValue);
@@ -182,6 +199,9 @@
         document.getElementById('currentStockValue').textContent = formatNumber(actualValue);
 
         updateModeUI();
+
+        // ✅ بارگذاری آخرین تغییرات
+        loadChangeLogs('warehouse', productId, 'warehouse');
 
         var modal = new bootstrap.Modal(document.getElementById('editStockModal'));
         modal.show();
@@ -193,7 +213,6 @@
         }, 400);
     }
 
-    // ✅ تغییر UI بر اساس حالت انتخاب‌شده
     function updateModeUI() {
         var mode = document.querySelector('input[name="editMode"]:checked').value;
         var input = document.getElementById('editStockInput');
@@ -212,7 +231,6 @@
             hint.innerHTML = '<i class="fas fa-info-circle me-1"></i> می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.';
             currentInfo.style.display = 'none';
 
-            // در حالت set، مقدار فعلی رو نشون بده
             var productId = document.getElementById('editStockProductId').value;
             var currentVal = getCurrentValueFromTable(productId);
             input.value = formatNumber(currentVal);
@@ -228,7 +246,6 @@
         var saveBtn    = document.getElementById('editStockSaveBtn');
         var errorBox   = document.getElementById('editStockError');
 
-        // ✅ پاکسازی با حفظ علامت منفی
         var cleaned = toLatinDigits(input.value).trim().replace(/,/g, '');
 
         if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
@@ -323,6 +340,53 @@
             toast.style.opacity = '0';
             setTimeout(function() { toast.remove(); }, 500);
         }, 2200);
+    }
+
+    // ✅ بارگذاری آخرین تغییرات
+    function loadChangeLogs(type, id, field) {
+        var wrapper = document.getElementById('changeLogWrapper');
+        var list = document.getElementById('changeLogList');
+        if (!wrapper || !list) return;
+
+        wrapper.style.display = 'block';
+        list.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...</div>';
+
+        var url = '{{ route("inventory.change-logs") }}?type=' + encodeURIComponent(type) + '&id=' + id;
+        if (field) url += '&field=' + encodeURIComponent(field);
+
+        fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.logs || data.logs.length === 0) {
+                list.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-inbox me-1"></i> هنوز تغییری ثبت نشده</div>';
+                return;
+            }
+
+            var html = '';
+            data.logs.forEach(function(log) {
+                var modeLabel = (log.mode === 'adjust') ? 'کسر/اضافه' : 'مقدار جدید';
+                var modeClass = (log.mode === 'adjust') ? 'adjust' : 'set';
+                html += '<div class="change-log-item">' +
+                    '<span class="log-date"><i class="far fa-clock me-1"></i>' + log.jalali + '</span>' +
+                    '<span class="log-change">' +
+                        '<span class="log-old">' + formatNumber(log.old_value) + '</span>' +
+                        '<span class="log-arrow">←</span>' +
+                        '<span class="log-new">' + formatNumber(log.new_value) + '</span>' +
+                    '</span>' +
+                    '<span class="log-mode ' + modeClass + '">' + modeLabel + '</span>' +
+                '</div>';
+            });
+            list.innerHTML = html;
+        })
+        .catch(function(err) {
+            list.innerHTML = '<div class="text-center text-danger py-3">خطا در بارگذاری</div>';
+            console.error(err);
+        });
     }
 
     // ============================================================
@@ -612,7 +676,6 @@
                 <div class="edit-stock-product-name" id="editStockProductName"></div>
                 <input type="hidden" id="editStockProductId">
 
-                {{-- ✅ Toggle حالت ویرایش --}}
                 <div class="mode-toggle-wrapper">
                     <label class="form-label fw-bold mb-2">
                         <i class="fas fa-sliders-h me-1"></i> حالت ویرایش:
@@ -642,7 +705,6 @@
                     می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.
                 </div>
 
-                {{-- ✅ نمایش مقدار فعلی (فقط در حالت adjust) --}}
                 <div class="current-stock-info" id="currentStockInfo" style="display:none;">
                     <i class="fas fa-cube me-1 text-warning"></i>
                     مقدار فعلی:
@@ -650,6 +712,18 @@
                 </div>
 
                 <div id="editStockError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
+
+                {{-- ✅ آخرین تغییرات --}}
+                <div class="change-log-wrapper" id="changeLogWrapper" style="display:none;">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-history me-1"></i> آخرین تغییرات:
+                    </label>
+                    <div class="change-log-list" id="changeLogList">
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-spinner fa-spin"></i> در حال بارگذاری...
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">

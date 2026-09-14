@@ -105,6 +105,9 @@ Route::middleware(['auth'])->group(function () {
     // موجودی
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
 
+    // ✅ آخرین تغییرات موجودی (API)
+    Route::get('/inventory/change-logs', [InventoryController::class, 'getChangeLogs'])->name('inventory.change-logs');
+
     // مواد اولیه موجودی
     Route::get('/inventory/raw-materials', [InventoryController::class, 'rawMaterialsStock'])->name('inventory.raw-materials');
     Route::post('/inventory/raw-materials/reorder', [InventoryController::class, 'reorderRawMaterials'])->name('inventory.raw-materials.reorder');

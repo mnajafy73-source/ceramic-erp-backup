@@ -14,14 +14,69 @@ use App\Models\WasteMumInventory;
 use App\Models\OpeningInventory;
 use App\Models\RawInventory;
 use App\Models\TonneliFiringItem;
+use App\Models\InventoryChangeLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Morilog\Jalali\Jalalian;
 
 class InventoryController extends Controller
 {
     public function index()
     {
         return view('inventory.index');
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ API آخرین تغییرات
+    // ═══════════════════════════════════════════════════════════
+    public function getChangeLogs(Request $request)
+    {
+        $request->validate([
+            'type'  => 'required|string',
+            'id'    => 'required|integer',
+            'field' => 'nullable|string',
+        ]);
+
+        $typeMap = [
+            'raw-material'        => RawMaterial::class,
+            'packaging'           => Packaging::class,
+            'warehouse'           => WarehouseInventory::class,
+            'raw-inventory'       => RawInventory::class,
+            'wax-inventory'       => WaxInventory::class,
+            'shoulder-inventory'  => ShoulderInventory::class,
+            'waste-mum-inventory' => WasteMumInventory::class,
+            'glaze1300-inventory' => Glaze1300Inventory::class,
+            'product'             => Product::class,
+        ];
+
+        $className = $typeMap[$request->type] ?? null;
+        if (!$className) {
+            return response()->json(['success' => false, 'error' => 'نوع نامعتبر']);
+        }
+
+        $query = InventoryChangeLog::where('loggable_type', $className)
+            ->where('loggable_id', $request->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(5);
+
+        if ($request->filled('field')) {
+            $query->where('field', $request->field);
+        }
+
+        $logs = $query->get()->map(function ($log) {
+            return [
+                'jalali'    => Jalalian::fromCarbon($log->created_at)->format('Y/m/d H:i'),
+                'old_value' => (float) $log->old_value,
+                'new_value' => (float) $log->new_value,
+                'mode'      => $log->mode,
+                'user'      => $log->user?->name ?? '—',
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'logs'    => $logs,
+        ]);
     }
 
     public function rawMaterialsStock(Request $request)
@@ -381,7 +436,6 @@ class InventoryController extends Controller
 
         $mode = $request->input('mode', 'set');
 
-        // ✅ پاکسازی: اعداد فارسی/عربی + علامت منفی + نقطه
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
             ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
@@ -393,7 +447,6 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        // ✅ فقط اعداد، نقطه و علامت منفی مجاز
         $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
@@ -405,7 +458,6 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        // ✅ در حالت set، منفی مجاز نیست
         if ($mode === 'set' && $quantity < 0) {
             return response()->json([
                 'success' => false,
@@ -413,15 +465,20 @@ class InventoryController extends Controller
             ], 422);
         }
 
-        // ✅ اعمال بر اساس mode
         $inv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
+        $oldStock = (float) $inv->stock;
 
         if ($mode === 'adjust') {
-            $inv->stock = max(0, (float) $inv->stock + $quantity);
+            $inv->stock = max(0, $oldStock + $quantity);
         } else {
             $inv->stock = max(0, $quantity);
         }
         $inv->save();
+
+        // ✅ لاگ تغییر — با product_id
+        if ($oldStock != (float) $inv->stock) {
+            InventoryChangeLog::log($inv, 'warehouse', $oldStock, (float) $inv->stock, $mode, $product->id);
+        }
 
         $totalStock = $this->calculateTotalWarehouseStock($product);
 
@@ -462,7 +519,6 @@ class InventoryController extends Controller
         $unit = $request->input('unit', 'gram');
         $mode = $request->input('mode', 'set');
 
-        // ✅ پاکسازی: اعداد فارسی/عربی + علامت منفی + نقطه
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
             ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹',
@@ -474,7 +530,6 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        // ✅ فقط اعداد، نقطه و علامت منفی مجاز
         $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
@@ -486,7 +541,6 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        // ✅ در حالت set، منفی مجاز نیست
         if ($mode === 'set' && $quantity < 0) {
             return response()->json([
                 'success' => false,
@@ -494,18 +548,22 @@ class InventoryController extends Controller
             ], 422);
         }
 
-        // ✅ تبدیل به گرم
         $quantityInGram = ($unit === 'ton') ? $quantity * 1000000 : $quantity;
+        $oldStock = (float) $material->stock;
 
-        // ✅ اعمال بر اساس mode
         if ($mode === 'adjust') {
-            $newStock = max(0, (float) $material->stock + $quantityInGram);
+            $newStock = max(0, $oldStock + $quantityInGram);
         } else {
             $newStock = max(0, $quantityInGram);
         }
 
         $material->stock = $newStock;
         $material->save();
+
+        // ✅ لاگ تغییر
+        if ($oldStock != $newStock) {
+            InventoryChangeLog::log($material, 'stock', $oldStock, $newStock, $mode);
+        }
 
         $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
 
@@ -521,7 +579,10 @@ class InventoryController extends Controller
     {
         $request->validate([
             'quantity' => 'required|string',
+            'mode'     => 'nullable|in:set,adjust',
         ]);
+
+        $mode = $request->input('mode', 'set');
 
         $rawInput = (string) $request->input('quantity');
         $rawInput = str_replace(
@@ -534,7 +595,7 @@ class InventoryController extends Controller
             $rawInput
         );
 
-        $cleanQty = preg_replace('/[^0-9.]/', '', $rawInput);
+        $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
             return response()->json([
@@ -545,27 +606,40 @@ class InventoryController extends Controller
 
         $quantity = (float) $cleanQty;
 
-        if ($quantity < 0) {
+        if ($mode === 'set' && $quantity < 0) {
             return response()->json([
                 'success' => false,
                 'error'   => 'مقدار نمی‌تواند منفی باشد.',
             ], 422);
         }
 
-        // ✅ موجودی جدید رو ست کن
-        $packaging->stock = (int) $quantity;
+        $oldStock = (float) $packaging->stock;
 
-        // ✅✅ مبنای مصرف رو ریست کن به مصرف فعلی
-        // اینطوری از این لحظه به بعد، فقط مصرف‌های جدید از موجودی کم میشه
+        if ($mode === 'adjust') {
+            $newStock = max(0, $oldStock + $quantity);
+        } else {
+            $newStock = max(0, $quantity);
+        }
+
+        $packaging->stock = (int) $newStock;
+
+        // ✅ مبنای مصرف رو ریست کن به مصرف فعلی
         $packaging->baseline_consumed = $this->calculatePackagingConsumed($packaging);
 
         $packaging->save();
+
+        // ✅ لاگ تغییر
+        if ($oldStock != $newStock) {
+            InventoryChangeLog::log($packaging, 'stock', $oldStock, $newStock, $mode);
+        }
+
+        $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
 
         return response()->json([
             'success'            => true,
             'stock'              => $packaging->stock,
             'baseline_consumed'  => $packaging->baseline_consumed,
-            'message'            => 'موجودی ذخیره شد. از این لحظه، فقط مصرف‌های جدید از این عدد کم می‌شه.',
+            'message'            => 'موجودی ذخیره شد' . $modeLabel . '. از این لحظه، فقط مصرف‌های جدید از این عدد کم می‌شه.',
         ]);
     }
 
@@ -633,84 +707,104 @@ class InventoryController extends Controller
 
         try {
             $newStock = 0;
+            $oldStock = 0;
+            $loggable = null;
 
             switch ($field) {
                 case 'raw':
                     $inv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $inv->stock;
                     if ($mode === 'adjust') {
-                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                        $inv->stock = max(0, $oldStock + $quantity);
                     } else {
                         $inv->stock = $quantity;
                     }
                     $inv->save();
-                    $newStock = $inv->stock;
+                    $newStock = (float) $inv->stock;
+                    $loggable = $inv;
                     break;
 
                 case 'wax':
                     $inv = WaxInventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $inv->stock;
                     if ($mode === 'adjust') {
-                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                        $inv->stock = max(0, $oldStock + $quantity);
                     } else {
                         $inv->stock = $quantity;
                     }
                     $inv->save();
-                    $newStock = $inv->stock;
+                    $newStock = (float) $inv->stock;
+                    $loggable = $inv;
                     break;
 
                 case 'shoulder':
                     $inv = ShoulderInventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $inv->stock;
                     if ($mode === 'adjust') {
-                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                        $inv->stock = max(0, $oldStock + $quantity);
                     } else {
                         $inv->stock = $quantity;
                     }
                     $inv->save();
-                    $newStock = $inv->stock;
+                    $newStock = (float) $inv->stock;
+                    $loggable = $inv;
                     break;
 
                 case 'waste_mum':
                     $inv = WasteMumInventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $inv->stock;
                     if ($mode === 'adjust') {
-                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                        $inv->stock = max(0, $oldStock + $quantity);
                     } else {
                         $inv->stock = $quantity;
                     }
                     $inv->save();
-                    $newStock = $inv->stock;
+                    $newStock = (float) $inv->stock;
+                    $loggable = $inv;
                     break;
 
                 case 'glaze1300':
                     $inv = Glaze1300Inventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $inv->stock;
                     if ($mode === 'adjust') {
-                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                        $inv->stock = max(0, $oldStock + $quantity);
                     } else {
                         $inv->stock = $quantity;
                     }
                     $inv->save();
-                    $newStock = $inv->stock;
+                    $newStock = (float) $inv->stock;
+                    $loggable = $inv;
                     break;
 
                 case 'warehouse':
                     $inv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $inv->stock;
                     if ($mode === 'adjust') {
-                        $inv->stock = max(0, (float) $inv->stock + $quantity);
+                        $inv->stock = max(0, $oldStock + $quantity);
                     } else {
                         $inv->stock = $quantity;
                     }
                     $inv->save();
-                    $newStock = $inv->stock;
+                    $newStock = (float) $inv->stock;
+                    $loggable = $inv;
                     break;
 
                 case 'unpackaged':
+                    $oldStock = (float) $this->calculateUnpackagedStock($product);
                     if ($mode === 'adjust') {
-                        $current = $this->calculateUnpackagedStock($product);
-                        $product->unpackaged_manual_stock = max(0, $current + $quantity);
+                        $product->unpackaged_manual_stock = max(0, $oldStock + $quantity);
                     } else {
                         $product->unpackaged_manual_stock = $quantity;
                     }
                     $product->save();
-                    $newStock = $product->unpackaged_manual_stock;
+                    $newStock = (float) $product->unpackaged_manual_stock;
+                    $loggable = $product;
                     break;
+            }
+
+            // ✅ لاگ تغییر — با product_id
+            if ($loggable && $oldStock != $newStock) {
+                InventoryChangeLog::log($loggable, $field, $oldStock, $newStock, $mode, $product->id);
             }
 
             $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
