@@ -109,7 +109,7 @@ class InventoryController extends Controller
 
         foreach ($products as $product) {
             $rawInv = RawInventory::where('product_id', $product->id)->first();
-            if ($rawInv !== null && $rawInv->stock > 0) {
+            if ($rawInv !== null) {
                 $raw = $rawInv->stock;
             } else {
                 $raw = ShuttleFiring::getRawStock($product->id);
@@ -370,7 +370,7 @@ class InventoryController extends Controller
             $isManualUnpackaged = $product->unpackaged_manual_stock !== null;
 
             $rawInv = RawInventory::where('product_id', $product->id)->first();
-            if ($rawInv !== null && $rawInv->stock > 0) {
+            if ($rawInv !== null) {
                 $raw = $rawInv->stock;
             } else {
                 $raw = ShuttleFiring::getRawStock($product->id);

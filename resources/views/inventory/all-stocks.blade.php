@@ -4,7 +4,7 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 <style>
-    .hidden-row { background: #fff3cd !important; opacity: 0.75; }
+    .hidden-row { opacity: 0.75; }
     .hidden-row:hover { opacity: 1; }
 
     .btn-icon {
@@ -92,7 +92,6 @@
     .edit-cell-hint { font-size: 12px; color: #6c757d; margin-top: 6px; }
     .btn-auto-reset { font-size: 12px; padding: 4px 12px; }
 
-    /* ✅ استایل toggle حالت ویرایش */
     .mode-toggle-wrapper {
         border: 1px solid #e9ecef;
         border-radius: 8px;
@@ -103,14 +102,12 @@
     .mode-toggle-wrapper .btn-group { width: 100%; }
     .mode-toggle-wrapper .btn { flex: 1; font-weight: 600; }
 
-    /* ✅ استایل input در حالت adjust */
     .edit-cell-input.mode-adjust {
         border-color: #198754 !important;
         background: #f0fff4 !important;
         box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.15) !important;
     }
 
-    /* ✅ نمایش مقدار فعلی */
     .current-stock-info {
         background: #fffbea;
         border: 1px solid #ffe58f;
@@ -126,7 +123,6 @@
         display: inline-block;
     }
 
-    /* ✅ آخرین تغییرات */
     .change-log-wrapper { margin-top: 16px; border-top: 1px dashed #dee2e6; padding-top: 12px; }
     .change-log-list {
         max-height: 220px; overflow-y: auto; background: #f8f9fa;
@@ -146,6 +142,86 @@
     .change-log-item .log-mode { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
     .change-log-item .log-mode.adjust { background: #fff3cd; color: #664d03; }
     .change-log-item .log-mode.set { background: #cfe2ff; color: #084298; }
+
+    /* ═══════════════════════════════════════════════════════════ */
+    /*  ✅ استایل جدول — راه‌راه و هاور زرد روی همه ردیف‌ها          */
+    /* ═══════════════════════════════════════════════════════════ */
+
+    .table-stocks {
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-bottom: 0;
+    }
+
+    /* رنگ پس‌زمینه پیش‌فرض: سفید */
+    .table-stocks tbody tr > td,
+    .table-stocks tbody tr > th {
+        background-color: #ffffff;
+        border-top: none;
+        border-right: 1px solid #dee2e6;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .table-stocks tbody tr > td:first-child,
+    .table-stocks tbody tr > th:first-child {
+        border-left: 1px solid #dee2e6;
+    }
+
+    /* رنگ ردیف‌های زوج: طوسی روشن */
+    .table-stocks tbody tr:nth-child(even) > td,
+    .table-stocks tbody tr:nth-child(even) > th {
+        background-color: #f2f2f2;
+    }
+
+    /* ✅ هاور زرد روی همه ردیف‌ها (سفید و طوسی) — با !important و specificity بالا */
+    .table-stocks.table-stocks tbody tr:hover > td,
+    .table-stocks.table-stocks tbody tr:hover > th {
+        background-color: #fff59d !important;
+        box-shadow: none !important;
+        transition: background-color 0.15s ease;
+    }
+
+    /* ✅ هاور ردیف‌های مخفی (نارنجی روشن) */
+    .table-stocks.table-stocks tbody tr.hidden-row > td {
+        background-color: #fff3cd !important;
+        box-shadow: none !important;
+    }
+    .table-stocks.table-stocks tbody tr.hidden-row:hover > td {
+        background-color: #ffcc02 !important;
+        box-shadow: none !important;
+    }
+
+    /* ═══════════════════════════════════════════════════════════ */
+    /*  ✅ هدر چسبنده (Sticky Header)                              */
+    /* ═══════════════════════════════════════════════════════════ */
+    .sticky-table-wrapper {
+        max-height: 70vh;
+        overflow-y: auto;
+        overflow-x: auto;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        position: relative;
+    }
+
+    .table-stocks thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #212529 !important;
+        color: #fff !important;
+        border-color: #495057 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        white-space: nowrap;
+        border-bottom: 2px solid #495057;
+    }
+    .table-stocks thead th:first-child {
+        border-left: 1px solid #495057;
+    }
+
+    @media (max-width: 768px) {
+        .sticky-table-wrapper {
+            max-height: 60vh;
+        }
+    }
 </style>
 @endpush
 
@@ -232,7 +308,6 @@
         });
     }
 
-    // ✅ formatNumber اصلاح‌شده: اعشار اضافی حذف میشه
     function formatNumber(value) {
         if (value === null || value === undefined || value === '') return '0';
 
@@ -247,7 +322,6 @@
         return (isNegative ? '-' : '') + integerPart;
     }
 
-    // ✅ مقدار فعلی رو از سلول جدول می‌خونه
     function getCurrentValueFromTable(productId, field) {
         var row = document.querySelector('tr[data-product-id="' + productId + '"]');
         if (!row) return 0;
@@ -265,7 +339,6 @@
         return isNaN(num) ? 0 : num;
     }
 
-    // ✅ نقشه فیلد به type برای لاگ‌ها
     function getLogTypeFromField(field) {
         var typeMap = {
             'raw': 'raw-inventory',
@@ -286,7 +359,6 @@
             productName + '<br><small>کد: ' + document.getElementById('code-' + productId).textContent + '</small>';
         document.getElementById('editCellFieldLabel').textContent = fieldLabel;
 
-        // ✅ مقدار فعلی رو از جدول می‌خونیم
         var tableValue = getCurrentValueFromTable(productId, field);
         var actualValue = (tableValue !== 0 || currentValue === 0) ? tableValue : currentValue;
 
@@ -294,7 +366,6 @@
         document.getElementById('editCellError').style.display = 'none';
         document.getElementById('currentStockValue').textContent = formatNumber(actualValue);
 
-        // ✅ ریست به حالت set
         document.getElementById('modeSet').checked = true;
         updateModeUI();
 
@@ -305,7 +376,6 @@
             autoBtn.style.display = 'none';
         }
 
-        // ✅ بارگذاری آخرین تغییرات
         var logType = getLogTypeFromField(field);
         loadChangeLogs(logType, productId, field);
 
@@ -319,7 +389,6 @@
         }, 400);
     }
 
-    // ✅ تغییر UI بر اساس حالت انتخاب‌شده
     function updateModeUI() {
         var mode = document.querySelector('input[name="editMode"]:checked').value;
         var input = document.getElementById('editCellInput');
@@ -355,7 +424,6 @@
         var saveBtn = document.getElementById('editCellSaveBtn');
         var errorBox = document.getElementById('editCellError');
 
-        // ✅ پاکسازی
         var cleaned = toLatinDigits(input.value).trim().replace(/,/g, '');
 
         if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
@@ -492,7 +560,6 @@
         }, 2200);
     }
 
-    // ✅ بارگذاری آخرین تغییرات
     function loadChangeLogs(type, id, field) {
         var wrapper = document.getElementById('changeLogWrapper');
         var list = document.getElementById('changeLogList');
@@ -539,9 +606,6 @@
         });
     }
 
-    // ============================================================
-    //  ✅ فرمت‌دهی زنده با حفظ مکان‌نما + پشتیبانی از منفی
-    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         var input = document.getElementById('editCellInput');
         if (!input) return;
@@ -686,9 +750,10 @@
             </form>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-bordered table-hover table-striped align-middle">
-                <thead class="table-dark">
+        {{-- ✅ Wrapper برای هدر چسبنده --}}
+        <div class="sticky-table-wrapper">
+            <table class="table align-middle table-stocks">
+                <thead>
                     <tr>
                         <th class="column-drag">
                             <i class="fas fa-grip-vertical"></i>
@@ -937,7 +1002,6 @@
                 <input type="hidden" id="editCellProductId">
                 <input type="hidden" id="editCellField">
 
-                {{-- ✅ Toggle حالت ویرایش --}}
                 <div class="mode-toggle-wrapper">
                     <label class="form-label fw-bold mb-2">
                         <i class="fas fa-sliders-h me-1"></i> حالت ویرایش:
@@ -967,7 +1031,6 @@
                     می‌توانید با اعداد فارسی یا انگلیسی وارد کنید.
                 </div>
 
-                {{-- ✅ نمایش مقدار فعلی (فقط در حالت adjust) --}}
                 <div class="current-stock-info" id="currentStockInfo" style="display:none;">
                     <i class="fas fa-cube me-1 text-warning"></i>
                     مقدار فعلی:
@@ -987,7 +1050,6 @@
 
                 <div id="editCellError" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
 
-                {{-- ✅ آخرین تغییرات --}}
                 <div class="change-log-wrapper" id="changeLogWrapper" style="display:none;">
                     <label class="form-label fw-bold">
                         <i class="fas fa-history me-1"></i> آخرین تغییرات:
