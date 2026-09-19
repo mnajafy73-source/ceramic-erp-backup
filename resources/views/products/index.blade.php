@@ -33,9 +33,10 @@
         width: 80px !important;
         text-align: center;
     }
-    .inline-sel-carton { min-width: 120px; }
-    .inline-sel-layer  { min-width: 120px; }
-    .inline-sel-type   { min-width: 100px; }
+    .inline-sel-carton { min-width: 110px; }
+    .inline-sel-layer  { min-width: 110px; }
+    .inline-sel-type   { min-width: 90px; }
+    .inline-sel-formula { min-width: 120px; }
 
     .col-inline { padding: 4px 6px !important; }
 
@@ -101,12 +102,11 @@
     </a>
 </div>
 
-{{-- ✅ نوار فیلتر دسته‌بندی --}}
+{{-- نوار فیلتر دسته‌بندی --}}
 @php
     $currentCategory = request('category', 'all');
     $typeLabels = \App\Models\Product::typeLabels();
 
-    // شمارش هر دسته
     $counts = [
         'all' => \App\Models\Product::count(),
     ];
@@ -156,7 +156,6 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
         <form action="{{ route('products.index') }}" method="GET" class="row g-3 align-items-end">
-            {{-- حفظ فیلتر دسته‌بندی --}}
             @if($currentCategory && $currentCategory !== 'all')
                 <input type="hidden" name="category" value="{{ $currentCategory }}">
             @endif
@@ -202,6 +201,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>نام</th>
+                        <th class="text-center">فرمول</th>
                         <th class="text-center">کارتن</th>
                         <th class="text-center">تعداد در کارتن</th>
                         <th class="text-center">لایه</th>
@@ -216,7 +216,21 @@
                     <tr id="product-row-{{ $product->id }}" data-product-id="{{ $product->id }}">
                         <td class="product-name-cell">{{ $product->name }}</td>
 
-                        {{-- کارتن مصرفی --}}
+                        {{-- ✅ فرمول --}}
+                        <td class="col-inline">
+                            <select class="inline-edit inline-sel-formula"
+                                    data-field="formula_id">
+                                <option value="">—</option>
+                                @foreach($formulas as $formula)
+                                    <option value="{{ $formula->id }}"
+                                        {{ $product->formula_id == $formula->id ? 'selected' : '' }}>
+                                        {{ $formula->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </td>
+
+                        {{-- کارتن --}}
                         <td class="col-inline">
                             <select class="inline-edit inline-sel-carton"
                                     data-field="carton_packaging_id">
@@ -240,7 +254,7 @@
                                    placeholder="—">
                         </td>
 
-                        {{-- لایه مصرفی --}}
+                        {{-- لایه --}}
                         <td class="col-inline">
                             <select class="inline-edit inline-sel-layer"
                                     data-field="layer_packaging_id">
@@ -254,7 +268,7 @@
                             </select>
                         </td>
 
-                        {{-- تعداد لایه در کارتن --}}
+                        {{-- تعداد لایه --}}
                         <td class="col-inline text-center">
                             <input type="number"
                                    class="inline-edit inline-num"
@@ -264,7 +278,7 @@
                                    placeholder="—">
                         </td>
 
-                        {{-- ✅ خوراک تونلی (جدید) --}}
+                        {{-- خوراک تونلی --}}
                         <td class="col-inline text-center">
                             <input type="number"
                                    class="inline-edit inline-num"
@@ -306,7 +320,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="text-center py-4">هیچ کالایی یافت نشد.</td></tr>
+                    <tr><td colspan="9" class="text-center py-4">هیچ کالایی یافت نشد.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -315,9 +329,7 @@
 </div>
 <div class="mt-3">{{ $products->links() }}</div>
 
-{{-- ═══════════════════════════════════════════════════════════ --}}
-{{--  مدال ویرایش کامل                                         --}}
-{{-- ═══════════════════════════════════════════════════════════ --}}
+{{-- مدال ویرایش کامل --}}
 <div class="modal fade" id="quickEditModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
@@ -380,7 +392,7 @@
                             <label class="form-label">فرمول</label>
                             <select name="formula_id" id="qe_formula_id" class="form-select">
                                 <option value="">—</option>
-                                @foreach(\App\Models\Formula::all() as $f)
+                                @foreach($formulas as $f)
                                     <option value="{{ $f->id }}">{{ $f->name }}</option>
                                 @endforeach
                             </select>
@@ -450,9 +462,7 @@
     var INLINE_UPDATE_URL = '{{ route("products.inline-update", ":id") }}';
     var CSRF_TOKEN = '{{ csrf_token() }}';
 
-    // ═══════════════════════════════════════════════════════════
-    //  ویرایش درجا
-    // ═══════════════════════════════════════════════════════════
+    // ویرایش درجا
     $(document).on('change', '.inline-edit', function() {
         var $el     = $(this);
         var $row    = $el.closest('tr');
@@ -502,9 +512,7 @@
         });
     });
 
-    // ═══════════════════════════════════════════════════════════
-    //  مدال ویرایش کامل
-    // ═══════════════════════════════════════════════════════════
+    // مدال ویرایش کامل
     $(document).on('click', '.btn-quick-edit', function() {
         var id = $(this).data('id');
         var data = PRODUCTS_DATA[id];

@@ -28,6 +28,7 @@ use App\Models\Glaze1300Inventory;
 use App\Models\WarehouseInventory;
 use App\Models\ShoulderInventory;
 use App\Models\WasteMumInventory;
+use App\Models\InventoryChangeLog;
 use App\Helpers\ImportFlag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -111,7 +112,6 @@ class ImportController extends Controller
 
         ImportFlag::$isImporting = false;
 
-        // ✅ ساخت پیام نهایی
         if ($anySuccess) {
             $message = 'واردات خودکار با موفقیت انجام شد و موجودی‌ها به‌روز شدند.';
             if (!empty($errors)) {
@@ -123,7 +123,6 @@ class ImportController extends Controller
             $status = 'error';
         }
 
-        // ✅ پاسخ JSON برای درخواست‌های AJAX
         if ($request->expectsJson()) {
             return response()->json([
                 'status'  => $status,
@@ -131,7 +130,6 @@ class ImportController extends Controller
             ]);
         }
 
-        // ✅ fallback برای درخواست‌های معمولی
         return redirect()->back()->with($status === 'success' ? 'success' : 'error', $message);
     }
 
@@ -330,53 +328,136 @@ class ImportController extends Controller
             foreach (Product::where('status', 1)->get() as $product) {
                 $id = $product->id;
 
-                $whDelta =
-                    (($after['warehouse_produced'][$id] ?? 0) - ($before['warehouse_produced'][$id] ?? 0))
-                    - (($after['formal_sales'][$id] ?? 0) - ($before['formal_sales'][$id] ?? 0))
-                    - (($after['informal_sales'][$id] ?? 0) - ($before['informal_sales'][$id] ?? 0));
+                // ═══════════════════════════════════════════════════════════
+                //  موجودی انبار
+                // ═══════════════════════════════════════════════════════════
+                $whProduced = ($after['warehouse_produced'][$id] ?? 0) - ($before['warehouse_produced'][$id] ?? 0);
+                $whFormalSales = ($after['formal_sales'][$id] ?? 0) - ($before['formal_sales'][$id] ?? 0);
+                $whInformalSales = ($after['informal_sales'][$id] ?? 0) - ($before['informal_sales'][$id] ?? 0);
+                $whDelta = $whProduced - $whFormalSales - $whInformalSales;
 
                 if ($whDelta != 0) {
                     $inv = WarehouseInventory::firstOrCreate(['product_id' => $id]);
+                    $oldStock = (float) $inv->stock;
                     $inv->stock = max(0, $inv->stock + $whDelta);
                     $inv->save();
+                    $newStock = (float) $inv->stock;
+
+                    // ✅ لاگ تغییر موجودی انبار
+                    $parts = [];
+                    if ($whProduced != 0) $parts[] = "تولید/بسته‌بندی: " . number_format($whProduced);
+                    if ($whFormalSales != 0) $parts[] = "فروش رسمی: -" . number_format($whFormalSales);
+                    if ($whInformalSales != 0) $parts[] = "فروش غیررسمی: -" . number_format($whInformalSales);
+
+                    $reason = 'ایمپورت اکسل';
+                    $desc = "محصول: {$product->name} | " . implode(' | ', $parts);
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $inv, 'stock', $oldStock, $newStock,
+                            'adjust', $product->id,
+                            'import_warehouse', $desc
+                        );
+                    }
                 }
 
+                // ═══════════════════════════════════════════════════════════
+                //  موجودی خام
+                // ═══════════════════════════════════════════════════════════
                 $prodDelta    = ($after['raw_production'][$id] ?? 0) - ($before['raw_production'][$id] ?? 0);
                 $tonneliDelta = ($after['raw_tonneli'][$id]    ?? 0) - ($before['raw_tonneli'][$id]    ?? 0);
                 $shuttleDelta = ($after['raw_shuttle'][$id]    ?? 0) - ($before['raw_shuttle'][$id]    ?? 0);
-
                 $rawDelta = $prodDelta - $tonneliDelta - $shuttleDelta;
 
                 if ($rawDelta != 0) {
                     $inv = RawInventory::firstOrCreate(['product_id' => $id]);
+                    $oldStock = (float) $inv->stock;
                     $inv->stock = max(0, $inv->stock + $rawDelta);
                     $inv->save();
+                    $newStock = (float) $inv->stock;
+
+                    $parts = [];
+                    if ($prodDelta != 0) $parts[] = "تولید: +" . number_format($prodDelta);
+                    if ($tonneliDelta != 0) $parts[] = "ورودی تونلی: -" . number_format($tonneliDelta);
+                    if ($shuttleDelta != 0) $parts[] = "خروجی شاتل: -" . number_format($shuttleDelta);
+
+                    $desc = "محصول: {$product->name} | " . implode(' | ', $parts);
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $inv, 'stock', $oldStock, $newStock,
+                            'adjust', $product->id,
+                            'import_raw', $desc
+                        );
+                    }
                 }
 
+                // ═══════════════════════════════════════════════════════════
+                //  ۱۳۰۰ درجه
+                // ═══════════════════════════════════════════════════════════
                 $g1300Delta =
                     (($after['glaze1300_produced'][$id] ?? 0) - ($before['glaze1300_produced'][$id] ?? 0))
                     - (($after['glaze1300_packaged'][$id] ?? 0) - ($before['glaze1300_packaged'][$id] ?? 0));
 
                 if ($g1300Delta != 0) {
                     $inv = Glaze1300Inventory::firstOrCreate(['product_id' => $id]);
+                    $oldStock = (float) $inv->stock;
                     $inv->stock = max(0, $inv->stock + $g1300Delta);
                     $inv->save();
+                    $newStock = (float) $inv->stock;
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $inv, 'stock', $oldStock, $newStock,
+                            'adjust', $product->id,
+                            'import_glaze1300', "محصول: {$product->name}"
+                        );
+                    }
                 }
 
+                // ═══════════════════════════════════════════════════════════
+                //  شانه شده
+                // ═══════════════════════════════════════════════════════════
                 $shoulderDelta = ($after['shoulder_records'][$id] ?? 0) - ($before['shoulder_records'][$id] ?? 0);
                 if ($shoulderDelta != 0) {
                     $inv = ShoulderInventory::firstOrCreate(['product_id' => $id]);
+                    $oldStock = (float) $inv->stock;
                     $inv->stock = max(0, $inv->stock + $shoulderDelta);
                     $inv->save();
+                    $newStock = (float) $inv->stock;
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $inv, 'stock', $oldStock, $newStock,
+                            'adjust', $product->id,
+                            'import_shoulder', "محصول: {$product->name}"
+                        );
+                    }
                 }
 
+                // ═══════════════════════════════════════════════════════════
+                //  ضایعات موم
+                // ═══════════════════════════════════════════════════════════
                 $wasteDelta = ($after['waste_records'][$id] ?? 0) - ($before['waste_records'][$id] ?? 0);
                 if ($wasteDelta != 0) {
                     $inv = WasteMumInventory::firstOrCreate(['product_id' => $id]);
+                    $oldStock = (float) $inv->stock;
                     $inv->stock = max(0, $inv->stock + $wasteDelta);
                     $inv->save();
+                    $newStock = (float) $inv->stock;
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $inv, 'stock', $oldStock, $newStock,
+                            'adjust', $product->id,
+                            'import_waste_mum', "محصول: {$product->name}"
+                        );
+                    }
                 }
 
+                // ═══════════════════════════════════════════════════════════
+                //  موم
+                // ═══════════════════════════════════════════════════════════
                 $waxDelta =
                     (($after['mum_produced'][$id] ?? 0) - ($before['mum_produced'][$id] ?? 0))
                     - $shoulderDelta
@@ -384,11 +465,24 @@ class ImportController extends Controller
 
                 if ($waxDelta != 0) {
                     $inv = WaxInventory::firstOrCreate(['product_id' => $id]);
+                    $oldStock = (float) $inv->stock;
                     $inv->stock = max(0, $inv->stock + $waxDelta);
                     $inv->save();
+                    $newStock = (float) $inv->stock;
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $inv, 'stock', $oldStock, $newStock,
+                            'adjust', $product->id,
+                            'import_wax', "محصول: {$product->name}"
+                        );
+                    }
                 }
             }
 
+            // ═══════════════════════════════════════════════════════════
+            //  مواد اولیه
+            // ═══════════════════════════════════════════════════════════
             $allMaterialIds = array_unique(array_merge(
                 array_keys($before['raw_material_used']),
                 array_keys($after['raw_material_used'])
@@ -398,26 +492,59 @@ class ImportController extends Controller
                 if ($delta != 0) {
                     $raw = RawMaterial::find($matId);
                     if ($raw) {
+                        $oldStock = (float) $raw->stock;
                         $raw->stock = max(0, $raw->stock - $delta);
                         $raw->save();
+                        $newStock = (float) $raw->stock;
+
+                        if ($oldStock != $newStock) {
+                            InventoryChangeLog::log(
+                                $raw, 'stock', $oldStock, $newStock,
+                                'adjust', null,
+                                'import_raw_material', "ماده: {$raw->name}"
+                            );
+                        }
                     }
                 }
             }
 
+            // ═══════════════════════════════════════════════════════════
+            //  کارتن و لایه
+            // ═══════════════════════════════════════════════════════════
             foreach (Packaging::all() as $pkg) {
                 $consumedAfter = $after['packaging_used'][$pkg->id] ?? 0;
 
                 if ($pkg->baseline_consumed !== null) {
                     $delta = $consumedAfter - $pkg->baseline_consumed;
                     if ($delta != 0) {
+                        $oldStock = (float) $pkg->stock;
                         $pkg->stock = max(0, $pkg->stock - $delta);
+                        $newStock = (float) $pkg->stock;
+
+                        if ($oldStock != $newStock) {
+                            InventoryChangeLog::log(
+                                $pkg, 'stock', $oldStock, $newStock,
+                                'adjust', null,
+                                'import_packaging', "بسته: {$pkg->name}"
+                            );
+                        }
                     }
                     $pkg->baseline_consumed = $consumedAfter;
                 } else {
                     $consumedBefore = $before['packaging_used'][$pkg->id] ?? 0;
                     $delta = $consumedAfter - $consumedBefore;
                     if ($delta != 0) {
+                        $oldStock = (float) $pkg->stock;
                         $pkg->stock = max(0, $pkg->stock - $delta);
+                        $newStock = (float) $pkg->stock;
+
+                        if ($oldStock != $newStock) {
+                            InventoryChangeLog::log(
+                                $pkg, 'stock', $oldStock, $newStock,
+                                'adjust', null,
+                                'import_packaging', "بسته: {$pkg->name}"
+                            );
+                        }
                     }
                 }
 
@@ -678,8 +805,8 @@ class ImportController extends Controller
                     } catch (\Exception $e) { continue; }
 
                     $customer = Customer::firstOrCreate(['name' => $customerName], ['status' => 1]);
-                    $product = $this->findProduct($productName);
-                    if (!$product) continue;
+                    // ✅ کالای جدید با کد SALE-XXX ساخته می‌شود
+                    $product = $this->findOrCreateProduct($productName, 'SALE');
                     if ($totalPrice <= 0) $totalPrice = $quantity * $unitPrice;
 
                     $sale = InformalSale::where('year', $year)->where('number', $invoiceNumber)->first();
@@ -763,8 +890,8 @@ class ImportController extends Controller
                         $gregorianDate = $jalaliDate->toCarbon();
                     } catch (\Exception $e) { continue; }
 
-                    $product = $this->findProduct($productName);
-                    if (!$product) continue;
+                    // ✅ کالای جدید با کد SALE-XXX ساخته می‌شود
+                    $product = $this->findOrCreateProduct($productName, 'SALE');
                     if ($priceAfterDiscount <= 0) $priceAfterDiscount = $quantity * $unitPrice;
 
                     if (!isset($invoiceTotals[$invoiceNumber])) {
@@ -933,25 +1060,32 @@ class ImportController extends Controller
         return $this->operatorsCache[$cleanName];
     }
 
-    private function findOrCreateProduct($name)
+    /**
+     * ✅ پیدا کردن یا ساخت کالا
+     * @param string $name نام کالا
+     * @param string $codePrefix پیشوند کد (IMP یا SALE)
+     */
+    private function findOrCreateProduct($name, $codePrefix = 'IMP')
     {
         $cleanName = trim($name);
-        if (isset($this->productsCache[$cleanName])) {
-            return $this->productsCache[$cleanName];
+        $cacheKey = $cleanName;
+
+        if (isset($this->productsCache[$cacheKey])) {
+            return $this->productsCache[$cacheKey];
         }
         $product = Product::where('name', $cleanName)->first();
         if ($product) {
-            $this->productsCache[$cleanName] = $product;
+            $this->productsCache[$cacheKey] = $product;
             return $product;
         }
         $alias = ProductAlias::where('alias', $cleanName)->first();
         if ($alias) {
             $product = $alias->product;
-            $this->productsCache[$cleanName] = $product;
+            $this->productsCache[$cacheKey] = $product;
             return $product;
         }
         $product = Product::create([
-            'code' => 'IMP-' . time() . '-' . rand(100, 999),
+            'code' => $codePrefix . '-' . time() . '-' . rand(100, 999),
             'name' => $cleanName,
             'unit_id' => 1,
             'status' => 1,
@@ -960,7 +1094,7 @@ class ImportController extends Controller
             'layers_per_box' => 0,
             'firing_process' => 'both',
         ]);
-        $this->productsCache[$cleanName] = $product;
+        $this->productsCache[$cacheKey] = $product;
         return $product;
     }
 

@@ -18,6 +18,7 @@ use App\Http\Controllers\PackagingController;
 use App\Http\Controllers\RawMaterialPurchaseController;
 use App\Http\Controllers\PackagingPurchaseController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InventoryLogController;
 use App\Http\Controllers\OpeningInventoryController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ReportController;
@@ -107,6 +108,10 @@ Route::middleware(['auth'])->group(function () {
 
     // موجودی
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+
+    // ✅ آخرین تغییرات موجودی
+    Route::get('/inventory-logs', [InventoryLogController::class, 'index'])->name('inventory-logs.index');
+    Route::delete('/inventory-logs/delete-old', [InventoryLogController::class, 'deleteOld'])->name('inventory-logs.delete-old');
 
     // ✅ آخرین تغییرات موجودی (API)
     Route::get('/inventory/change-logs', [InventoryController::class, 'getChangeLogs'])->name('inventory.change-logs');

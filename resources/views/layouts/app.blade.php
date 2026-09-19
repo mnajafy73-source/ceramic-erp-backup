@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'پنل مدیریت کارخانه سرامیک')</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -20,6 +21,8 @@
             font-family: Tahoma, sans-serif;
             margin: 0;
         }
+
+        /* ✅ Sidebar: به صورت پیش‌فرض بسته */
         .sidebar {
             position: fixed;
             right: 0;
@@ -31,14 +34,39 @@
             z-index: 1050;
             box-shadow: -5px 0 20px rgba(0,0,0,0.2);
             overflow-y: auto;
-            transform: translateX(0);
-            transition: transform 0.4s;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
         }
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
         .sidebar .sidebar-header {
             padding: 1.5rem;
             border-bottom: 1px solid rgba(255,255,255,0.1);
             text-align: center;
+            position: relative;
         }
+        .sidebar .sidebar-header .sidebar-close-btn {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .sidebar .sidebar-header .sidebar-close-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+
         .sidebar .nav-link {
             color: rgba(255,255,255,0.8) !important;
             padding: 0.8rem 1.5rem;
@@ -93,27 +121,41 @@
         .sidebar .menu-title.open .menu-arrow {
             transform: rotate(180deg);
         }
+
         .main-content {
-            margin-right: var(--sidebar-width);
+            margin-right: 0;
             min-height: 100vh;
-            transition: margin-right 0.4s;
         }
+
         .topbar {
             background: white;
-            padding: 1rem;
+            padding: 1rem 1.25rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
+
         .menu-toggle {
-            display: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             background: none;
             border: none;
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             color: var(--primary);
             cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
         }
+        .menu-toggle:hover {
+            background: #f0f4f8;
+        }
+
         .alert-undo {
             background: #e8f5fe;
             border: 1px solid #b8dfff;
@@ -131,12 +173,12 @@
             gap: 8px;
         }
 
-        /* ✅ Overlay لودینگ واردات با تایمر شمارش معکوس */
+        /* ✅ Overlay لودینگ واردات */
         #importOverlay {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             z-index: 9999;
             color: white;
             text-align: center;
@@ -153,51 +195,22 @@
         }
         #importOverlay p {
             margin-top: 1rem;
-            opacity: 0.8;
-        }
-        .countdown-box {
-            margin-top: 2rem;
-            display: inline-block;
-            padding: 18px 40px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 2px solid #ffc107;
-            border-radius: 16px;
-            min-width: 260px;
-        }
-        .countdown-label {
-            font-size: 14px;
             opacity: 0.85;
-            margin-bottom: 8px;
         }
-        .countdown-time {
-            font-size: 52px;
-            font-weight: bold;
-            font-family: 'Courier New', monospace;
-            color: #ffc107;
-            letter-spacing: 3px;
-            direction: ltr;
-            line-height: 1.1;
-        }
-        .countdown-finishing {
-            font-size: 22px;
-            font-weight: bold;
-            color: #28a745;
-            margin-top: 10px;
-            display: none;
-        }
-        .progress-wrapper {
-            margin-top: 20px;
+        .import-progress-wrapper {
+            margin-top: 30px;
             max-width: 500px;
             margin-left: auto;
             margin-right: auto;
         }
-        .progress-wrapper .progress {
-            height: 10px;
+        .import-progress-wrapper .progress {
+            height: 12px;
             background: rgba(255,255,255,0.1);
+            border-radius: 10px;
         }
-        .progress-wrapper .progress-bar {
+        .import-progress-wrapper .progress-bar {
             background: linear-gradient(90deg, #28a745, #ffc107);
-            transition: width 1s linear;
+            transition: width 0.4s ease;
         }
 
         /* ✅ Toast پیام */
@@ -210,50 +223,27 @@
             max-width: 90%;
             width: 500px;
         }
-        .toast-container-custom .alert {
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            margin-bottom: 10px;
-        }
 
-        @media (max-width: 991px) {
-            .sidebar {
-                transform: translateX(100%);
-            }
-            .sidebar.active {
-                transform: translateX(0);
-            }
-            .main-content {
-                margin-right: 0;
-            }
-            .menu-toggle {
-                display: block;
-            }
-            .countdown-time { font-size: 40px; }
+        /* ✅ Overlay پشت sidebar */
+        #sidebarOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1040;
         }
     </style>
     @stack('styles')
 </head>
 <body>
 
-    {{-- ✅ Overlay لودینگ واردات با شمارش معکوس --}}
+    {{-- ✅ Overlay لودینگ واردات --}}
     <div id="importOverlay">
         <div class="spinner-border text-warning" role="status"></div>
         <h4>در حال واردات خودکار از فایل اکسل...</h4>
-        <p>لطفاً این پنجره را نبندید.</p>
+        <p>لطفاً این پنجره را نبندید و صبر کنید تا عملیات کامل شود.</p>
 
-        <div class="countdown-box">
-            <div class="countdown-label">
-                <i class="fas fa-hourglass-half me-1"></i>
-                زمان تقریبی باقی‌مانده:
-            </div>
-            <div class="countdown-time" id="countdownTime">02:00</div>
-            <div class="countdown-finishing" id="countdownFinishing">
-                <i class="fas fa-check-circle me-1"></i>
-                در حال آماده‌سازی صفحه...
-            </div>
-        </div>
-
-        <div class="progress-wrapper">
+        <div class="import-progress-wrapper">
             <div class="progress">
                 <div class="progress-bar" id="importProgressBar" style="width: 0%;"></div>
             </div>
@@ -263,12 +253,18 @@
     {{-- ✅ Container برای Toast پیام --}}
     <div class="toast-container-custom" id="toastContainer"></div>
 
-    <div id="sidebarOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1040;" onclick="closeSidebar()"></div>
+    {{-- ✅ Overlay پشت sidebar --}}
+    <div id="sidebarOverlay" onclick="closeSidebar()"></div>
 
+    {{-- ✅ Sidebar --}}
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h5 class="mb-0"><i class="fas fa-industry ms-2"></i>کارخانه سرامیک</h5>
             <small class="text-white-50">پنل مدیریت</small>
+
+            <button type="button" class="sidebar-close-btn" onclick="closeSidebar()" title="بستن منو">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
         <div class="pt-3">
             <!-- ۱. داشبورد -->
@@ -318,7 +314,8 @@
             </div>
 
             <!-- ۷. موجودی -->
-            <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-inventory')">
+            <button class="nav-link menu-title {{ request()->routeIs('inventory.*') || request()->routeIs('inventory-logs.*') ? 'active' : '' }}"
+                    onclick="toggleSubmenu(this, 'submenu-inventory')">
                 <span><i class="fas fa-cubes"></i> موجودی</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
             </button>
@@ -327,6 +324,7 @@
                 <a href="{{ route('inventory.packaging-stock') }}"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="{{ route('inventory.warehouse') }}"><i class="fas fa-warehouse"></i> موجودی انبار</a>
                 <a href="{{ route('inventory.all-stocks') }}"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a>
+                <a href="{{ route('inventory-logs.index') }}"><i class="fas fa-history"></i> آخرین تغییرات</a>
             </div>
 
             <!-- ۸. گزارشات -->
@@ -371,7 +369,7 @@
                 <a href="{{ route('presses.index') }}"><i class="fas fa-cogs"></i> مدیریت پرس‌ها</a>
                 <a href="{{ route('products.index') }}"><i class="fas fa-box"></i> مدیریت کالاها</a>
                 <a href="{{ route('customers.index') }}"><i class="fas fa-users"></i> مدیریت مشتریان</a>
-                <a href="{{ route('product_logs.index') }}"><i class="fas fa-history"></i> تاریخچه تغییرات</a>
+                <a href="{{ route('product_logs.index') }}"><i class="fas fa-history"></i> تاریخچه تغییرات کالاها</a>
             </div>
 
             <form method="POST" action="{{ route('logout') }}" class="mt-3 px-3 pb-3">
@@ -385,7 +383,7 @@
 
     <div class="main-content" id="mainContent">
         <div class="topbar">
-            <button class="menu-toggle" id="menuToggle" onclick="openSidebar()">
+            <button class="menu-toggle" id="menuToggle" onclick="openSidebar()" title="باز کردن منو">
                 <i class="fas fa-bars"></i>
             </button>
             <div>
@@ -445,20 +443,23 @@
     <script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
     <script>
         const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebarOverlay');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
 
         function openSidebar() {
             sidebar.classList.add('active');
-            overlay.style.display = 'block';
+            sidebarOverlay.style.display = 'block';
+            document.body.style.overflow = 'hidden';
         }
+
         function closeSidebar() {
             sidebar.classList.remove('active');
-            overlay.style.display = 'none';
+            sidebarOverlay.style.display = 'none';
+            document.body.style.overflow = '';
         }
-        window.addEventListener('resize', function() {
-            if (window.innerWidth >= 992) {
-                sidebar.classList.remove('active');
-                overlay.style.display = 'none';
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+                closeSidebar();
             }
         });
 
@@ -469,150 +470,97 @@
             button.classList.toggle('open');
         }
 
-        // ✅ نمایش Toast پیام
+        // ═══════════════════════════════════════════════════════════
+        //  نمایش Toast پیام
+        // ═══════════════════════════════════════════════════════════
         function showToast(message, type) {
-            const container = document.getElementById('toastContainer');
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-' + (type === 'success' ? 'success' : 'danger') + ' alert-dismissible fade show';
-            alert.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle') + ' me-2"></i>' + message +
-                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            var container = document.getElementById('toastContainer');
+            var isSuccess = (type === 'success');
+
+            var bgColor     = isSuccess ? '#d1e7dd' : '#f8d7da';
+            var borderColor = isSuccess ? '#badbcc' : '#f5c2c7';
+            var textColor   = isSuccess ? '#0a3622' : '#58151c';
+            var iconColor   = isSuccess ? '#198754' : '#dc3545';
+            var iconClass   = isSuccess ? 'fa-check-circle' : 'fa-exclamation-triangle';
+
+            var alert = document.createElement('div');
+            alert.setAttribute('role', 'alert');
+            alert.style.cssText =
+                'background-color: ' + bgColor + ' !important; ' +
+                'border: 1px solid ' + borderColor + ' !important; ' +
+                'color: ' + textColor + ' !important; ' +
+                'border-radius: 10px; ' +
+                'padding: 14px 18px; ' +
+                'margin-bottom: 10px; ' +
+                'box-shadow: 0 4px 20px rgba(0,0,0,0.3); ' +
+                'position: relative; ' +
+                'display: flex; align-items: flex-start; gap: 10px;';
+
+            alert.innerHTML =
+                '<i class="fas ' + iconClass + '" style="color: ' + iconColor + ' !important; font-size: 20px; margin-top: 2px;"></i>' +
+                '<div style="flex: 1; color: ' + textColor + ' !important; line-height: 1.9; font-size: 14px; white-space: pre-wrap;">' +
+                    message +
+                '</div>' +
+                '<button type="button" ' +
+                    'style="background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer; color: ' + textColor + ' !important; opacity: 0.5; padding: 0; margin-right: 4px;" ' +
+                    'onclick="this.parentNode.remove();">&times;</button>';
+
             container.appendChild(alert);
+
             setTimeout(function() {
-                if (alert.parentNode) alert.remove();
+                if (alert.parentNode) {
+                    alert.style.transition = 'opacity 0.5s ease';
+                    alert.style.opacity = '0';
+                    setTimeout(function() {
+                        if (alert.parentNode) alert.remove();
+                    }, 500);
+                }
             }, 8000);
         }
 
-        // ============================================================
-        //  ✅ واردات خودکار با تایمر شمارش معکوس
-        // ============================================================
-
-        // ⏱️ زمان تقریبی واردات (به ثانیه) — هر وقت خواستی تغییرش بده
-        const IMPORT_ESTIMATED_SECONDS = 120; // 2 دقیقه
-
-        // ⚡ زمان سریع برای اتمام نمایش پس از آماده شدن پاسخ (به ثانیه)
-        const FAST_FINISH_SECONDS = 3;
-
-        var countdownInterval = null;
-        var secondsRemaining = IMPORT_ESTIMATED_SECONDS;
-        var ajaxCompleted = false;
-        var ajaxResult = null;
-
-        function formatTime(totalSeconds) {
-            if (totalSeconds < 0) totalSeconds = 0;
-            var m = Math.floor(totalSeconds / 60);
-            var s = totalSeconds % 60;
-            return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-        }
-
-        function updateCountdownDisplay() {
-            document.getElementById('countdownTime').textContent = formatTime(secondsRemaining);
-            var pct = ((IMPORT_ESTIMATED_SECONDS - secondsRemaining) / IMPORT_ESTIMATED_SECONDS) * 100;
-            if (pct < 0) pct = 0;
-            if (pct > 100) pct = 100;
-            document.getElementById('importProgressBar').style.width = pct + '%';
-        }
-
-        function startCountdown() {
-            secondsRemaining = IMPORT_ESTIMATED_SECONDS;
-            ajaxCompleted = false;
-            ajaxResult = null;
-            document.getElementById('countdownFinishing').style.display = 'none';
-            document.getElementById('countdownTime').style.display = 'block';
-            updateCountdownDisplay();
-
-            if (countdownInterval) clearInterval(countdownInterval);
-
-            countdownInterval = setInterval(function() {
-                // اگه AJAX تموم شده و داریم سریع می‌ریم به سمت صفر
-                if (ajaxCompleted && secondsRemaining > FAST_FINISH_SECONDS) {
-                    secondsRemaining = FAST_FINISH_SECONDS;
-                } else if (secondsRemaining > 0) {
-                    secondsRemaining--;
-                } else {
-                    // شمارش معکوس رسید به صفر
-                    if (ajaxCompleted) {
-                        clearInterval(countdownInterval);
-                        countdownInterval = null;
-                        finishImport();
-                    } else {
-                        // AJAX هنوز تموم نشده، نگه دار روی صفر و پیام بده
-                        if (document.getElementById('countdownFinishing').style.display === 'none') {
-                            document.getElementById('countdownTime').style.display = 'none';
-                            document.getElementById('countdownFinishing').innerHTML =
-                                '<i class="fas fa-hourglass-end me-1"></i> در حال اتمام، لطفاً کمی صبر کنید...';
-                            document.getElementById('countdownFinishing').style.display = 'block';
-                        }
-                    }
+        @if(session('import_result'))
+            (function() {
+                var ir = @json(session('import_result'));
+                if (ir && ir.message) {
+                    showToast(ir.message, ir.type === 'success' ? 'success' : 'error');
                 }
-                updateCountdownDisplay();
-            }, 1000);
-        }
+            })();
+        @endif
 
-        function finishImport() {
-            if (ajaxResult) {
-                if (ajaxResult.status === 'success') {
-                    // اگه پیام موفقیت داره، اول نشون بده بعد رفرش کن
-                    if (ajaxResult.message) {
-                        showToast(ajaxResult.message, 'success');
-                    }
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 800);
-                } else {
-                    // خطا — Overlay رو ببند و پیام خطا نشون بده
-                    document.getElementById('importOverlay').style.display = 'none';
-                    showToast(ajaxResult.message || 'خطا در واردات', 'error');
-                    document.getElementById('sidebarImportBtn').disabled = false;
-                    document.getElementById('sidebarImportBtn').innerHTML = '<i class="fas fa-upload"></i> وارد کردن';
-                }
-            }
-        }
+        // ═══════════════════════════════════════════════════════════
+        //  واردات خودکار - فرم POST عادی
+        // ═══════════════════════════════════════════════════════════
+        var importFormConfirmed = false;
 
-        document.getElementById('sidebarImportForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            if (!confirm('آیا از شروع واردات خودکار مطمئن هستید؟\n\nتمام داده‌های تولید، کوره، فروش و مواد سازی از فایل اکسل بازنویسی می‌شوند.')) {
-                return;
-            }
-
-            const overlayEl = document.getElementById('importOverlay');
-            const btn = document.getElementById('sidebarImportBtn');
-
-            overlayEl.style.display = 'block';
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال واردات...';
-
-            // ⏱️ شروع شمارش معکوس
-            startCountdown();
-
-            try {
-                const formData = new FormData(this);
-                const response = await fetch(this.action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                    }
-                });
-
-                const data = await response.json();
-                ajaxCompleted = true;
-                ajaxResult = data;
-
-                // اگه شمارش معکوس کمتر از FAST_FINISH_SECONDS مونده، سریع ادامه بده
-                if (secondsRemaining > FAST_FINISH_SECONDS) {
-                    secondsRemaining = FAST_FINISH_SECONDS;
+        var importForm = document.getElementById('sidebarImportForm');
+        if (importForm) {
+            importForm.addEventListener('submit', function(e) {
+                if (importFormConfirmed) {
+                    return true;
                 }
 
-            } catch (error) {
-                ajaxCompleted = true;
-                ajaxResult = { status: 'error', message: 'خطا در ارتباط با سرور: ' + error.message };
-                if (secondsRemaining > FAST_FINISH_SECONDS) {
-                    secondsRemaining = FAST_FINISH_SECONDS;
+                if (!confirm('آیا از شروع واردات خودکار مطمئن هستید؟\n\nتمام داده‌های تولید، کوره، فروش و مواد سازی از فایل اکسل بازنویسی می‌شوند.')) {
+                    e.preventDefault();
+                    return false;
                 }
-            }
-        });
+
+                document.getElementById('importOverlay').style.display = 'block';
+
+                var pbar = document.getElementById('importProgressBar');
+                var pct = 0;
+                var pInterval = setInterval(function() {
+                    pct += Math.random() * 4;
+                    if (pct > 95) pct = 95;
+                    pbar.style.width = pct + '%';
+                }, 500);
+
+                var btn = document.getElementById('sidebarImportBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> در حال واردات...';
+
+                importFormConfirmed = true;
+            });
+        }
     </script>
     @stack('scripts')
 </body>

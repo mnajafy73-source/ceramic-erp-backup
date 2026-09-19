@@ -44,6 +44,7 @@ class ProductController extends Controller
 
         // ✅ داده‌های موردنیاز برای ویرایش سریع
         $packagings = Packaging::all();
+        $formulas   = Formula::orderBy('name')->get();
 
         $productsJson = [];
         foreach ($products as $p) {
@@ -64,7 +65,7 @@ class ProductController extends Controller
             ];
         }
 
-        return view('products.index', compact('products', 'packagings', 'productsJson'));
+        return view('products.index', compact('products', 'packagings', 'formulas', 'productsJson'));
     }
 
     // ============================================================
@@ -77,7 +78,6 @@ class ProductController extends Controller
         $packagings = Packaging::all();
         $allProducts = Product::orderBy('name')->get();
 
-        // ✅ واحد پیش‌فرض: «عدد»
         $defaultUnitId = Unit::where('name', 'عدد')->value('id')
                         ?? Unit::first()->id
                         ?? null;
@@ -112,16 +112,10 @@ class ProductController extends Controller
             $validated['product_type'] = 'normal';
         }
 
-        // ✅ کد خودکار
         $validated['code'] = $this->generateUniqueCode();
-
-        // ✅ وضعیت فعال (همیشه 1)
         $validated['status'] = 1;
-
-        // ✅ فرایند پخت (همیشه both)
         $validated['firing_process'] = 'both';
 
-        // ✅ نرمال‌سازی nullable
         $validated['tonneli_feed_rate'] = $validated['tonneli_feed_rate'] ?? null;
         $validated['per_box'] = $validated['per_box'] ?? null;
         $validated['per_pack'] = $validated['per_pack'] ?? null;
@@ -195,7 +189,6 @@ class ProductController extends Controller
             $validated['product_type'] = $product->product_type ?? 'normal';
         }
 
-        // ✅ کد قابل تغییر نیست
         unset($validated['code']);
 
         $validated['weight'] = $validated['weight'] ?? null;
@@ -258,12 +251,12 @@ class ProductController extends Controller
     }
 
     // ============================================================
-    //  ✅ ویرایش درجا (Inline) از جدول لیست کالاها
+    //  ✅ ویرایش درجا (Inline)
     // ============================================================
     public function inlineUpdate(Request $request, Product $product)
     {
         $validated = $request->validate([
-            'field' => 'required|in:carton_packaging_id,per_box,layer_packaging_id,layers_per_box,product_type,tonneli_feed_rate',
+            'field' => 'required|in:carton_packaging_id,per_box,layer_packaging_id,layers_per_box,product_type,tonneli_feed_rate,formula_id',
             'value' => 'nullable',
         ]);
 
@@ -276,6 +269,17 @@ class ProductController extends Controller
                 if ($value !== null && $value !== '') {
                     if (!Packaging::where('id', $value)->exists()) {
                         return response()->json(['success' => false, 'error' => 'مقدار نامعتبر.'], 422);
+                    }
+                    $value = (int) $value;
+                } else {
+                    $value = null;
+                }
+                break;
+
+            case 'formula_id':
+                if ($value !== null && $value !== '') {
+                    if (!Formula::where('id', $value)->exists()) {
+                        return response()->json(['success' => false, 'error' => 'فرمول نامعتبر.'], 422);
                     }
                     $value = (int) $value;
                 } else {
@@ -345,7 +349,7 @@ class ProductController extends Controller
     }
 
     // ============================================================
-    //  ✅ ساخت کد یکتا برای کالای جدید
+    //  ✅ ساخت کد یکتا
     // ============================================================
     private function generateUniqueCode(): string
     {
