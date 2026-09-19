@@ -77,7 +77,10 @@ Route::middleware(['auth'])->group(function () {
     // محصولات
     Route::resource('products', ProductController::class);
     Route::post('/products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->name('products.toggle-status');
-    Route::post('/products/{product}/toggle-production', [ProductController::class, 'toggleInProduction'])->name('products.toggle-production');
+    // ✅ ویرایش سریع از مدال
+    Route::post('/products/{product}/quick-update', [ProductController::class, 'quickUpdate'])->name('products.quick-update');
+    // ✅ ویرایش درجا از جدول
+    Route::post('/products/{product}/inline-update', [ProductController::class, 'inlineUpdate'])->name('products.inline-update');
 
     // اپراتورها
     Route::resource('operators', OperatorController::class);

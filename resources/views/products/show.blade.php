@@ -18,10 +18,10 @@
                 <table class="table table-bordered">
                     <tr><th>کد کالا</th><td>{{ $product->code }}</td></tr>
                     <tr><th>نام کالا</th><td>{{ $product->name }}</td></tr>
+                    <tr><th>دسته‌بندی</th><td>{{ $product->product_type_label }}</td></tr>
                     <tr><th>واحد</th><td>{{ $product->unit->name ?? '-' }}</td></tr>
                     <tr><th>وزن (گرم)</th><td>{{ $product->weight ?? '-' }}</td></tr>
                     <tr><th>فرمول</th><td>{{ $product->formula->name ?? '-' }}</td></tr>
-                    <tr><th>تعداد حفره قالب</th><td>{{ $product->cavities ?? '-' }}</td></tr>
                     <tr><th>خوراک پخت کوره تونلی</th><td>{{ $product->tonneli_feed_rate ?? '-' }}</td></tr>
                 </table>
             </div>
@@ -33,8 +33,6 @@
                     <tr><th>تعداد لایه در کارتن</th><td>{{ $product->layers_per_box ?? '-' }}</td></tr>
                     <tr><th>کارتن مصرفی</th><td>{{ $product->cartonPackaging->name ?? '-' }}</td></tr>
                     <tr><th>لایه مصرفی</th><td>{{ $product->layerPackaging->name ?? '-' }}</td></tr>
-                    <tr><th>وضعیت</th><td>{{ $product->status ? 'فعال' : 'غیرفعال' }}</td></tr>
-                    <tr><th>در حال تولید</th><td>{{ $product->in_production ? 'بله' : 'خیر' }}</td></tr>
                 </table>
             </div>
         </div>

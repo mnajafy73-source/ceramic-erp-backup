@@ -44,7 +44,6 @@
     .icon-basic      { background: #0d6efd; }
     .icon-production { background: #fd7e14; }
     .icon-packaging  { background: #198754; }
-    .icon-status     { background: #6f42c1; }
     .icon-alias      { background: #20c997; }
 
     .field-group {
@@ -79,23 +78,6 @@
     .form-control:focus, .form-select:focus {
         border-color: #0d6efd;
         box-shadow: 0 0 0 0.15rem rgba(13,110,253,0.15);
-    }
-    .checkbox-card {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 14px 16px;
-        border: 1px solid #dee2e6;
-        height: 100%;
-        display: flex;
-        align-items: center;
-    }
-    .checkbox-card .form-check {
-        margin: 0;
-    }
-    .checkbox-card .form-check-label {
-        font-weight: 600;
-        font-size: 14px;
-        cursor: pointer;
     }
     .action-bar {
         background: #fff;
@@ -136,15 +118,7 @@
         </div>
 
         <div class="row g-3">
-            <div class="col-md-6 col-lg-3">
-                <label class="form-label">کد <span class="text-danger">*</span></label>
-                <input type="text" name="code"
-                       class="form-control @error('code') is-invalid @enderror"
-                       value="{{ old('code') }}" required>
-                @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
-            </div>
-
-            <div class="col-md-6 col-lg-3">
+            <div class="col-md-6 col-lg-4">
                 <label class="form-label">نام <span class="text-danger">*</span></label>
                 <input type="text" name="name"
                        class="form-control @error('name') is-invalid @enderror"
@@ -152,12 +126,13 @@
                 @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
 
-            <div class="col-md-6 col-lg-3">
+            <div class="col-md-6 col-lg-4">
                 <label class="form-label">واحد <span class="text-danger">*</span></label>
                 <select name="unit_id" class="form-select @error('unit_id') is-invalid @enderror" required>
                     <option value="">انتخاب واحد</option>
                     @foreach($units as $unit)
-                        <option value="{{ $unit->id }}" {{ old('unit_id') == $unit->id ? 'selected' : '' }}>
+                        <option value="{{ $unit->id }}"
+                            {{ old('unit_id', $defaultUnitId ?? '') == $unit->id ? 'selected' : '' }}>
                             {{ $unit->name }}
                         </option>
                     @endforeach
@@ -165,7 +140,7 @@
                 @error('unit_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
 
-            <div class="col-md-6 col-lg-3">
+            <div class="col-md-6 col-lg-4">
                 <label class="form-label">وزن (گرم)</label>
                 <input type="number" name="weight"
                        class="form-control @error('weight') is-invalid @enderror"
@@ -188,34 +163,18 @@
         </div>
 
         <div class="row g-3">
-            <div class="col-md-6 col-lg-3">
-                <label class="form-label">نوع محصول</label>
+            <div class="col-md-6 col-lg-4">
+                <label class="form-label">دسته‌بندی محصول</label>
                 <select name="product_type" class="form-select @error('product_type') is-invalid @enderror">
                     <option value="normal" {{ old('product_type') == 'normal' ? 'selected' : '' }}>معمولی</option>
+                    <option value="rod" {{ old('product_type') == 'rod' ? 'selected' : '' }}>میله‌ها</option>
+                    <option value="pipe" {{ old('product_type') == 'pipe' ? 'selected' : '' }}>لوله‌ها</option>
                     <option value="injection" {{ old('product_type') == 'injection' ? 'selected' : '' }}>تزریق</option>
                 </select>
                 @error('product_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
 
-            <div class="col-md-6 col-lg-3">
-                <label class="form-label">فرایند پخت</label>
-                <select name="firing_process" class="form-select @error('firing_process') is-invalid @enderror">
-                    <option value="tonneli" {{ old('firing_process') == 'tonneli' ? 'selected' : '' }}>تونلی</option>
-                    <option value="shuttle" {{ old('firing_process') == 'shuttle' ? 'selected' : '' }}>شاتل</option>
-                    <option value="both" {{ old('firing_process') == 'both' ? 'selected' : '' }}>هر دو</option>
-                </select>
-                @error('firing_process')<div class="invalid-feedback">{{ $message }}</div>@enderror
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <label class="form-label">تعداد حفره</label>
-                <input type="number" name="cavities"
-                       class="form-control @error('cavities') is-invalid @enderror"
-                       value="{{ old('cavities', 1) }}" min="1">
-                @error('cavities')<div class="invalid-feedback">{{ $message }}</div>@enderror
-            </div>
-
-            <div class="col-md-6 col-lg-3">
+            <div class="col-md-6 col-lg-4">
                 <label class="form-label">خوراک پخت تونلی</label>
                 <input type="number" name="tonneli_feed_rate"
                        class="form-control @error('tonneli_feed_rate') is-invalid @enderror"
@@ -223,7 +182,7 @@
                 @error('tonneli_feed_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
 
-            <div class="col-md-6 col-lg-6">
+            <div class="col-md-6 col-lg-4">
                 <label class="form-label">فرمول</label>
                 <select name="formula_id" class="form-select @error('formula_id') is-invalid @enderror">
                     <option value="">بدون فرمول</option>
@@ -352,48 +311,7 @@
     </div>
 
     {{-- ============================================================== --}}
-    {{--  ۴. وضعیت                                                     --}}
-    {{-- ============================================================== --}}
-    <div class="form-section">
-        <div class="section-header">
-            <div class="section-icon icon-status"><i class="fas fa-toggle-on"></i></div>
-            <div>
-                <h6>وضعیت</h6>
-                <small>وضعیت نمایش و تولید کالا</small>
-            </div>
-        </div>
-
-        <div class="row g-3">
-            <div class="col-md-6">
-                <div class="checkbox-card">
-                    <div class="form-check">
-                        <input type="checkbox" name="status" class="form-check-input" id="status" value="1"
-                               {{ old('status', true) ? 'checked' : '' }}>
-                        <label class="form-check-label" for="status">
-                            <i class="fas fa-check-circle text-success me-1"></i>
-                            فعال
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="checkbox-card">
-                    <div class="form-check">
-                        <input type="checkbox" name="in_production" class="form-check-input" id="in_production" value="1"
-                               {{ old('in_production') ? 'checked' : '' }}>
-                        <label class="form-check-label" for="in_production">
-                            <i class="fas fa-cogs text-primary me-1"></i>
-                            در تولید
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- ============================================================== --}}
-    {{--  ۵. نام‌های مستعار                                             --}}
+    {{--  ۴. نام‌های مستعار                                             --}}
     {{-- ============================================================== --}}
     <div class="form-section">
         <div class="section-header">

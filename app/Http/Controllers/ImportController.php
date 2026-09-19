@@ -123,7 +123,7 @@ class ImportController extends Controller
             $status = 'error';
         }
 
-        // ✅ پاسخ JSON برای درخواست‌های AJAX (بدون تغییر صفحه)
+        // ✅ پاسخ JSON برای درخواست‌های AJAX
         if ($request->expectsJson()) {
             return response()->json([
                 'status'  => $status,
@@ -131,7 +131,7 @@ class ImportController extends Controller
             ]);
         }
 
-        // ✅ fallback برای درخواست‌های معمولی (اگه JS غیرفعال بود)
+        // ✅ fallback برای درخواست‌های معمولی
         return redirect()->back()->with($status === 'success' ? 'success' : 'error', $message);
     }
 
@@ -955,11 +955,10 @@ class ImportController extends Controller
             'name' => $cleanName,
             'unit_id' => 1,
             'status' => 1,
-            'cavities' => 0,
             'weight' => 0,
             'per_box' => 0,
             'layers_per_box' => 0,
-            'firing_process' => 'tonneli',
+            'firing_process' => 'both',
         ]);
         $this->productsCache[$cleanName] = $product;
         return $product;

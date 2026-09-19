@@ -20,7 +20,6 @@ class Product extends Model
         'carton_packaging_id',
         'layer_packaging_id',
         'tonneli_feed_rate',
-        'cavities',
         'per_pack',
         'per_pallet',
         'status',
@@ -32,13 +31,75 @@ class Product extends Model
         'hidden_from_warehouse',
         'warehouse_sort_order',
         'all_stocks_sort_order',
-        'unpackaged_manual_stock',    // ✅ جدید
+        'unpackaged_manual_stock',
     ];
 
     protected $casts = [
         'unpackaged_manual_stock' => 'decimal:2',
     ];
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ دسته‌بندی محصولات (۴ گزینه)
+    // ═══════════════════════════════════════════════════════════
+    public const TYPES = [
+        'normal'    => 'معمولی',
+        'rod'       => 'میله‌ها',
+        'pipe'      => 'لوله‌ها',
+        'injection' => 'تزریق',
+    ];
+
+    public static function typeLabels(): array
+    {
+        return self::TYPES;
+    }
+
+    public function getProductTypeLabelAttribute(): string
+    {
+        return self::TYPES[$this->product_type] ?? 'نامشخص';
+    }
+
+    public function getProductTypeBadgeAttribute(): string
+    {
+        return match ($this->product_type) {
+            'normal'    => 'bg-success',
+            'rod'       => 'bg-primary',
+            'pipe'      => 'bg-info text-dark',
+            'injection' => 'bg-warning text-dark',
+            default     => 'bg-secondary',
+        };
+    }
+
+    public function isRod(): bool
+    {
+        return $this->product_type === 'rod';
+    }
+
+    public function isInjection(): bool
+    {
+        return $this->product_type === 'injection';
+    }
+
+    public function isNormal(): bool
+    {
+        return $this->product_type === 'normal' || is_null($this->product_type);
+    }
+
+    public function isPipe(): bool
+    {
+        return $this->product_type === 'pipe';
+    }
+
+    public function scopeOfType($query, $type)
+    {
+        if (empty($type) || $type === 'all') {
+            return $query;
+        }
+        return $query->where('product_type', $type);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  روابط
+    // ═══════════════════════════════════════════════════════════
     public function logs()
     {
         return $this->hasMany(ProductLog::class);
@@ -102,16 +163,6 @@ class Product extends Model
     public function layerPackaging()
     {
         return $this->belongsTo(Packaging::class, 'layer_packaging_id');
-    }
-
-    public function isInjection(): bool
-    {
-        return $this->product_type === 'injection';
-    }
-
-    public function isNormal(): bool
-    {
-        return $this->product_type === 'normal' || is_null($this->product_type);
     }
 
     public function subtractPackaging($quantity)
