@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryChangeLog;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Morilog\Jalali\Jalalian;
@@ -45,11 +46,66 @@ class InventoryLogController extends Controller
             $query->where('user_id', $userId);
         }
 
-        // ✅ جستجو
+        // ✅ فیلتر محصول (انتخاب از dropdown)
+        if ($productId = $request->input('product_id')) {
+            $query->where('loggable_id', $productId);
+        }
+
+        // ✅ جستجو (هم در اسم کالا هم در توضیحات)
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
+            $search = trim($search);
+
+            // پیدا کردن product_idهایی که اسمشون شامل search هست
+            $matchedProductIds = Product::where('name', 'like', "%{$search}%")
+                ->orWhere('code', 'like', "%{$search}%")
+                ->pluck('id')
+                ->toArray();
+
+            // پیدا کردن raw material idهایی که اسمشون شامل search هست
+            $matchedMaterialIds = \App\Models\RawMaterial::where('name', 'like', "%{$search}%")
+                ->pluck('id')
+                ->toArray();
+
+            // پیدا کردن packaging idهایی که اسمشون شامل search هست
+            $matchedPackagingIds = \App\Models\Packaging::where('name', 'like', "%{$search}%")
+                ->pluck('id')
+                ->toArray();
+
+            $query->where(function ($q) use ($search, $matchedProductIds, $matchedMaterialIds, $matchedPackagingIds) {
+                // ۱. جستجو در توضیحات و منبع
                 $q->where('description', 'like', "%{$search}%")
                   ->orWhere('source', 'like', "%{$search}%");
+
+                // ۲. اگه محصولاتی پیدا شد، loggable_id رو با اونها چک کن
+                if (!empty($matchedProductIds)) {
+                    $q->orWhere(function ($sub) use ($matchedProductIds) {
+                        $sub->whereIn('loggable_type', [
+                            'App\Models\WarehouseInventory',
+                            'App\Models\RawInventory',
+                            'App\Models\WaxInventory',
+                            'App\Models\ShoulderInventory',
+                            'App\Models\WasteMumInventory',
+                            'App\Models\Glaze1300Inventory',
+                            'App\Models\Product',
+                        ])->whereIn('loggable_id', $matchedProductIds);
+                    });
+                }
+
+                // ۳. اگه ماده اولیه پیدا شد
+                if (!empty($matchedMaterialIds)) {
+                    $q->orWhere(function ($sub) use ($matchedMaterialIds) {
+                        $sub->where('loggable_type', 'App\Models\RawMaterial')
+                            ->whereIn('loggable_id', $matchedMaterialIds);
+                    });
+                }
+
+                // ۴. اگه کارتن/لایه پیدا شد
+                if (!empty($matchedPackagingIds)) {
+                    $q->orWhere(function ($sub) use ($matchedPackagingIds) {
+                        $sub->where('loggable_type', 'App\Models\Packaging')
+                            ->whereIn('loggable_id', $matchedPackagingIds);
+                    });
+                }
             });
         }
 
@@ -75,13 +131,11 @@ class InventoryLogController extends Controller
                     break;
 
                 case 'this_week':
-                    // هفته در ایران از شنبه شروع می‌شود
                     $from = $today->copy()->startOfWeek(\Carbon\Carbon::SATURDAY)->startOfDay();
                     $to   = now()->endOfDay();
                     break;
 
                 case 'this_month':
-                    // اول ماه شمسی
                     $firstOfMonth = Jalalian::fromFormat(
                         'Y/m/d',
                         $now->getYear() . '/' . str_pad($now->getMonth(), 2, '0', STR_PAD_LEFT) . '/01'
@@ -97,12 +151,10 @@ class InventoryLogController extends Controller
 
             if ($from && $to) {
                 $query->whereBetween('created_at', [$from, $to]);
-                // پرشونده input‌های تاریخ برای نمایش در فیلدها
                 $dateFrom = Jalalian::fromCarbon($from)->format('Y/m/d');
                 $dateTo   = Jalalian::fromCarbon($to)->format('Y/m/d');
             }
         }
-        // ✅ فیلتر دستی بازه تاریخ
         else {
             if ($dateFrom) {
                 try {
@@ -135,14 +187,32 @@ class InventoryLogController extends Controller
 
         $users = User::orderBy('name')->get();
 
-        // برای نمایش در فیلدها
+        // ✅ لیست محصولات برای dropdown (بر اساس نوع انتخابی)
+        $currentType = $request->input('type', 'all');
+        $products = collect();
+        $rawMaterials = collect();
+        $packagings = collect();
+
+        if (in_array($currentType, ['warehouse', 'raw', 'wax', 'shoulder', 'waste_mum', 'glaze1300', 'all'])) {
+            $products = Product::orderBy('name')->get(['id', 'name', 'code']);
+        }
+
+        if ($currentType === 'raw_material' || $currentType === 'all') {
+            $rawMaterials = \App\Models\RawMaterial::orderBy('name')->get(['id', 'name']);
+        }
+
+        if ($currentType === 'packaging' || $currentType === 'all') {
+            $packagings = \App\Models\Packaging::orderBy('name')->get(['id', 'name', 'type']);
+        }
+
         $currentDateFrom = $dateFrom;
         $currentDateTo   = $dateTo;
         $currentQuick    = $quick;
 
         return view('inventory-logs.index', compact(
             'logs', 'typeCounts', 'users',
-            'currentDateFrom', 'currentDateTo', 'currentQuick'
+            'currentDateFrom', 'currentDateTo', 'currentQuick',
+            'products', 'rawMaterials', 'packagings'
         ));
     }
 

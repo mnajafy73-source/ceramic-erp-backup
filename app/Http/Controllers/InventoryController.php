@@ -26,9 +26,6 @@ class InventoryController extends Controller
         return view('inventory.index');
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ API آخرین تغییرات
-    // ═══════════════════════════════════════════════════════════
     public function getChangeLogs(Request $request)
     {
         $request->validate([
@@ -69,6 +66,7 @@ class InventoryController extends Controller
                 'old_value' => (float) $log->old_value,
                 'new_value' => (float) $log->new_value,
                 'mode'      => $log->mode,
+                'source'    => $log->source_label,
                 'user'      => $log->user?->name ?? '—',
             ];
         });
@@ -399,7 +397,6 @@ class InventoryController extends Controller
     {
         $product->hidden_from_all_stocks = true;
         $product->save();
-
         return back()->with('success', '✅ محصول از گزارش جامع مخفی شد.');
     }
 
@@ -407,7 +404,6 @@ class InventoryController extends Controller
     {
         $product->hidden_from_all_stocks = false;
         $product->save();
-
         return back()->with('success', '✅ محصول به گزارش جامع برگردانده شد.');
     }
 
@@ -415,7 +411,6 @@ class InventoryController extends Controller
     {
         $product->hidden_from_warehouse = true;
         $product->save();
-
         return back()->with('success', '✅ محصول از موجودی انبار مخفی شد.');
     }
 
@@ -423,7 +418,6 @@ class InventoryController extends Controller
     {
         $product->hidden_from_warehouse = false;
         $product->save();
-
         return back()->with('success', '✅ محصول به موجودی انبار برگردانده شد.');
     }
 
@@ -450,19 +444,13 @@ class InventoryController extends Controller
         $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'عدد معتبر وارد کنید.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'عدد معتبر وارد کنید.'], 422);
         }
 
         $quantity = (float) $cleanQty;
 
         if ($mode === 'set' && $quantity < 0) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'مقدار نمی‌تواند منفی باشد.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'مقدار نمی‌تواند منفی باشد.'], 422);
         }
 
         $inv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
@@ -474,10 +462,19 @@ class InventoryController extends Controller
             $inv->stock = max(0, $quantity);
         }
         $inv->save();
+        $newStock = (float) $inv->stock;
 
-        // ✅ لاگ تغییر — با product_id
-        if ($oldStock != (float) $inv->stock) {
-            InventoryChangeLog::log($inv, 'warehouse', $oldStock, (float) $inv->stock, $mode, $product->id);
+        // ✅ لاگ با source
+        if ($oldStock != $newStock) {
+            $sourceLabel = ($mode === 'adjust') ? 'manual_warehouse_adjust' : 'manual_warehouse_set';
+            $modeLabel = ($mode === 'adjust') ? 'کسر/اضافه' : 'تنظیم';
+            $descLabel = "{$modeLabel} دستی موجودی انبار ({$product->name}) - مقدار: " . number_format($quantity);
+
+            InventoryChangeLog::log(
+                $inv, 'stock', $oldStock, $newStock,
+                $mode, $product->id,
+                $sourceLabel, $descLabel
+            );
         }
 
         $totalStock = $this->calculateTotalWarehouseStock($product);
@@ -533,19 +530,13 @@ class InventoryController extends Controller
         $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'عدد معتبر وارد کنید.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'عدد معتبر وارد کنید.'], 422);
         }
 
         $quantity = (float) $cleanQty;
 
         if ($mode === 'set' && $quantity < 0) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'مقدار نمی‌تواند منفی باشد.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'مقدار نمی‌تواند منفی باشد.'], 422);
         }
 
         $quantityInGram = ($unit === 'ton') ? $quantity * 1000000 : $quantity;
@@ -560,9 +551,17 @@ class InventoryController extends Controller
         $material->stock = $newStock;
         $material->save();
 
-        // ✅ لاگ تغییر
+        // ✅ لاگ با source
         if ($oldStock != $newStock) {
-            InventoryChangeLog::log($material, 'stock', $oldStock, $newStock, $mode);
+            $sourceLabel = ($mode === 'adjust') ? 'manual_raw_material_adjust' : 'manual_raw_material_set';
+            $modeLabel = ($mode === 'adjust') ? 'کسر/اضافه' : 'تنظیم';
+            $descLabel = "{$modeLabel} دستی مواد اولیه ({$material->name}) - مقدار: " . number_format($quantity) . ' ' . $unit;
+
+            InventoryChangeLog::log(
+                $material, 'stock', $oldStock, $newStock,
+                $mode, null,
+                $sourceLabel, $descLabel
+            );
         }
 
         $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
@@ -598,19 +597,13 @@ class InventoryController extends Controller
         $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'عدد معتبر وارد کنید.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'عدد معتبر وارد کنید.'], 422);
         }
 
         $quantity = (float) $cleanQty;
 
         if ($mode === 'set' && $quantity < 0) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'مقدار نمی‌تواند منفی باشد.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'مقدار نمی‌تواند منفی باشد.'], 422);
         }
 
         $oldStock = (float) $packaging->stock;
@@ -622,15 +615,21 @@ class InventoryController extends Controller
         }
 
         $packaging->stock = (int) $newStock;
-
-        // ✅ مبنای مصرف رو ریست کن به مصرف فعلی
         $packaging->baseline_consumed = $this->calculatePackagingConsumed($packaging);
-
         $packaging->save();
+        $newStock = (int) $packaging->stock;
 
-        // ✅ لاگ تغییر
+        // ✅ لاگ با source
         if ($oldStock != $newStock) {
-            InventoryChangeLog::log($packaging, 'stock', $oldStock, $newStock, $mode);
+            $sourceLabel = ($mode === 'adjust') ? 'manual_packaging_adjust' : 'manual_packaging_set';
+            $modeLabel = ($mode === 'adjust') ? 'کسر/اضافه' : 'تنظیم';
+            $descLabel = "{$modeLabel} دستی بسته ({$packaging->name}) - مقدار: " . number_format($quantity);
+
+            InventoryChangeLog::log(
+                $packaging, 'stock', $oldStock, $newStock,
+                $mode, null,
+                $sourceLabel, $descLabel
+            );
         }
 
         $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
@@ -668,8 +667,18 @@ class InventoryController extends Controller
         $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
         if ($field === 'unpackaged' && ($cleanQty === '' || $rawInput === 'auto')) {
+            $oldStock = (float) $this->calculateUnpackagedStock($product);
             $product->unpackaged_manual_stock = null;
             $product->save();
+
+            if ($oldStock != 0) {
+                InventoryChangeLog::log(
+                    $product, 'unpackaged_manual_stock', $oldStock, 0,
+                    'set', $product->id,
+                    'manual_unpackaged',
+                    "برگشت به حالت خودکار ({$product->name})"
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -680,19 +689,13 @@ class InventoryController extends Controller
         }
 
         if ($cleanQty === '' || !is_numeric($cleanQty)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'عدد معتبر وارد کنید.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'عدد معتبر وارد کنید.'], 422);
         }
 
         $quantity = (float) $cleanQty;
 
         if ($mode === 'set' && $quantity < 0) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'مقدار نمی‌تواند منفی باشد.',
-            ], 422);
+            return response()->json(['success' => false, 'error' => 'مقدار نمی‌تواند منفی باشد.'], 422);
         }
 
         if ($field === 'warehouse') {
@@ -802,9 +805,36 @@ class InventoryController extends Controller
                     break;
             }
 
-            // ✅ لاگ تغییر — با product_id
+            // ✅ لاگ با source مناسب
             if ($loggable && $oldStock != $newStock) {
-                InventoryChangeLog::log($loggable, $field, $oldStock, $newStock, $mode, $product->id);
+                $sourceLabels = [
+                    'raw'        => 'manual_raw',
+                    'wax'        => 'manual_wax',
+                    'shoulder'   => 'manual_shoulder',
+                    'waste_mum'  => 'manual_waste_mum',
+                    'glaze1300'  => 'manual_glaze1300',
+                    'warehouse'  => 'manual_warehouse',
+                    'unpackaged' => 'manual_unpackaged',
+                ];
+                $fieldLabels = [
+                    'raw'        => 'موجودی خام',
+                    'wax'        => 'موجودی موم',
+                    'shoulder'   => 'موجودی شانه شده',
+                    'waste_mum'  => 'ضایعات موم',
+                    'glaze1300'  => 'موجودی ۱۳۰۰',
+                    'warehouse'  => 'موجودی انبار',
+                    'unpackaged' => 'موجودی بسته‌نشده',
+                ];
+                $sourceLabel = $sourceLabels[$field] ?? 'manual_' . $field;
+                $fieldLabel = $fieldLabels[$field] ?? $field;
+                $modeLabel = ($mode === 'adjust') ? 'کسر/اضافه' : 'تنظیم';
+                $descLabel = "{$modeLabel} دستی {$fieldLabel} ({$product->name}) - مقدار: " . number_format($quantity);
+
+                InventoryChangeLog::log(
+                    $loggable, $field, $oldStock, $newStock,
+                    $mode, $product->id,
+                    $sourceLabel, $descLabel
+                );
             }
 
             $modeLabel = ($mode === 'adjust') ? ' (کسر/اضافه)' : '';
@@ -827,18 +857,13 @@ class InventoryController extends Controller
 
     public function reorderWarehouse(Request $request)
     {
-        $request->validate([
-            'order'   => 'required|array|min:1',
-            'order.*' => 'integer|exists:products,id',
-        ]);
-
+        $request->validate(['order' => 'required|array|min:1', 'order.*' => 'integer|exists:products,id']);
         $order = $request->input('order');
 
         DB::beginTransaction();
         try {
             foreach ($order as $index => $productId) {
-                Product::where('id', $productId)
-                    ->update(['warehouse_sort_order' => $index + 1]);
+                Product::where('id', $productId)->update(['warehouse_sort_order' => $index + 1]);
             }
 
             $allIds = Product::where('status', 1)->pluck('id')->toArray();
@@ -846,50 +871,33 @@ class InventoryController extends Controller
 
             if (!empty($remaining)) {
                 $startPos = count($order) + 1;
-
                 $hiddenProducts = Product::whereIn('id', $remaining)
                     ->orderByRaw('CASE WHEN warehouse_sort_order > 0 THEN warehouse_sort_order ELSE 999999 END ASC')
-                    ->orderBy('name')
-                    ->pluck('id')
-                    ->toArray();
+                    ->orderBy('name')->pluck('id')->toArray();
 
                 foreach ($hiddenProducts as $i => $productId) {
-                    Product::where('id', $productId)
-                        ->update(['warehouse_sort_order' => $startPos + $i]);
+                    Product::where('id', $productId)->update(['warehouse_sort_order' => $startPos + $i]);
                 }
             }
 
             DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'ترتیب با موفقیت ذخیره شد.',
-            ]);
-
+            return response()->json(['success' => true, 'message' => 'ترتیب با موفقیت ذخیره شد.']);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('reorderWarehouse failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'error' => 'خطا در ذخیره ترتیب: ' . $e->getMessage()], 500);
         }
     }
 
     public function reorderAllStocks(Request $request)
     {
-        $request->validate([
-            'order'   => 'required|array|min:1',
-            'order.*' => 'integer|exists:products,id',
-        ]);
-
+        $request->validate(['order' => 'required|array|min:1', 'order.*' => 'integer|exists:products,id']);
         $order = $request->input('order');
 
         DB::beginTransaction();
         try {
             foreach ($order as $index => $productId) {
-                Product::where('id', $productId)
-                    ->update(['all_stocks_sort_order' => $index + 1]);
+                Product::where('id', $productId)->update(['all_stocks_sort_order' => $index + 1]);
             }
 
             $allIds = Product::where('status', 1)->pluck('id')->toArray();
@@ -897,50 +905,33 @@ class InventoryController extends Controller
 
             if (!empty($remaining)) {
                 $startPos = count($order) + 1;
-
                 $hiddenProducts = Product::whereIn('id', $remaining)
                     ->orderByRaw('CASE WHEN all_stocks_sort_order > 0 THEN all_stocks_sort_order ELSE 999999 END ASC')
-                    ->orderBy('name')
-                    ->pluck('id')
-                    ->toArray();
+                    ->orderBy('name')->pluck('id')->toArray();
 
                 foreach ($hiddenProducts as $i => $productId) {
-                    Product::where('id', $productId)
-                        ->update(['all_stocks_sort_order' => $startPos + $i]);
+                    Product::where('id', $productId)->update(['all_stocks_sort_order' => $startPos + $i]);
                 }
             }
 
             DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'ترتیب با موفقیت ذخیره شد.',
-            ]);
-
+            return response()->json(['success' => true, 'message' => 'ترتیب با موفقیت ذخیره شد.']);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('reorderAllStocks failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'error' => 'خطا در ذخیره ترتیب: ' . $e->getMessage()], 500);
         }
     }
 
     public function reorderRawMaterials(Request $request)
     {
-        $request->validate([
-            'order'   => 'required|array|min:1',
-            'order.*' => 'integer|exists:raw_materials,id',
-        ]);
-
+        $request->validate(['order' => 'required|array|min:1', 'order.*' => 'integer|exists:raw_materials,id']);
         $order = $request->input('order');
 
         DB::beginTransaction();
         try {
             foreach ($order as $index => $materialId) {
-                RawMaterial::where('id', $materialId)
-                    ->update(['sort_order' => $index + 1]);
+                RawMaterial::where('id', $materialId)->update(['sort_order' => $index + 1]);
             }
 
             $allIds = RawMaterial::pluck('id')->toArray();
@@ -948,50 +939,33 @@ class InventoryController extends Controller
 
             if (!empty($remaining)) {
                 $startPos = count($order) + 1;
-
                 $hiddenMaterials = RawMaterial::whereIn('id', $remaining)
                     ->orderByRaw('CASE WHEN sort_order > 0 THEN sort_order ELSE 999999 END ASC')
-                    ->orderBy('name')
-                    ->pluck('id')
-                    ->toArray();
+                    ->orderBy('name')->pluck('id')->toArray();
 
                 foreach ($hiddenMaterials as $i => $materialId) {
-                    RawMaterial::where('id', $materialId)
-                        ->update(['sort_order' => $startPos + $i]);
+                    RawMaterial::where('id', $materialId)->update(['sort_order' => $startPos + $i]);
                 }
             }
 
             DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'ترتیب با موفقیت ذخیره شد.',
-            ]);
-
+            return response()->json(['success' => true, 'message' => 'ترتیب با موفقیت ذخیره شد.']);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('reorderRawMaterials failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'error' => 'خطا در ذخیره ترتیب: ' . $e->getMessage()], 500);
         }
     }
 
     public function reorderPackagings(Request $request)
     {
-        $request->validate([
-            'order'   => 'required|array|min:1',
-            'order.*' => 'integer|exists:packagings,id',
-        ]);
-
+        $request->validate(['order' => 'required|array|min:1', 'order.*' => 'integer|exists:packagings,id']);
         $order = $request->input('order');
 
         DB::beginTransaction();
         try {
             foreach ($order as $index => $packagingId) {
-                Packaging::where('id', $packagingId)
-                    ->update(['sort_order' => $index + 1]);
+                Packaging::where('id', $packagingId)->update(['sort_order' => $index + 1]);
             }
 
             $allIds = Packaging::pluck('id')->toArray();
@@ -999,34 +973,21 @@ class InventoryController extends Controller
 
             if (!empty($remaining)) {
                 $startPos = count($order) + 1;
-
                 $hiddenItems = Packaging::whereIn('id', $remaining)
                     ->orderByRaw('CASE WHEN sort_order > 0 THEN sort_order ELSE 999999 END ASC')
-                    ->orderBy('type')
-                    ->orderBy('name')
-                    ->pluck('id')
-                    ->toArray();
+                    ->orderBy('type')->orderBy('name')->pluck('id')->toArray();
 
                 foreach ($hiddenItems as $i => $packagingId) {
-                    Packaging::where('id', $packagingId)
-                        ->update(['sort_order' => $startPos + $i]);
+                    Packaging::where('id', $packagingId)->update(['sort_order' => $startPos + $i]);
                 }
             }
 
             DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'ترتیب با موفقیت ذخیره شد.',
-            ]);
-
+            return response()->json(['success' => true, 'message' => 'ترتیب با موفقیت ذخیره شد.']);
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('reorderPackagings failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error'   => 'خطا در ذخیره ترتیب: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'error' => 'خطا در ذخیره ترتیب: ' . $e->getMessage()], 500);
         }
     }
 }

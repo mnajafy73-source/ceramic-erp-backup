@@ -92,7 +92,6 @@
         opacity: 0.3;
     }
 
-    /* ✅ دکمه‌های سریع تاریخ */
     .quick-dates {
         display: flex;
         gap: 6px;
@@ -105,11 +104,17 @@
         padding: 5px 12px;
     }
 
-    /* ✅ استایل datepicker */
     .datepicker-plot-area {
         font-family: Tahoma, sans-serif !important;
     }
+
+    /* ✅ استایل select2 */
+    .select2-container--bootstrap-5 .select2-selection {
+        font-size: 14px;
+    }
 </style>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 @endpush
 
 @section('content')
@@ -154,7 +159,7 @@
     @endphp
 
     @foreach($typeButtons as $key => $cfg)
-        <a href="{{ route('inventory-logs.index', array_merge(request()->except('type', 'page', 'quick'), ['type' => $key])) }}"
+        <a href="{{ route('inventory-logs.index', array_merge(request()->except('type', 'page', 'quick', 'product_id'), ['type' => $key])) }}"
            class="btn {{ request('type') === $key ? 'btn-' . $cfg['color'] . ' active' : 'btn-outline-' . $cfg['color'] }}">
             <i class="fas {{ $cfg['icon'] }}"></i>
             {{ $cfg['label'] }}
@@ -231,7 +236,7 @@
                        autocomplete="off">
             </div>
 
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label small fw-bold">منبع</label>
                 <select name="source" class="form-select form-select-sm">
                     <option value="all" {{ request('source', 'all') === 'all' ? 'selected' : '' }}>همه</option>
@@ -244,10 +249,10 @@
                 </select>
             </div>
 
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label small fw-bold">کاربر</label>
                 <select name="user_id" class="form-select form-select-sm">
-                    <option value="">همه</option>
+                    <option value="">همه کاربران</option>
                     @foreach($users as $u)
                         <option value="{{ $u->id }}" {{ request('user_id') == $u->id ? 'selected' : '' }}>
                             {{ $u->name }}
@@ -256,19 +261,35 @@
                 </select>
             </div>
 
-            <div class="col-md-2">
+            {{-- ✅ انتخاب محصول از dropdown --}}
+            @if($products->count() > 0)
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">انتخاب محصول</label>
+                    <select name="product_id" id="product_id" class="form-select form-select-sm product-search-select">
+                        <option value="">همه محصولات</option>
+                        @foreach($products as $p)
+                            <option value="{{ $p->id }}" {{ request('product_id') == $p->id ? 'selected' : '' }}>
+                                {{ $p->name }} ({{ $p->code }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
+
+            {{-- ✅ جستجوی متنی --}}
+            <div class="col-md-5">
                 <label class="form-label small fw-bold">جستجو</label>
                 <input type="text" name="search" class="form-control form-control-sm"
-                       placeholder="نام..." value="{{ request('search') }}">
+                       placeholder="نام محصول، ماده، بسته، توضیحات..." value="{{ request('search') }}">
             </div>
 
-            <div class="col-md-12 d-flex gap-2 justify-content-end">
-                <button type="submit" class="btn btn-primary btn-sm">
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill">
                     <i class="fas fa-search me-1"></i> اعمال فیلتر
                 </button>
                 <a href="{{ route('inventory-logs.index', ['type' => request('type', 'all')]) }}"
-                   class="btn btn-secondary btn-sm">
-                    <i class="fas fa-times me-1"></i> حذف همه فیلترها
+                   class="btn btn-secondary btn-sm flex-fill">
+                    <i class="fas fa-times me-1"></i> حذف همه
                 </a>
             </div>
         </form>
@@ -281,8 +302,8 @@
         @if($logs->isEmpty())
             <div class="empty-state">
                 <i class="fas fa-history"></i>
-                <h5>هیچ تغییری ثبت نشده است</h5>
-                <p>به‌محض اینکه موجودی‌ها تغییر کنند، اینجا نمایش داده می‌شوند.</p>
+                <h5>هیچ تغییری یافت نشد</h5>
+                <p>فیلترها رو تغییر بده یا صبر کن تا تغییرات جدید ثبت بشن.</p>
             </div>
         @else
             <div class="list-group list-group-flush">
@@ -295,7 +316,6 @@
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                             <div class="flex-grow-1">
 
-                                {{-- اسم کالا --}}
                                 <div class="mb-2">
                                     <span class="log-subject-name">
                                         <i class="fas fa-box-open"></i>
@@ -303,7 +323,6 @@
                                     </span>
                                 </div>
 
-                                {{-- نوع موجودی + منبع + کاربر --}}
                                 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                                     <span class="badge {{ $log->inventory_type_badge }}">
                                         {{ $log->inventory_type_label }}
@@ -368,7 +387,7 @@
     {{ $logs->links() }}
 </div>
 
-{{-- ✅ Modal پاک کردن لاگ‌های قدیمی --}}
+{{-- Modal پاک کردن لاگ‌های قدیمی --}}
 <div class="modal fade" id="deleteOldModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -416,40 +435,46 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-    // ✅ راه‌اندازی date picker شمسی
     $(document).ready(function() {
-        if (typeof $.fn.pDatepicker === 'undefined') {
-            console.warn('[inventory-logs] persian-datepicker not loaded');
-            return;
+        // ✅ راه‌اندازی date picker شمسی
+        if (typeof $.fn.pDatepicker !== 'undefined') {
+            $('.jalali-date-input').pDatepicker({
+                format: 'YYYY/MM/DD',
+                initialValue: false,
+                autoClose: true,
+                persianDigit: false,
+                observer: true,
+                calendar: {
+                    persian: {
+                        locale: 'fa',
+                        leapYearMode: 'algorithmic'
+                    }
+                },
+                toolbox: {
+                    calendarSwitch: { enabled: false }
+                },
+                navigator: {
+                    scroll: { enabled: true }
+                },
+                timePicker: { enabled: false }
+            });
         }
 
-        $('.jalali-date-input').pDatepicker({
-            format: 'YYYY/MM/DD',
-            initialValue: false,
-            autoClose: true,
-            persianDigit: false,
-            observer: true,
-            calendar: {
-                persian: {
-                    locale: 'fa',
-                    leapYearMode: 'algorithmic'
+        // ✅ راه‌اندازی select2 برای محصولات
+        if ($.fn.select2 && $('#product_id').length) {
+            $('#product_id').select2({
+                placeholder: 'جستجو و انتخاب محصول...',
+                allowClear: true,
+                width: '100%',
+                dir: 'rtl',
+                language: {
+                    searching: function() { return 'در حال جستجو...'; },
+                    noResults: function() { return 'محصولی یافت نشد'; }
                 }
-            },
-            toolbox: {
-                calendarSwitch: {
-                    enabled: false
-                }
-            },
-            navigator: {
-                scroll: {
-                    enabled: true
-                }
-            },
-            timePicker: {
-                enabled: false
-            }
-        });
+            });
+        }
     });
 </script>
 @endpush

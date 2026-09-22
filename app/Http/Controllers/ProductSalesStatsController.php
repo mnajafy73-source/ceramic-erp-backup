@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Customer;
 use App\Models\SaleProduct;
 use App\Models\InformalSaleProduct;
+use App\Models\CustomerPayment;
 use App\Models\UserSalesStatProduct;
 use App\Models\UserSalesStatCustomer;
 use App\Models\UserSalesStatCustomerProduct;
@@ -25,13 +26,9 @@ class ProductSalesStatsController extends Controller
             ->pluck('product_id')
             ->toArray();
 
-        $orderMap = array_flip($selectedProductIds);
-
         $selectedProducts = Product::whereIn('id', $selectedProductIds)
             ->where('status', 1)
-            ->get()
-            ->sortBy(fn($p) => $orderMap[$p->id] ?? 999999)
-            ->values();
+            ->get();
 
         $allProductsList = Product::where('status', 1)->orderBy('name')->get();
 
@@ -50,126 +47,147 @@ class ProductSalesStatsController extends Controller
 
         $allCustomersList = Customer::where('status', 1)->orderBy('name')->get();
 
-        $selectedCustomerNames = $selectedCustomers->pluck('name')->toArray();
-
         // ===== فیلتر ماه و سال =====
         $month = (int) $request->input('month', Jalalian::now()->getMonth());
         $year  = (int) $request->input('year', Jalalian::now()->getYear());
 
+        $startDateStr = sprintf('%04d/%02d/01', $year, $month);
+        $lastDay = Jalalian::fromFormat('Y/m/d', $startDateStr)->getMonthDays();
+        $endDateStr = sprintf('%04d/%02d/%02d', $year, $month, $lastDay);
+
+        try {
+            $startDate = Jalalian::fromFormat('Y/m/d', $startDateStr)->toCarbon()->toDateString();
+            $endDate = Jalalian::fromFormat('Y/m/d', $endDateStr)->toCarbon()->toDateString();
+        } catch (\Exception $e) {
+            $startDate = null;
+            $endDate = null;
+        }
+
         $reportData = collect();
 
-        if ($selectedProducts->count() > 0) {
-            $startDateStr = sprintf('%04d/%02d/01', $year, $month);
-            $lastDay = Jalalian::fromFormat('Y/m/d', $startDateStr)->getMonthDays();
-            $endDateStr = sprintf('%04d/%02d/%02d', $year, $month, $lastDay);
-
-            try {
-                $startDate = Jalalian::fromFormat('Y/m/d', $startDateStr)->toCarbon()->toDateString();
-                $endDate = Jalalian::fromFormat('Y/m/d', $endDateStr)->toCarbon()->toDateString();
-            } catch (\Exception $e) {
-                $startDate = null;
-                $endDate = null;
-            }
-
-            foreach ($selectedProducts as $product) {
-                $customerData = [];
-
-                // فروش رسمی
-                $formalItems = SaleProduct::with('sale')
-                    ->where('product_id', $product->id)
-                    ->whereHas('sale', function ($q) use ($startDate, $endDate, $selectedCustomerNames) {
-                        $q->whereDate('date', '>=', $startDate)
-                          ->whereDate('date', '<=', $endDate);
-
-                        if (!empty($selectedCustomerNames)) {
-                            $q->whereIn('customer_name', $selectedCustomerNames);
-                        }
-                    })
-                    ->get();
-
-                foreach ($formalItems as $item) {
-                    $customerName = trim($item->sale->customer_name ?? '');
-                    if ($customerName === '') $customerName = 'نامشخص';
-
-                    if (!isset($customerData[$customerName])) {
-                        $customerData[$customerName] = [
-                            'name' => $customerName,
-                            'formal_total' => 0, 'formal_amount' => 0,
-                            'informal_total' => 0, 'informal_amount' => 0,
-                        ];
-                    }
-                    $customerData[$customerName]['formal_total'] += $item->quantity;
-                    $customerData[$customerName]['formal_amount'] += $item->quantity * $item->unit_price;
-                }
-
-                // فروش غیررسمی
-                $informalItems = InformalSaleProduct::with('informalSale')
-                    ->where('product_id', $product->id)
-                    ->whereHas('informalSale', function ($q) use ($startDate, $endDate, $selectedCustomerNames) {
-                        $q->whereDate('date', '>=', $startDate)
-                          ->whereDate('date', '<=', $endDate);
-
-                        if (!empty($selectedCustomerNames)) {
-                            $q->whereIn('customer_name', $selectedCustomerNames);
-                        }
-                    })
-                    ->get();
-
-                foreach ($informalItems as $item) {
-                    $customerName = trim($item->informalSale->customer_name ?? '');
-                    if ($customerName === '') $customerName = 'نامشخص';
-
-                    if (!isset($customerData[$customerName])) {
-                        $customerData[$customerName] = [
-                            'name' => $customerName,
-                            'formal_total' => 0, 'formal_amount' => 0,
-                            'informal_total' => 0, 'informal_amount' => 0,
-                        ];
-                    }
-                    $customerData[$customerName]['informal_total'] += $item->quantity;
-                    $customerData[$customerName]['informal_amount'] += $item->quantity * $item->unit_price;
-                }
-
-                $productTotalQty = 0; $productTotalAmount = 0;
-                $productFormalTotal = 0; $productFormalAmount = 0;
-                $productInformalTotal = 0; $productInformalAmount = 0;
-
-                foreach ($customerData as $key => $data) {
-                    $data['total_quantity'] = $data['formal_total'] + $data['informal_total'];
-                    $data['total_amount'] = $data['formal_amount'] + $data['informal_amount'];
-
-                    if ($data['total_quantity'] <= 0) {
-                        unset($customerData[$key]);
-                        continue;
-                    }
-
-                    $customerData[$key] = $data;
-                    $productTotalQty += $data['total_quantity'];
-                    $productTotalAmount += $data['total_amount'];
-                    $productFormalTotal += $data['formal_total'];
-                    $productFormalAmount += $data['formal_amount'];
-                    $productInformalTotal += $data['informal_total'];
-                    $productInformalAmount += $data['informal_amount'];
-                }
-
-                if (empty($customerData)) continue;
-
-                uasort($customerData, fn($a, $b) => $b['total_quantity'] <=> $a['total_quantity']);
-
-                $reportData->push((object) [
-                    'product_id'            => $product->id,
-                    'product_name'          => $product->name,
-                    'customers'             => $customerData,
-                    'customers_count'       => count($customerData),
-                    'formal_total'          => $productFormalTotal,
-                    'formal_amount'         => $productFormalAmount,
-                    'informal_total'        => $productInformalTotal,
-                    'informal_amount'       => $productInformalAmount,
-                    'total_quantity'        => $productTotalQty,
-                    'total_amount'          => $productTotalAmount,
-                ]);
-            }
+        // ===== تعیین لیست مشتری‌ها =====
+        if ($selectedCustomers->count() > 0) {
+            $customersToShow = $selectedCustomers;
+        } else {
+            // اگه مشتری انتخاب نشده، همه مشتری‌ها رو بررسی کن
+            $customersToShow = $allCustomersList;
         }
+
+        foreach ($customersToShow as $customer) {
+            $customerName = $customer->name;
+            $productData = [];
+
+            // ===== فروش رسمی =====
+            $formalQuery = SaleProduct::with(['sale', 'product'])
+                ->whereHas('sale', function ($q) use ($customerName, $startDate, $endDate) {
+                    $q->where('customer_name', $customerName)
+                      ->whereDate('date', '>=', $startDate)
+                      ->whereDate('date', '<=', $endDate);
+                });
+
+            if (!empty($selectedProductIds)) {
+                $formalQuery->whereIn('product_id', $selectedProductIds);
+            }
+
+            foreach ($formalQuery->get() as $item) {
+                $pid = $item->product_id;
+                $pName = $item->product->name ?? 'نامشخص';
+
+                if (!isset($productData[$pid])) {
+                    $productData[$pid] = [
+                        'product_id'      => $pid,
+                        'product_name'    => $pName,
+                        'formal_qty'      => 0,
+                        'formal_amount'   => 0,
+                        'informal_qty'    => 0,
+                        'informal_amount' => 0,
+                    ];
+                }
+
+                $productData[$pid]['formal_qty']    += $item->quantity;
+                $productData[$pid]['formal_amount'] += $item->quantity * $item->unit_price;
+            }
+
+            // ===== فروش غیررسمی =====
+            $informalQuery = InformalSaleProduct::with(['informalSale', 'product'])
+                ->whereHas('informalSale', function ($q) use ($customerName, $startDate, $endDate) {
+                    $q->where('customer_name', $customerName)
+                      ->whereDate('date', '>=', $startDate)
+                      ->whereDate('date', '<=', $endDate);
+                });
+
+            if (!empty($selectedProductIds)) {
+                $informalQuery->whereIn('product_id', $selectedProductIds);
+            }
+
+            foreach ($informalQuery->get() as $item) {
+                $pid = $item->product_id;
+                $pName = $item->product->name ?? 'نامشخص';
+
+                if (!isset($productData[$pid])) {
+                    $productData[$pid] = [
+                        'product_id'      => $pid,
+                        'product_name'    => $pName,
+                        'formal_qty'      => 0,
+                        'formal_amount'   => 0,
+                        'informal_qty'    => 0,
+                        'informal_amount' => 0,
+                    ];
+                }
+
+                $productData[$pid]['informal_qty']    += $item->quantity;
+                $productData[$pid]['informal_amount'] += $item->quantity * $item->unit_price;
+            }
+
+            // اگه فروشی برای این مشتری نبود، برو بعدی
+            if (empty($productData)) continue;
+
+            // ===== محاسبه مجموع هر محصول + مجموع مشتری =====
+            $customerFormalQty = 0;
+            $customerFormalAmount = 0;
+            $customerInformalQty = 0;
+            $customerInformalAmount = 0;
+            $customerTotalQty = 0;
+            $customerTotalAmount = 0;
+
+            foreach ($productData as &$p) {
+                $p['total_qty']    = $p['formal_qty'] + $p['informal_qty'];
+                $p['total_amount'] = $p['formal_amount'] + $p['informal_amount'];
+
+                $customerFormalQty      += $p['formal_qty'];
+                $customerFormalAmount   += $p['formal_amount'];
+                $customerInformalQty    += $p['informal_qty'];
+                $customerInformalAmount += $p['informal_amount'];
+                $customerTotalQty       += $p['total_qty'];
+                $customerTotalAmount    += $p['total_amount'];
+            }
+            unset($p);
+
+            // مرتب‌سازی محصولات بر اساس مبلغ کل نزولی
+            uasort($productData, fn($a, $b) => $b['total_amount'] <=> $a['total_amount']);
+
+            // ===== محاسبه پرداختی و مانده =====
+            $paidAmount = CustomerPayment::getTotalPaidForCustomer($customerName, $endDate);
+            $remaining  = $customerTotalAmount - $paidAmount;
+
+            $reportData->push((object) [
+                'customer_id'           => $customer->id,
+                'customer_name'         => $customerName,
+                'products'              => $productData,
+                'products_count'        => count($productData),
+                'formal_qty'            => $customerFormalQty,
+                'formal_amount'         => $customerFormalAmount,
+                'informal_qty'          => $customerInformalQty,
+                'informal_amount'       => $customerInformalAmount,
+                'total_qty'             => $customerTotalQty,
+                'total_amount'          => $customerTotalAmount,
+                'paid_amount'           => $paidAmount,
+                'remaining'             => $remaining,
+            ]);
+        }
+
+        // مرتب‌سازی مشتری‌ها بر اساس مبلغ کل نزولی
+        $reportData = $reportData->sortByDesc('total_amount')->values();
 
         return view('reports.product-sales-stats', [
             'selectedProducts'  => $selectedProducts,
@@ -204,7 +222,7 @@ class ProductSalesStatsController extends Controller
                 'user_id'        => $userId,
                 'product_id'     => $request->product_id,
                 'order'          => $lastOrder + 1,
-                'manually_added' => true,    // ✅ دستی
+                'manually_added' => true,
             ]);
 
             return redirect()->route('product-sales-stats.index')
@@ -227,12 +245,10 @@ class ProductSalesStatsController extends Controller
 
         DB::beginTransaction();
         try {
-            // حذف از لیست کاربر
             UserSalesStatProduct::where('user_id', $userId)
                 ->where('product_id', $productId)
                 ->delete();
 
-            // حذف از pivot همه مشتری‌ها
             UserSalesStatCustomerProduct::where('user_id', $userId)
                 ->where('product_id', $productId)
                 ->delete();
@@ -317,7 +333,6 @@ class ProductSalesStatsController extends Controller
 
         DB::beginTransaction();
         try {
-            // ۱. ثبت مشتری
             $lastCustomerOrder = UserSalesStatCustomer::where('user_id', $userId)->max('order') ?? 0;
 
             UserSalesStatCustomer::create([
@@ -326,7 +341,6 @@ class ProductSalesStatsController extends Controller
                 'order'       => $lastCustomerOrder + 1,
             ]);
 
-            // ۲. پیدا کردن محصولات این مشتری
             $customer = Customer::find($customerId);
             $customerName = $customer->name;
 
@@ -345,7 +359,6 @@ class ProductSalesStatsController extends Controller
                 ->pluck('id')
                 ->toArray();
 
-            // ۳. ثبت در pivot (که این مشتری این محصولات رو داره)
             foreach ($validProductIds as $productId) {
                 UserSalesStatCustomerProduct::firstOrCreate([
                     'user_id'     => $userId,
@@ -354,7 +367,6 @@ class ProductSalesStatsController extends Controller
                 ]);
             }
 
-            // ۴. اضافه کردن محصولات جدید به لیست کاربر
             $existingProductIds = UserSalesStatProduct::where('user_id', $userId)
                 ->pluck('product_id')
                 ->toArray();
@@ -370,7 +382,7 @@ class ProductSalesStatsController extends Controller
                         'user_id'        => $userId,
                         'product_id'     => $productId,
                         'order'          => $lastProductOrder + $i + 1,
-                        'manually_added' => false,    // ✅ خودکار
+                        'manually_added' => false,
                     ]);
                     $addedCount++;
                 }
@@ -395,7 +407,7 @@ class ProductSalesStatsController extends Controller
     }
 
     // ============================================================
-    //  ✅ حذف مشتری + محصولاتش (اگه کسی دیگه‌ای نداره و دستی نبود)
+    //  ✅ حذف مشتری + محصولاتش
     // ============================================================
     public function removeCustomer(Request $request)
     {
@@ -406,49 +418,35 @@ class ProductSalesStatsController extends Controller
 
         DB::beginTransaction();
         try {
-            // ۱. حذف مشتری از لیست
             UserSalesStatCustomer::where('user_id', $userId)
                 ->where('customer_id', $customerId)
                 ->delete();
 
-            // ۲. پیدا کردن محصولاتی که این مشتری داشت
             $customerProductIds = UserSalesStatCustomerProduct::where('user_id', $userId)
                 ->where('customer_id', $customerId)
                 ->pluck('product_id')
                 ->toArray();
 
-            // ۳. حذف رکوردهای pivot این مشتری
             UserSalesStatCustomerProduct::where('user_id', $userId)
                 ->where('customer_id', $customerId)
                 ->delete();
 
-            // ۴. برای هر محصول، بررسی کن که حذف بشه یا بمونه
             $deletedCount = 0;
 
             foreach ($customerProductIds as $productId) {
-                // آیا مشتری دیگه‌ای هم این محصول رو داره؟
                 $hasOtherCustomer = UserSalesStatCustomerProduct::where('user_id', $userId)
                     ->where('product_id', $productId)
                     ->exists();
 
-                if ($hasOtherCustomer) {
-                    continue;    // بمونه
-                }
+                if ($hasOtherCustomer) continue;
 
-                // آیا کاربر دستی این محصول رو اضافه کرده؟
                 $existing = UserSalesStatProduct::where('user_id', $userId)
                     ->where('product_id', $productId)
                     ->first();
 
-                if (!$existing) {
-                    continue;    // نبود، کاری نیست
-                }
+                if (!$existing) continue;
+                if ($existing->manually_added) continue;
 
-                if ($existing->manually_added) {
-                    continue;    // کاربر دستی اضافه کرده، بمونه
-                }
-
-                // حذف
                 $existing->delete();
                 $deletedCount++;
             }

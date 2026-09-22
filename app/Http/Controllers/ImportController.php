@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\ProductAlias;
 use App\Models\Packaging;
 use App\Models\Customer;
+use App\Models\CustomerPayment;
 use App\Models\InformalSale;
 use App\Models\InformalSaleProduct;
 use App\Models\Sale;
@@ -56,13 +57,11 @@ class ImportController extends Controller
         }
 
         ImportFlag::$isImporting = true;
-
         $errors = [];
         $anySuccess = false;
 
         try {
             set_time_limit(0);
-
             $beforeSnapshot = $this->takeInventorySnapshot();
 
             DB::statement('DELETE FROM production_stops');
@@ -77,13 +76,14 @@ class ImportController extends Controller
             $spreadsheet = $reader->load($filePath);
 
             $steps = [
-                'importProductionsFromSpreadsheet'    => 'تولید',
-                'importTonneliFromSpreadsheet'        => 'کوره تونلی',
-                'importShuttleFromSpreadsheet'        => 'کوره شاتل',
-                'importInformalSalesFromSpreadsheet'  => 'فروش غیررسمی',
-                'importFormalSalesFromSpreadsheet'    => 'فروش رسمی',
-                'importShoulderFromSpreadsheet'       => 'شانه زنی',
-                'importMaterialMakingFromSpreadsheet' => 'مواد سازی',
+                'importProductionsFromSpreadsheet'      => 'تولید',
+                'importTonneliFromSpreadsheet'          => 'کوره تونلی',
+                'importShuttleFromSpreadsheet'          => 'کوره شاتل',
+                'importInformalSalesFromSpreadsheet'    => 'فروش غیررسمی',
+                'importFormalSalesFromSpreadsheet'      => 'فروش رسمی',
+                'importShoulderFromSpreadsheet'         => 'شانه زنی',
+                'importMaterialMakingFromSpreadsheet'   => 'مواد سازی',
+                'importCustomerPaymentsFromSpreadsheet' => 'حسابداری (پرداخت‌ها)',
             ];
 
             foreach ($steps as $method => $label) {
@@ -97,7 +97,6 @@ class ImportController extends Controller
             }
 
             ImportFlag::$isImporting = false;
-
             $afterSnapshot = $this->takeInventorySnapshot();
             $this->applyInventoryDeltas($beforeSnapshot, $afterSnapshot);
 
@@ -124,111 +123,168 @@ class ImportController extends Controller
         }
 
         if ($request->expectsJson()) {
-            return response()->json([
-                'status'  => $status,
-                'message' => $message,
-            ]);
+            return response()->json(['status' => $status, 'message' => $message]);
         }
-
         return redirect()->back()->with($status === 'success' ? 'success' : 'error', $message);
     }
 
-    private function calculateRawStock($product)
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ایمپورت پرداخت‌های مشتریان (شیت: حسابداری)
+    //  ✅ فقط ایمپورتی‌ها پاک می‌شن، دستی‌ها می‌مونن
+    //  ✅ چک تکراری برای جلوگیری از دوبار ثبت
+    // ═══════════════════════════════════════════════════════════
+    private function importCustomerPaymentsFromSpreadsheet($spreadsheet)
     {
-        $production = Production::where('product_id', $product->id)
-            ->whereNotNull('press_id')
-            ->sum('quantity');
+        $sheetNames = ['حسابداری', 'پرداخت‌ها', 'پرداختی‌ها', 'پرداخت'];
+        $sheet = null;
+        foreach ($sheetNames as $name) {
+            $sheet = $spreadsheet->getSheetByName($name);
+            if ($sheet) break;
+        }
+        if (!$sheet) return;
 
-        if ($production == 0) return 0;
+        $rows = $sheet->toArray();
+        array_shift($rows); // حذف هدر
 
-        if ($product->isInjection()) {
-            $shuttleMum = ShuttleFiring::where('product_id', $product->id)
-                ->where('kiln_type', 'kiln_3')
-                ->where('firing_subtype', 'mum')
-                ->sum('output_quantity');
+        // ✅ فقط ایمپورتی‌های قبلی رو پاک کن — دستی‌ها بمونن
+        DB::statement('DELETE FROM customer_payments WHERE is_imported = 1 OR is_imported IS NULL');
 
-            return max(0, $production - $shuttleMum);
+        // ✅ کلیدهای موجود (دستی‌های باقی‌مونده) رو جمع کن
+        $existingKeys = [];
+        foreach (CustomerPayment::all() as $p) {
+            $key = $p->year . '|' . $p->month . '|' . $p->day . '|' . $p->customer_name . '|' . $p->amount;
+            $existingKeys[$key] = true;
         }
 
-        $tonneliInput = TonneliFiringItem::where('product_id', $product->id)
-            ->sum('input_quantity');
+        DB::beginTransaction();
+        try {
+            foreach ($rows as $row) {
+                try {
+                    if (empty(array_filter($row))) continue;
+                    $row = array_pad($row, 7, '');
 
-        $shuttleOutput = 0;
-        if ($product->name !== 'بلسن') {
-            $shuttleOutput = ShuttleFiring::where('product_id', $product->id)
-                ->whereIn('kiln_type', ['kiln_1', 'kiln_2', 'kiln_3', 'kiln_4'])
-                ->sum('output_quantity');
-        }
+                    $year   = (int) trim($row[0] ?? 0);
+                    $month  = (int) trim($row[1] ?? 0);
+                    $day    = (int) trim($row[2] ?? 0);
+                    $name   = trim($row[3] ?? '');
+                    $amount = (float) str_replace(',', '', trim($row[4] ?? 0));
+                    $method = trim($row[5] ?? '');
+                    $desc   = trim($row[6] ?? '');
 
-        $childOutput = 0;
-        foreach ($product->children as $child) {
-            $childOutput += TonneliFiringItem::where('product_id', $child->id)
-                ->where('input_quantity', '>', 0)
-                ->sum('input_quantity');
+                    // اعتبارسنجی
+                    if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31) continue;
+                    if (empty($name) || $amount <= 0) continue;
 
-            if ($child->name !== 'بلسن') {
-                $childOutput += ShuttleFiring::where('product_id', $child->id)
-                    ->whereIn('kiln_type', ['kiln_1', 'kiln_2', 'kiln_3', 'kiln_4'])
-                    ->sum('output_quantity');
+                    // ✅ چک تکراری — اگه همین پرداخت قبلاً (دستی) ثبت شده، skip کن
+                    $key = $year . '|' . $month . '|' . $day . '|' . $name . '|' . $amount;
+                    if (isset($existingKeys[$key])) {
+                        Log::info("پرداخت تکراری skip شد: {$key}");
+                        continue;
+                    }
+                    $existingKeys[$key] = true;
+
+                    $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
+                    try {
+                        $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
+                        $gregorianDate = $jalaliDate->toCarbon();
+                    } catch (\Exception $e) {
+                        continue;
+                    }
+
+                    $customer = Customer::firstOrCreate(
+                        ['name' => $name],
+                        ['status' => 1]
+                    );
+
+                    CustomerPayment::create([
+                        'customer_id'    => $customer->id,
+                        'customer_name'  => $name,
+                        'amount'         => $amount,
+                        'payment_date'   => $gregorianDate,
+                        'year'           => $year,
+                        'month'          => $month,
+                        'day'            => $day,
+                        'payment_method' => $method ?: null,
+                        'description'    => $desc ?: null,
+                        'is_imported'    => true,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning("خطا در ردیف پرداخت: " . $e->getMessage());
+                }
             }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
         }
-
-        return max(0, $production - $tonneliInput - $shuttleOutput - $childOutput);
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  اسنپ‌شات با تفکیک منبع
+    // ═══════════════════════════════════════════════════════════
     private function takeInventorySnapshot()
     {
         $snapshot = [
-            'warehouse_produced'  => [],
-            'formal_sales'        => [],
-            'informal_sales'      => [],
-            'glaze1300_produced'  => [],
+            'tonneli_packaged'       => [],
+            'shuttle_k1_packaged'    => [],
+            'shuttle_k2_packaged'    => [],
+            'shuttle_k4_packaged'    => [],
+            'shuttle_packaging_only' => [],
+            'formal_sales'   => [],
+            'informal_sales' => [],
+            'raw_production'     => [],
+            'raw_tonneli_input'  => [],
+            'raw_shuttle_output' => [],
+            'glaze1300_k2_output' => [],
             'glaze1300_packaged'  => [],
-            'mum_produced'        => [],
-            'shoulder_records'    => [],
-            'waste_records'       => [],
-            'raw_calculated'      => [],
-            'raw_production'      => [],
-            'raw_tonneli'         => [],
-            'raw_shuttle'         => [],
-            'raw_material_used'   => [],
-            'packaging_used'      => [],
+            'mum_k3_output' => [],
+            'shoulder_records' => [],
+            'waste_records'    => [],
+            'raw_material_used' => [],
+            'packaging_used' => [],
         ];
 
-        $formalSales = SaleProduct::select('product_id', DB::raw('SUM(quantity) as total'))
+        $snapshot['formal_sales'] = SaleProduct::select('product_id', DB::raw('SUM(quantity) as total'))
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
-        $informalSales = InformalSaleProduct::select('product_id', DB::raw('SUM(quantity) as total'))
-            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
-
-        $tonneliPackaged = TonneliFiringItem::select('product_id', DB::raw('SUM(output_quantity) as total'))
-            ->where('is_packaged', 1)->groupBy('product_id')->pluck('total', 'product_id')->toArray();
-
-        $shuttlePackaged = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
-            ->where('is_packaged', 1)->whereIn('kiln_type', ['kiln_1', 'kiln_2', 'kiln_4'])
+        $snapshot['informal_sales'] = InformalSaleProduct::select('product_id', DB::raw('SUM(quantity) as total'))
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        $glaze1300Output = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
-            ->where('kiln_type', 'kiln_2')->groupBy('product_id')->pluck('total', 'product_id')->toArray();
+        $snapshot['tonneli_packaged'] = TonneliFiringItem::select('product_id', DB::raw('SUM(output_quantity) as total'))
+            ->where('is_packaged', 1)
+            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        $packagedK2 = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+        $snapshot['shuttle_k1_packaged'] = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+            ->where('kiln_type', 'kiln_1')->where('is_packaged', 1)
+            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
+
+        $snapshot['shuttle_k2_packaged'] = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
             ->where('kiln_type', 'kiln_2')->where('is_packaged', 1)
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
-        $packagedK4 = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+
+        $snapshot['glaze1300_k2_output'] = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+            ->where('kiln_type', 'kiln_2')
+            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
+
+        $snapshot['shuttle_k4_packaged'] = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
             ->where('kiln_type', 'kiln_4')->where('is_packaged', 1)
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        $mumOutput = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+        $snapshot['shuttle_packaging_only'] = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+            ->where('kiln_type', 'packaging')
+            ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
+
+        $snapshot['mum_k3_output'] = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
             ->where('kiln_type', 'kiln_3')->where('firing_subtype', 'mum')
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        $rawProductionAgg = Production::select('product_id', DB::raw('SUM(quantity) as total'))
+        $snapshot['raw_production'] = Production::select('product_id', DB::raw('SUM(quantity) as total'))
             ->whereNotNull('press_id')
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        $rawTonneliAgg = TonneliFiringItem::select('product_id', DB::raw('SUM(input_quantity) as total'))
+        $snapshot['raw_tonneli_input'] = TonneliFiringItem::select('product_id', DB::raw('SUM(input_quantity) as total'))
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
-        $rawShuttleAgg = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
+        $snapshot['raw_shuttle_output'] = ShuttleFiring::select('product_id', DB::raw('SUM(output_quantity) as total'))
             ->whereIn('kiln_type', ['kiln_1', 'kiln_2', 'kiln_3', 'kiln_4'])
             ->groupBy('product_id')->pluck('total', 'product_id')->toArray();
 
@@ -244,14 +300,13 @@ class ImportController extends Controller
                 $rawConsumed[$item->raw_material_id] += ($totalGram * $item->percentage) / 100;
             }
         }
+        $snapshot['raw_material_used'] = $rawConsumed;
 
         $packagingConsumed = [];
-
         foreach (TonneliFiringItem::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
             $product = $item->product;
             if (!$product) continue;
             $qty = $item->output_quantity;
-
             if ($product->carton_packaging_id && $product->per_box > 0) {
                 $count = ceil($qty / $product->per_box);
                 $packagingConsumed[$product->carton_packaging_id] = ($packagingConsumed[$product->carton_packaging_id] ?? 0) + $count;
@@ -261,12 +316,10 @@ class ImportController extends Controller
                 $packagingConsumed[$product->layer_packaging_id] = ($packagingConsumed[$product->layer_packaging_id] ?? 0) + $count;
             }
         }
-
         foreach (ShuttleFiring::with('product')->where('is_packaged', 1)->where('output_quantity', '>', 0)->get() as $item) {
             $product = $item->product;
             if (!$product) continue;
             $qty = $item->output_quantity;
-
             if ($product->carton_packaging_id && $product->per_box > 0) {
                 $count = ceil($qty / $product->per_box);
                 $packagingConsumed[$product->carton_packaging_id] = ($packagingConsumed[$product->carton_packaging_id] ?? 0) + $count;
@@ -276,47 +329,12 @@ class ImportController extends Controller
                 $packagingConsumed[$product->layer_packaging_id] = ($packagingConsumed[$product->layer_packaging_id] ?? 0) + $count;
             }
         }
+        $snapshot['packaging_used'] = $packagingConsumed;
 
-        $shoulderRecords = ShoulderRecord::select('product_name', DB::raw('SUM(total) as total'))
+        $snapshot['shoulder_records'] = ShoulderRecord::select('product_name', DB::raw('SUM(total) as total'))
             ->groupBy('product_name')->pluck('total', 'product_name')->toArray();
-        $wasteRecords = WasteMumRecord::select('product_name', DB::raw('SUM(amount) as total'))
+        $snapshot['waste_records'] = WasteMumRecord::select('product_name', DB::raw('SUM(amount) as total'))
             ->groupBy('product_name')->pluck('total', 'product_name')->toArray();
-
-        foreach (Product::where('status', 1)->get() as $product) {
-            $id = $product->id;
-
-            $rawProd = $rawProductionAgg[$id] ?? 0;
-            $rawTon  = $rawTonneliAgg[$id] ?? 0;
-            $rawSh   = ($product->name === 'بلسن') ? 0 : ($rawShuttleAgg[$id] ?? 0);
-
-            foreach ($product->children as $child) {
-                $childTon = $rawTonneliAgg[$child->id] ?? 0;
-                if ($childTon > 0) {
-                    $rawTon += $childTon;
-                }
-                if ($child->name !== 'بلسن') {
-                    $childSh = $rawShuttleAgg[$child->id] ?? 0;
-                    $rawSh += $childSh;
-                }
-            }
-
-            $snapshot['warehouse_produced'][$id] = ($tonneliPackaged[$id] ?? 0) + ($shuttlePackaged[$id] ?? 0);
-            $snapshot['formal_sales'][$id]       = $formalSales[$id] ?? 0;
-            $snapshot['informal_sales'][$id]     = $informalSales[$id] ?? 0;
-            $snapshot['glaze1300_produced'][$id] = $glaze1300Output[$id] ?? 0;
-            $snapshot['glaze1300_packaged'][$id] = ($packagedK2[$id] ?? 0) + ($packagedK4[$id] ?? 0);
-            $snapshot['mum_produced'][$id]       = $mumOutput[$id] ?? 0;
-            $snapshot['shoulder_records'][$id]   = $shoulderRecords[$product->name] ?? 0;
-            $snapshot['waste_records'][$id]      = $wasteRecords[$product->name] ?? 0;
-
-            $snapshot['raw_production'][$id]     = $rawProd;
-            $snapshot['raw_tonneli'][$id]        = $rawTon;
-            $snapshot['raw_shuttle'][$id]        = $rawSh;
-            $snapshot['raw_calculated'][$id]     = max(0, $rawProd - $rawTon - $rawSh);
-        }
-
-        $snapshot['raw_material_used'] = $rawConsumed;
-        $snapshot['packaging_used']    = $packagingConsumed;
 
         return $snapshot;
     }
@@ -328,161 +346,133 @@ class ImportController extends Controller
             foreach (Product::where('status', 1)->get() as $product) {
                 $id = $product->id;
 
-                // ═══════════════════════════════════════════════════════════
-                //  موجودی انبار
-                // ═══════════════════════════════════════════════════════════
-                $whProduced = ($after['warehouse_produced'][$id] ?? 0) - ($before['warehouse_produced'][$id] ?? 0);
-                $whFormalSales = ($after['formal_sales'][$id] ?? 0) - ($before['formal_sales'][$id] ?? 0);
-                $whInformalSales = ($after['informal_sales'][$id] ?? 0) - ($before['informal_sales'][$id] ?? 0);
-                $whDelta = $whProduced - $whFormalSales - $whInformalSales;
+                $whDeltas = [
+                    'import_tonneli_packaged' => [
+                        'delta' => ($after['tonneli_packaged'][$id] ?? 0) - ($before['tonneli_packaged'][$id] ?? 0),
+                        'description' => 'پخت کوره تونلی - بسته‌بندی‌شده',
+                    ],
+                    'import_shuttle_k1' => [
+                        'delta' => ($after['shuttle_k1_packaged'][$id] ?? 0) - ($before['shuttle_k1_packaged'][$id] ?? 0),
+                        'description' => 'پخت کوره ۱',
+                    ],
+                    'import_shuttle_k2' => [
+                        'delta' => ($after['shuttle_k2_packaged'][$id] ?? 0) - ($before['shuttle_k2_packaged'][$id] ?? 0),
+                        'description' => 'پخت کوره ۲ (۱۳۰۰)',
+                    ],
+                    'import_shuttle_k4' => [
+                        'delta' => ($after['shuttle_k4_packaged'][$id] ?? 0) - ($before['shuttle_k4_packaged'][$id] ?? 0),
+                        'description' => 'پخت کوره ۴',
+                    ],
+                    'import_packaging' => [
+                        'delta' => ($after['shuttle_packaging_only'][$id] ?? 0) - ($before['shuttle_packaging_only'][$id] ?? 0),
+                        'description' => 'بسته‌بندی محصول',
+                    ],
+                    'import_sale_formal' => [
+                        'delta' => -(($after['formal_sales'][$id] ?? 0) - ($before['formal_sales'][$id] ?? 0)),
+                        'description' => 'فروش رسمی',
+                    ],
+                    'import_sale_informal' => [
+                        'delta' => -(($after['informal_sales'][$id] ?? 0) - ($before['informal_sales'][$id] ?? 0)),
+                        'description' => 'فروش غیررسمی',
+                    ],
+                ];
 
-                if ($whDelta != 0) {
-                    $inv = WarehouseInventory::firstOrCreate(['product_id' => $id]);
-                    $oldStock = (float) $inv->stock;
-                    $inv->stock = max(0, $inv->stock + $whDelta);
-                    $inv->save();
-                    $newStock = (float) $inv->stock;
+                $this->applyDeltasWithLogs(
+                    WarehouseInventory::firstOrCreate(['product_id' => $id]),
+                    $whDeltas,
+                    $product->id
+                );
 
-                    // ✅ لاگ تغییر موجودی انبار
-                    $parts = [];
-                    if ($whProduced != 0) $parts[] = "تولید/بسته‌بندی: " . number_format($whProduced);
-                    if ($whFormalSales != 0) $parts[] = "فروش رسمی: -" . number_format($whFormalSales);
-                    if ($whInformalSales != 0) $parts[] = "فروش غیررسمی: -" . number_format($whInformalSales);
+                $rawDeltas = [
+                    'import_production' => [
+                        'delta' => ($after['raw_production'][$id] ?? 0) - ($before['raw_production'][$id] ?? 0),
+                        'description' => 'ثبت تولید',
+                    ],
+                    'import_tonneli_input' => [
+                        'delta' => -(($after['raw_tonneli_input'][$id] ?? 0) - ($before['raw_tonneli_input'][$id] ?? 0)),
+                        'description' => 'ورودی کوره تونلی',
+                    ],
+                    'import_shuttle_output' => [
+                        'delta' => -(($after['raw_shuttle_output'][$id] ?? 0) - ($before['raw_shuttle_output'][$id] ?? 0)),
+                        'description' => 'خروجی کوره شاتل',
+                    ],
+                ];
 
-                    $reason = 'ایمپورت اکسل';
-                    $desc = "محصول: {$product->name} | " . implode(' | ', $parts);
+                $this->applyDeltasWithLogs(
+                    RawInventory::firstOrCreate(['product_id' => $id]),
+                    $rawDeltas,
+                    $product->id
+                );
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $inv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'import_warehouse', $desc
-                        );
-                    }
-                }
+                $g1300Deltas = [
+                    'import_shuttle_k2_output' => [
+                        'delta' => ($after['glaze1300_k2_output'][$id] ?? 0) - ($before['glaze1300_k2_output'][$id] ?? 0),
+                        'description' => 'پخت کوره ۲ (۱۳۰۰)',
+                    ],
+                    'import_packaging_from_k2' => [
+                        'delta' => -(($after['shuttle_k2_packaged'][$id] ?? 0) - ($before['shuttle_k2_packaged'][$id] ?? 0)),
+                        'description' => 'بسته‌بندی از کوره ۲',
+                    ],
+                    'import_packaging_from_k4' => [
+                        'delta' => -(($after['shuttle_k4_packaged'][$id] ?? 0) - ($before['shuttle_k4_packaged'][$id] ?? 0)),
+                        'description' => 'بسته‌بندی از کوره ۴',
+                    ],
+                ];
 
-                // ═══════════════════════════════════════════════════════════
-                //  موجودی خام
-                // ═══════════════════════════════════════════════════════════
-                $prodDelta    = ($after['raw_production'][$id] ?? 0) - ($before['raw_production'][$id] ?? 0);
-                $tonneliDelta = ($after['raw_tonneli'][$id]    ?? 0) - ($before['raw_tonneli'][$id]    ?? 0);
-                $shuttleDelta = ($after['raw_shuttle'][$id]    ?? 0) - ($before['raw_shuttle'][$id]    ?? 0);
-                $rawDelta = $prodDelta - $tonneliDelta - $shuttleDelta;
+                $this->applyDeltasWithLogs(
+                    Glaze1300Inventory::firstOrCreate(['product_id' => $id]),
+                    $g1300Deltas,
+                    $product->id
+                );
 
-                if ($rawDelta != 0) {
-                    $inv = RawInventory::firstOrCreate(['product_id' => $id]);
-                    $oldStock = (float) $inv->stock;
-                    $inv->stock = max(0, $inv->stock + $rawDelta);
-                    $inv->save();
-                    $newStock = (float) $inv->stock;
-
-                    $parts = [];
-                    if ($prodDelta != 0) $parts[] = "تولید: +" . number_format($prodDelta);
-                    if ($tonneliDelta != 0) $parts[] = "ورودی تونلی: -" . number_format($tonneliDelta);
-                    if ($shuttleDelta != 0) $parts[] = "خروجی شاتل: -" . number_format($shuttleDelta);
-
-                    $desc = "محصول: {$product->name} | " . implode(' | ', $parts);
-
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $inv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'import_raw', $desc
-                        );
-                    }
-                }
-
-                // ═══════════════════════════════════════════════════════════
-                //  ۱۳۰۰ درجه
-                // ═══════════════════════════════════════════════════════════
-                $g1300Delta =
-                    (($after['glaze1300_produced'][$id] ?? 0) - ($before['glaze1300_produced'][$id] ?? 0))
-                    - (($after['glaze1300_packaged'][$id] ?? 0) - ($before['glaze1300_packaged'][$id] ?? 0));
-
-                if ($g1300Delta != 0) {
-                    $inv = Glaze1300Inventory::firstOrCreate(['product_id' => $id]);
-                    $oldStock = (float) $inv->stock;
-                    $inv->stock = max(0, $inv->stock + $g1300Delta);
-                    $inv->save();
-                    $newStock = (float) $inv->stock;
-
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $inv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'import_glaze1300', "محصول: {$product->name}"
-                        );
-                    }
-                }
-
-                // ═══════════════════════════════════════════════════════════
-                //  شانه شده
-                // ═══════════════════════════════════════════════════════════
-                $shoulderDelta = ($after['shoulder_records'][$id] ?? 0) - ($before['shoulder_records'][$id] ?? 0);
+                $shoulderDelta = ($after['shoulder_records'][$product->name] ?? 0) - ($before['shoulder_records'][$product->name] ?? 0);
                 if ($shoulderDelta != 0) {
                     $inv = ShoulderInventory::firstOrCreate(['product_id' => $id]);
                     $oldStock = (float) $inv->stock;
-                    $inv->stock = max(0, $inv->stock + $shoulderDelta);
+                    $newStock = max(0, $oldStock + $shoulderDelta);
+                    $inv->stock = $newStock;
                     $inv->save();
-                    $newStock = (float) $inv->stock;
 
                     if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $inv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'import_shoulder', "محصول: {$product->name}"
-                        );
+                        InventoryChangeLog::log($inv, 'stock', $oldStock, $newStock, 'adjust', $product->id, 'import_shoulder', 'شانه زنی');
                     }
                 }
 
-                // ═══════════════════════════════════════════════════════════
-                //  ضایعات موم
-                // ═══════════════════════════════════════════════════════════
-                $wasteDelta = ($after['waste_records'][$id] ?? 0) - ($before['waste_records'][$id] ?? 0);
+                $wasteDelta = ($after['waste_records'][$product->name] ?? 0) - ($before['waste_records'][$product->name] ?? 0);
                 if ($wasteDelta != 0) {
                     $inv = WasteMumInventory::firstOrCreate(['product_id' => $id]);
                     $oldStock = (float) $inv->stock;
-                    $inv->stock = max(0, $inv->stock + $wasteDelta);
+                    $newStock = max(0, $oldStock + $wasteDelta);
+                    $inv->stock = $newStock;
                     $inv->save();
-                    $newStock = (float) $inv->stock;
 
                     if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $inv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'import_waste_mum', "محصول: {$product->name}"
-                        );
+                        InventoryChangeLog::log($inv, 'stock', $oldStock, $newStock, 'adjust', $product->id, 'import_waste_mum', 'ضایعات موم');
                     }
                 }
 
-                // ═══════════════════════════════════════════════════════════
-                //  موم
-                // ═══════════════════════════════════════════════════════════
-                $waxDelta =
-                    (($after['mum_produced'][$id] ?? 0) - ($before['mum_produced'][$id] ?? 0))
-                    - $shoulderDelta
-                    - $wasteDelta;
+                $waxDeltas = [
+                    'import_shuttle_k3_mum' => [
+                        'delta' => ($after['mum_k3_output'][$id] ?? 0) - ($before['mum_k3_output'][$id] ?? 0),
+                        'description' => 'پخت کوره ۳ (موم)',
+                    ],
+                    'import_shoulder' => [
+                        'delta' => -$shoulderDelta,
+                        'description' => 'شانه زنی',
+                    ],
+                    'import_waste_mum' => [
+                        'delta' => -$wasteDelta,
+                        'description' => 'ضایعات موم',
+                    ],
+                ];
 
-                if ($waxDelta != 0) {
-                    $inv = WaxInventory::firstOrCreate(['product_id' => $id]);
-                    $oldStock = (float) $inv->stock;
-                    $inv->stock = max(0, $inv->stock + $waxDelta);
-                    $inv->save();
-                    $newStock = (float) $inv->stock;
-
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $inv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'import_wax', "محصول: {$product->name}"
-                        );
-                    }
-                }
+                $this->applyDeltasWithLogs(
+                    WaxInventory::firstOrCreate(['product_id' => $id]),
+                    $waxDeltas,
+                    $product->id
+                );
             }
 
-            // ═══════════════════════════════════════════════════════════
-            //  مواد اولیه
-            // ═══════════════════════════════════════════════════════════
             $allMaterialIds = array_unique(array_merge(
                 array_keys($before['raw_material_used']),
                 array_keys($after['raw_material_used'])
@@ -493,24 +483,17 @@ class ImportController extends Controller
                     $raw = RawMaterial::find($matId);
                     if ($raw) {
                         $oldStock = (float) $raw->stock;
-                        $raw->stock = max(0, $raw->stock - $delta);
+                        $newStock = max(0, $oldStock - $delta);
+                        $raw->stock = $newStock;
                         $raw->save();
-                        $newStock = (float) $raw->stock;
 
                         if ($oldStock != $newStock) {
-                            InventoryChangeLog::log(
-                                $raw, 'stock', $oldStock, $newStock,
-                                'adjust', null,
-                                'import_raw_material', "ماده: {$raw->name}"
-                            );
+                            InventoryChangeLog::log($raw, 'stock', $oldStock, $newStock, 'adjust', null, 'import_material_making', 'مواد سازی');
                         }
                     }
                 }
             }
 
-            // ═══════════════════════════════════════════════════════════
-            //  کارتن و لایه
-            // ═══════════════════════════════════════════════════════════
             foreach (Packaging::all() as $pkg) {
                 $consumedAfter = $after['packaging_used'][$pkg->id] ?? 0;
 
@@ -518,15 +501,11 @@ class ImportController extends Controller
                     $delta = $consumedAfter - $pkg->baseline_consumed;
                     if ($delta != 0) {
                         $oldStock = (float) $pkg->stock;
-                        $pkg->stock = max(0, $pkg->stock - $delta);
-                        $newStock = (float) $pkg->stock;
+                        $newStock = max(0, $oldStock - $delta);
+                        $pkg->stock = $newStock;
 
                         if ($oldStock != $newStock) {
-                            InventoryChangeLog::log(
-                                $pkg, 'stock', $oldStock, $newStock,
-                                'adjust', null,
-                                'import_packaging', "بسته: {$pkg->name}"
-                            );
+                            InventoryChangeLog::log($pkg, 'stock', $oldStock, $newStock, 'adjust', null, 'import_packaging_consumed', 'مصرف بسته‌بندی');
                         }
                     }
                     $pkg->baseline_consumed = $consumedAfter;
@@ -535,19 +514,14 @@ class ImportController extends Controller
                     $delta = $consumedAfter - $consumedBefore;
                     if ($delta != 0) {
                         $oldStock = (float) $pkg->stock;
-                        $pkg->stock = max(0, $pkg->stock - $delta);
-                        $newStock = (float) $pkg->stock;
+                        $newStock = max(0, $oldStock - $delta);
+                        $pkg->stock = $newStock;
 
                         if ($oldStock != $newStock) {
-                            InventoryChangeLog::log(
-                                $pkg, 'stock', $oldStock, $newStock,
-                                'adjust', null,
-                                'import_packaging', "بسته: {$pkg->name}"
-                            );
+                            InventoryChangeLog::log($pkg, 'stock', $oldStock, $newStock, 'adjust', null, 'import_packaging_consumed', 'مصرف بسته‌بندی');
                         }
                     }
                 }
-
                 $pkg->save();
             }
 
@@ -556,6 +530,34 @@ class ImportController extends Controller
             DB::rollBack();
             Log::error('applyInventoryDeltas failed: ' . $e->getMessage());
             throw $e;
+        }
+    }
+
+    private function applyDeltasWithLogs($model, array $deltas, $productId = null)
+    {
+        $oldStock = (float) $model->stock;
+        $currentStock = $oldStock;
+        $hasChange = false;
+
+        foreach ($deltas as $source => $info) {
+            $delta = $info['delta'] ?? 0;
+            $desc = $info['description'] ?? $source;
+
+            if (abs($delta) < 0.001) continue;
+
+            $newStock = max(0, $currentStock + $delta);
+
+            if ($newStock != $currentStock) {
+                InventoryChangeLog::log($model, 'stock', $currentStock, $newStock, 'adjust', $productId, $source, $desc);
+            }
+
+            $currentStock = $newStock;
+            $hasChange = true;
+        }
+
+        if ($hasChange) {
+            $model->stock = $currentStock;
+            $model->save();
         }
     }
 
@@ -805,7 +807,6 @@ class ImportController extends Controller
                     } catch (\Exception $e) { continue; }
 
                     $customer = Customer::firstOrCreate(['name' => $customerName], ['status' => 1]);
-                    // ✅ کالای جدید با کد SALE-XXX ساخته می‌شود
                     $product = $this->findOrCreateProduct($productName, 'SALE');
                     if ($totalPrice <= 0) $totalPrice = $quantity * $unitPrice;
 
@@ -890,7 +891,6 @@ class ImportController extends Controller
                         $gregorianDate = $jalaliDate->toCarbon();
                     } catch (\Exception $e) { continue; }
 
-                    // ✅ کالای جدید با کد SALE-XXX ساخته می‌شود
                     $product = $this->findOrCreateProduct($productName, 'SALE');
                     if ($priceAfterDiscount <= 0) $priceAfterDiscount = $quantity * $unitPrice;
 
@@ -1060,11 +1060,6 @@ class ImportController extends Controller
         return $this->operatorsCache[$cleanName];
     }
 
-    /**
-     * ✅ پیدا کردن یا ساخت کالا
-     * @param string $name نام کالا
-     * @param string $codePrefix پیشوند کد (IMP یا SALE)
-     */
     private function findOrCreateProduct($name, $codePrefix = 'IMP')
     {
         $cleanName = trim($name);

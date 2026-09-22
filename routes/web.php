@@ -23,12 +23,12 @@ use App\Http\Controllers\OpeningInventoryController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UndoController;
-use App\Http\Controllers\ProductLogController;
 use App\Http\Controllers\CostPriceController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\ProductSalesStatsController;
 use App\Http\Controllers\ManualInventoryController;
 use App\Http\Controllers\MaterialMakingController;
+use App\Http\Controllers\AccountingController;
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -78,9 +78,7 @@ Route::middleware(['auth'])->group(function () {
     // محصولات
     Route::resource('products', ProductController::class);
     Route::post('/products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])->name('products.toggle-status');
-    // ✅ ویرایش سریع از مدال
     Route::post('/products/{product}/quick-update', [ProductController::class, 'quickUpdate'])->name('products.quick-update');
-    // ✅ ویرایش درجا از جدول
     Route::post('/products/{product}/inline-update', [ProductController::class, 'inlineUpdate'])->name('products.inline-update');
 
     // اپراتورها
@@ -169,11 +167,18 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/product-sales-stats/add-customer', [ProductSalesStatsController::class, 'addCustomer'])->name('product-sales-stats.add-customer');
     Route::post('/product-sales-stats/remove-customer', [ProductSalesStatsController::class, 'removeCustomer'])->name('product-sales-stats.remove-customer');
 
+    // ============================================================
+    //  ✅ حسابداری
+    // ============================================================
+    Route::get('/accounting', [AccountingController::class, 'index'])->name('accounting.index');
+    Route::post('/accounting', [AccountingController::class, 'store'])->name('accounting.store');
+    Route::post('/accounting/import', [AccountingController::class, 'importFromExcel'])->name('accounting.import');
+    Route::delete('/accounting/clear-all', [AccountingController::class, 'clearAll'])->name('accounting.clear-all');
+    Route::delete('/accounting/{payment}', [AccountingController::class, 'destroy'])->name('accounting.destroy');
+    Route::get('/accounting/debtors', [AccountingController::class, 'debtors'])->name('accounting.debtors');
+
     // قیمت تمام شده
     Route::get('/cost-price', [CostPriceController::class, 'index'])->name('cost-price.index');
-
-    // تاریخچه تغییرات محصولات
-    Route::get('/product-logs', [ProductLogController::class, 'index'])->name('product_logs.index');
 
     // Undo
     Route::get('/undo/restore', [UndoController::class, 'restore'])->name('undo.restore');

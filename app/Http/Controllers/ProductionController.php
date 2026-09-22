@@ -7,6 +7,8 @@ use App\Models\ProductionStop;
 use App\Models\Operator;
 use App\Models\Press;
 use App\Models\Product;
+use App\Models\RawInventory;
+use App\Models\InventoryChangeLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -31,16 +33,16 @@ class ProductionController extends Controller
         $productions->getCollection()->transform(function ($item) {
             $operatorIds = array_filter(explode(',', $item->operator_ids ?? ''));
             $operators = Operator::whereIn('id', $operatorIds)->pluck('name')->implode('، ');
-            
+
             $productIds = array_filter(explode(',', $item->product_ids ?? ''));
             $products = Product::whereIn('id', $productIds)->pluck('name')->implode('، ');
-            
+
             $stages = array_filter(explode(',', $item->stages ?? ''));
-            
+
             $item->operators_text = $operators ?: '-';
             $item->products_text = $products ?: '-';
             $item->stages_text = implode('، ', $stages) ?: '-';
-            
+
             return $item;
         });
 
@@ -99,8 +101,21 @@ class ProductionController extends Controller
                     'notes' => null,
                 ]);
 
-                // ❌ کسر مواد اولیه حذف شد - فقط از برگه مواد سازی کسر می‌شود
-                // $this->subtractMaterials($production, $productWeight);
+                // ✅ فقط برای مرحله «تولید» به موجودی خام اضافه می‌شود
+                if ($rowData['stage'] === 'تولید' && $product) {
+                    $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $rawInv->stock;
+                    $newStock = $oldStock + (float) $rowData['quantity'];
+                    $rawInv->stock = $newStock;
+                    $rawInv->save();
+
+                    InventoryChangeLog::log(
+                        $rawInv, 'stock', $oldStock, $newStock,
+                        'adjust', $product->id,
+                        'production',
+                        "ثبت تولید دستی - {$product->name}"
+                    );
+                }
 
                 if (!empty($rowData['stop_types']) && !empty($rowData['stop_hours'])) {
                     foreach ($rowData['stop_types'] as $index => $type) {
@@ -168,8 +183,26 @@ class ProductionController extends Controller
         DB::beginTransaction();
 
         try {
-            // ❌ برگرداندن مواد اولیه حذف شد
-            // $this->addMaterials($production);
+            // ✅ برگرداندن اثر قبلی (اگه مرحله قبلی «تولید» بود)
+            if ($production->stage === 'تولید') {
+                $oldProduct = Product::find($production->product_id);
+                if ($oldProduct) {
+                    $rawInv = RawInventory::firstOrCreate(['product_id' => $oldProduct->id]);
+                    $oldStock = (float) $rawInv->stock;
+                    $newStock = max(0, $oldStock - (float) $production->quantity);
+                    $rawInv->stock = $newStock;
+                    $rawInv->save();
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $rawInv, 'stock', $oldStock, $newStock,
+                            'adjust', $oldProduct->id,
+                            'production_return',
+                            "برگشت تولید (ویرایش) - {$oldProduct->name}"
+                        );
+                    }
+                }
+            }
 
             $product = Product::find($validated['product_id']);
             $newWeight = $product ? $product->weight : null;
@@ -188,8 +221,21 @@ class ProductionController extends Controller
 
             $production->refresh();
 
-            // ❌ کسر مجدد مواد اولیه حذف شد
-            // $this->subtractMaterials($production, $newWeight);
+            // ✅ اعمال اثر جدید (اگه مرحله جدید «تولید» باشه)
+            if ($validated['stage'] === 'تولید' && $product) {
+                $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                $oldStock = (float) $rawInv->stock;
+                $newStock = $oldStock + (float) $validated['quantity'];
+                $rawInv->stock = $newStock;
+                $rawInv->save();
+
+                InventoryChangeLog::log(
+                    $rawInv, 'stock', $oldStock, $newStock,
+                    'adjust', $product->id,
+                    'production',
+                    "ثبت تولید دستی (ویرایش) - {$product->name}"
+                );
+            }
 
             $production->stops()->delete();
             if (!empty($request->stop_types) && !empty($request->stop_hours)) {
@@ -219,8 +265,26 @@ class ProductionController extends Controller
         DB::beginTransaction();
 
         try {
-            // ❌ برگرداندن مواد اولیه حذف شد
-            // $this->addMaterials($production);
+            // ✅ برگرداندن اثر (اگه مرحله «تولید» بود)
+            if ($production->stage === 'تولید') {
+                $product = Product::find($production->product_id);
+                if ($product) {
+                    $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                    $oldStock = (float) $rawInv->stock;
+                    $newStock = max(0, $oldStock - (float) $production->quantity);
+                    $rawInv->stock = $newStock;
+                    $rawInv->save();
+
+                    if ($oldStock != $newStock) {
+                        InventoryChangeLog::log(
+                            $rawInv, 'stock', $oldStock, $newStock,
+                            'adjust', $product->id,
+                            'production_return',
+                            "برگشت تولید (حذف) - {$product->name}"
+                        );
+                    }
+                }
+            }
 
             $production->stops()->delete();
             $production->delete();
@@ -253,7 +317,6 @@ class ProductionController extends Controller
         }
 
         $allItems = [];
-
         foreach ($productions as $production) {
             $prodData = $production->getAttributes();
             unset($prodData['id'], $prodData['created_at'], $prodData['updated_at']);
@@ -265,10 +328,7 @@ class ProductionController extends Controller
                 $stopsData[] = $stopData;
             }
 
-            $allItems[] = [
-                'production' => $prodData,
-                'stops' => $stopsData,
-            ];
+            $allItems[] = ['production' => $prodData, 'stops' => $stopsData];
         }
 
         session()->put('undo_record', [
@@ -281,8 +341,26 @@ class ProductionController extends Controller
 
         try {
             foreach ($productions as $production) {
-                // ❌ برگرداندن مواد اولیه حذف شد
-                // $this->addMaterials($production);
+                // برگرداندن اثر
+                if ($production->stage === 'تولید') {
+                    $product = Product::find($production->product_id);
+                    if ($product) {
+                        $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                        $oldStock = (float) $rawInv->stock;
+                        $newStock = max(0, $oldStock - (float) $production->quantity);
+                        $rawInv->stock = $newStock;
+                        $rawInv->save();
+
+                        if ($oldStock != $newStock) {
+                            InventoryChangeLog::log(
+                                $rawInv, 'stock', $oldStock, $newStock,
+                                'adjust', $product->id,
+                                'production_return',
+                                "برگشت تولید (حذف گروهی) - {$product->name}"
+                            );
+                        }
+                    }
+                }
 
                 $production->stops()->delete();
                 $production->delete();
@@ -315,22 +393,4 @@ class ProductionController extends Controller
 
         return view('productions.by-date', compact('productions', 'date'));
     }
-
-    // ============================================================
-    //  ❌ متدهای کمکی کسر و بازگشت مواد اولیه (غیرفعال شدند)
-    // ============================================================
-    // private function subtractMaterials(Production $production, $weight = null)
-    // {
-    //     // این متد دیگر استفاده نمی‌شود
-    // }
-    //
-    // private function addMaterials(Production $production)
-    // {
-    //     // این متد دیگر استفاده نمی‌شود
-    // }
-    //
-    // private function convertWeightToKg($weight)
-    // {
-    //     // این متد دیگر استفاده نمی‌شود
-    // }
 }

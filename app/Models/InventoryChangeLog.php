@@ -30,43 +30,79 @@ class InventoryChangeLog extends Model
     //  ✅ برچسب‌های فارسی برای منبع تغییر
     // ═══════════════════════════════════════════════════════════
     public const SOURCE_LABELS = [
-        'manual_warehouse'    => 'ویرایش دستی موجودی انبار',
-        'manual_raw'          => 'ویرایش دستی موجودی خام',
-        'manual_wax'          => 'ویرایش دستی موجودی موم',
-        'manual_shoulder'     => 'ویرایش دستی موجودی شانه شده',
-        'manual_waste_mum'    => 'ویرایش دستی ضایعات موم',
-        'manual_glaze1300'    => 'ویرایش دستی موجودی ۱۳۰۰',
-        'manual_unpackaged'   => 'ویرایش دستی موجودی بسته‌نشده',
-        'manual_settings'     => 'تنظیمات دستی موجودی',
-        'manual_raw_material' => 'ویرایش دستی مواد اولیه',
-        'manual_packaging'    => 'ویرایش دستی کارتن/لایه',
+        // ─── ویرایش دستی ───
+        'manual_warehouse'         => 'ویرایش دستی موجودی انبار',
+        'manual_warehouse_set'     => 'تنظیم دستی موجودی انبار',
+        'manual_warehouse_adjust'  => 'کسر/اضافه دستی موجودی انبار',
+        'manual_raw'               => 'ویرایش دستی موجودی خام',
+        'manual_wax'               => 'ویرایش دستی موجودی موم',
+        'manual_shoulder'          => 'ویرایش دستی موجودی شانه شده',
+        'manual_waste_mum'         => 'ویرایش دستی ضایعات موم',
+        'manual_glaze1300'         => 'ویرایش دستی موجودی ۱۳۰۰',
+        'manual_unpackaged'        => 'ویرایش دستی موجودی بسته‌نشده',
+        'manual_settings'          => 'تنظیمات دستی موجودی',
+        'manual_raw_material'      => 'ویرایش دستی مواد اولیه',
+        'manual_raw_material_set'  => 'تنظیم دستی مواد اولیه',
+        'manual_raw_material_adjust'=> 'کسر/اضافه دستی مواد اولیه',
+        'manual_packaging'         => 'ویرایش دستی کارتن/لایه',
+        'manual_packaging_set'     => 'تنظیم دستی کارتن/لایه',
+        'manual_packaging_adjust'  => 'کسر/اضافه دستی کارتن/لایه',
+        'manual_reset_all'         => 'صفر کردن همه موجودی‌ها',
 
-        'import_warehouse'    => 'ایمپورت اکسل - موجودی انبار',
-        'import_raw'          => 'ایمپورت اکسل - موجودی خام',
-        'import_glaze1300'    => 'ایمپورت اکسل - موجودی ۱۳۰۰',
-        'import_shoulder'     => 'ایمپورت اکسل - موجودی شانه شده',
-        'import_waste_mum'    => 'ایمپورت اکسل - ضایعات موم',
-        'import_wax'          => 'ایمپورت اکسل - موجودی موم',
-        'import_raw_material' => 'ایمپورت اکسل - مواد اولیه',
-        'import_packaging'    => 'ایمپورت اکسل - کارتن و لایه',
+        // ─── ایمپورت ───
+        'import_warehouse'          => 'ایمپورت اکسل - موجودی انبار',
+        'import_raw'                => 'ایمپورت اکسل - موجودی خام',
+        'import_glaze1300'          => 'ایمپورت اکسل - موجودی ۱۳۰۰',
+        'import_shoulder'           => 'ایمپورت اکسل - موجودی شانه شده',
+        'import_waste_mum'          => 'ایمپورت اکسل - ضایعات موم',
+        'import_wax'                => 'ایمپورت اکسل - موجودی موم',
+        'import_raw_material'       => 'ایمپورت اکسل - مواد اولیه',
+        'import_material_making'    => 'ایمپورت اکسل - مواد سازی',
+        'import_packaging'          => 'ایمپورت اکسل - کارتن و لایه',
+        'import_packaging_consumed' => 'ایمپورت اکسل - مصرف بسته‌بندی',
+        'import_production'         => 'ایمپورت اکسل - ثبت تولید',
+        'import_tonneli_packaged'   => 'ایمپورت اکسل - پخت تونلی (بسته‌بندی)',
+        'import_tonneli_input'      => 'ایمپورت اکسل - ورودی کوره تونلی',
+        'import_shuttle_output'     => 'ایمپورت اکسل - خروجی کوره شاتل',
+        'import_shuttle_k1'         => 'ایمپورت اکسل - پخت کوره ۱',
+        'import_shuttle_k2'         => 'ایمپورت اکسل - پخت کوره ۲ (۱۳۰۰)',
+        'import_shuttle_k2_output'  => 'ایمپورت اکسل - خروجی کوره ۲ (۱۳۰۰)',
+        'import_shuttle_k3_mum'     => 'ایمپورت اکسل - پخت کوره ۳ (موم)',
+        'import_shuttle_k4'         => 'ایمپورت اکسل - پخت کوره ۴',
+        'import_packaging_from_k2'  => 'ایمپورت اکسل - بسته‌بندی از کوره ۲',
+        'import_packaging_from_k4'  => 'ایمپورت اکسل - بسته‌بندی از کوره ۴',
+        'import_sale_formal'        => 'ایمپورت اکسل - فروش رسمی',
+        'import_sale_informal'      => 'ایمپورت اکسل - فروش غیررسمی',
 
+        // ─── تولید ───
         'production'          => 'ثبت تولید',
-        'tonneli_input'       => 'ورودی کوره تونلی',
-        'tonneli_output'      => 'خروجی کوره تونلی',
-        'shuttle_kiln_1'      => 'پخت کوره ۱',
-        'shuttle_kiln_2'      => 'پخت کوره ۲ (۱۳۰۰)',
-        'shuttle_kiln_3_glaze'=> 'پخت کوره ۳ (لعاب)',
-        'shuttle_kiln_3_mum'  => 'پخت کوره ۳ (موم)',
-        'shuttle_kiln_4'      => 'پخت کوره ۴',
-        'shuttle_packaging'   => 'بسته‌بندی',
 
-        'sale_formal'         => 'فروش رسمی',
-        'sale_informal'       => 'فروش غیررسمی',
-        'sale_formal_return'  => 'برگشت فروش رسمی',
-        'sale_informal_return'=> 'برگشت فروش غیررسمی',
+        // ─── کوره تونلی (دستی) ───
+        'tonneli_input'              => 'ورودی کوره تونلی',
+        'tonneli_input_return'       => 'برگشت ورودی کوره تونلی',
+        'tonneli_packaged'           => 'پخت تونلی - بسته‌بندی‌شده',
+        'tonneli_packaged_return'    => 'برگشت بسته‌بندی تونلی',
+        'tonneli_packaging_consumed' => 'مصرف بسته‌بندی (پخت تونلی)',
+        'tonneli_packaging_return'   => 'برگشت بسته‌بندی (تونلی)',
+        'tonneli_output'             => 'خروجی کوره تونلی',
 
-        'shoulder_record'     => 'شانه زنی',
-        'waste_mum_record'    => 'ضایعات موم',
+        // ─── کوره شاتل ───
+        'shuttle_kiln_1'       => 'پخت کوره ۱',
+        'shuttle_kiln_2'       => 'پخت کوره ۲ (۱۳۰۰)',
+        'shuttle_kiln_3_glaze' => 'پخت کوره ۳ (لعاب)',
+        'shuttle_kiln_3_mum'   => 'پخت کوره ۳ (موم)',
+        'shuttle_kiln_4'       => 'پخت کوره ۴',
+        'shuttle_packaging'    => 'بسته‌بندی',
+
+        // ─── فروش ───
+        'sale_formal'          => 'فروش رسمی',
+        'sale_informal'        => 'فروش غیررسمی',
+        'sale_formal_return'   => 'برگشت فروش رسمی',
+        'sale_informal_return' => 'برگشت فروش غیررسمی',
+
+        // ─── شانه/ضایعات ───
+        'shoulder_record'  => 'شانه زنی',
+        'waste_mum_record' => 'ضایعات موم',
     ];
 
     public function getSourceLabelAttribute(): ?string
@@ -114,12 +150,10 @@ class InventoryChangeLog extends Model
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ NEW: اسم کالا / ماده / بسته
-    //  از loggable_id + loggable_type پیدا می‌شود
+    //  ✅ اسم کالا
     // ═══════════════════════════════════════════════════════════
     public function getSubjectNameAttribute(): ?string
     {
-        // کش ساده در حافظه برای همون درخواست
         static $cache = [];
         $cacheKey = $this->loggable_type . ':' . $this->loggable_id;
         if (isset($cache[$cacheKey])) {
@@ -128,8 +162,6 @@ class InventoryChangeLog extends Model
 
         $name = null;
 
-        // 🎯 اگه نوع موجودی از نوع product-based باشه:
-        // loggable_id = product_id هست
         $productBasedTypes = [
             'App\Models\WarehouseInventory',
             'App\Models\RawInventory',
@@ -143,24 +175,20 @@ class InventoryChangeLog extends Model
             $product = Product::find($this->loggable_id);
             $name = $product ? $product->name : 'کالای حذف‌شده (#' . $this->loggable_id . ')';
         }
-        // 🎯 اگه Product باشه
         elseif ($this->loggable_type === 'App\Models\Product') {
             $product = Product::find($this->loggable_id);
             $name = $product ? $product->name : 'کالای حذف‌شده (#' . $this->loggable_id . ')';
         }
-        // 🎯 اگه RawMaterial باشه
         elseif ($this->loggable_type === 'App\Models\RawMaterial') {
             $material = \App\Models\RawMaterial::find($this->loggable_id);
             $name = $material ? $material->name : 'ماده حذف‌شده (#' . $this->loggable_id . ')';
         }
-        // 🎯 اگه Packaging باشه
         elseif ($this->loggable_type === 'App\Models\Packaging') {
             $packaging = \App\Models\Packaging::find($this->loggable_id);
             $name = $packaging
                 ? (($packaging->type == 'carton' ? '[کارتن] ' : '[لایه] ') . $packaging->name)
                 : 'بسته حذف‌شده (#' . $this->loggable_id . ')';
         }
-        // 🎯 موارد دیگه: از خود loggable استفاده کن
         else {
             try {
                 $loggable = $this->loggable;
@@ -176,9 +204,6 @@ class InventoryChangeLog extends Model
         return $name;
     }
 
-    /**
-     * ✅ محاسبه اختلاف
-     */
     public function getDeltaAttribute(): float
     {
         return (float) $this->new_value - (float) $this->old_value;
@@ -200,9 +225,6 @@ class InventoryChangeLog extends Model
         return 'secondary';
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  روابط
-    // ═══════════════════════════════════════════════════════════
     public function loggable()
     {
         return $this->morphTo();
@@ -213,9 +235,6 @@ class InventoryChangeLog extends Model
         return $this->belongsTo(User::class);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ متد log — با source و description
-    // ═══════════════════════════════════════════════════════════
     public static function log(
         $model,
         $field,

@@ -4,39 +4,34 @@ namespace App\Http\Controllers;
 
 use App\Models\ShuttleFiring;
 use App\Models\Product;
+use App\Models\WarehouseInventory;
+use App\Models\Glaze1300Inventory;
+use App\Models\WaxInventory;
+use App\Models\InventoryChangeLog;
 use Illuminate\Http\Request;
 use Morilog\Jalali\Jalalian;
 use Illuminate\Support\Facades\DB;
 
 class ShuttleFiringController extends Controller
 {
-    /**
-     * نمایش لیست پخت‌ها به‌صورت گروه‌بندی‌شده بر اساس شماره پخت
-     * همراه با قابلیت فیلتر بر اساس نوع کوره
-     */
     public function index(Request $request)
     {
-        // دریافت نوع کوره از پارامتر کوئری (در صورت وجود)
         $filterKiln = $request->query('kiln');
 
-        // دریافت همه رکوردها با محصولات مرتبط
         $query = ShuttleFiring::with('product')
             ->orderBy('date', 'desc')
             ->orderBy('firing_number', 'desc');
 
-        // اعمال فیلتر بر اساس نوع کوره (اگر پارامتر وجود داشته باشد)
         if ($filterKiln && $filterKiln !== 'all') {
             $query->where('kiln_type', $filterKiln);
         }
 
         $allFirings = $query->get();
 
-        // گروه‌بندی بر اساس کلید کامل (تاریخ + کوره + شماره پخت)
         $grouped = $allFirings->groupBy(function ($item) {
             return $item->year . '-' . $item->month . '-' . $item->day . '-' . $item->kiln_type . '-' . $item->firing_number;
         });
 
-        // ایجاد مجموعه‌ای از گروه‌ها با اطلاعات خلاصه
         $firings = $grouped->map(function ($items, $key) {
             $first = $items->first();
             return (object) [
@@ -54,14 +49,11 @@ class ShuttleFiringController extends Controller
             ];
         })->values();
 
-        // ===== محاسبه تعداد پخت‌های هر کوره (از کل داده‌ها بدون فیلتر) =====
-        // ✅ اصلاح شده: استفاده از || به جای concat برای SQLite
         $allKilnCounts = ShuttleFiring::select('kiln_type')
             ->selectRaw("count(distinct (year || '-' || month || '-' || day || '-' || kiln_type || '-' || firing_number)) as count")
             ->groupBy('kiln_type')
             ->pluck('count', 'kiln_type');
 
-        // صفحه‌بندی دستی (بر اساس داده‌های فیلترشده)
         $perPage = 20;
         $currentPage = $request->get('page', 1);
         $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
@@ -72,13 +64,9 @@ class ShuttleFiringController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        // ارسال داده‌ها به ویو
         return view('shuttle.index', compact('paginated', 'allKilnCounts', 'filterKiln'));
     }
 
-    /**
-     * نمایش فرم ثبت پخت جدید
-     */
     public function create()
     {
         $products = Product::where('status', 1)->orderBy('name')->get();
@@ -86,9 +74,6 @@ class ShuttleFiringController extends Controller
         return view('shuttle.create', compact('products', 'today'));
     }
 
-    /**
-     * ذخیره پخت جدید
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -140,7 +125,7 @@ class ShuttleFiringController extends Controller
 
             $newFiringNumber = $maxNumber + 1;
 
-            ShuttleFiring::create([
+            $firing = ShuttleFiring::create([
                 'date' => $gregorianDate,
                 'kiln_type' => $kilnType,
                 'firing_subtype' => $firingSubtype,
@@ -153,6 +138,9 @@ class ShuttleFiringController extends Controller
                 'day' => $dayNum,
             ]);
 
+            // ✅ اعمال تغییرات موجودی + لاگ
+            $this->applyInventoryForFiring($firing, 'add');
+
             DB::commit();
             return redirect()->route('shuttle.index')
                 ->with('success', 'پخت شاتل با موفقیت ثبت شد.');
@@ -162,9 +150,6 @@ class ShuttleFiringController extends Controller
         }
     }
 
-    /**
-     * نمایش جزئیات یک پخت با کلید کامل
-     */
     public function show($year, $month, $day, $kiln_type, $firingNumber)
     {
         $main = ShuttleFiring::where('year', $year)
@@ -175,8 +160,7 @@ class ShuttleFiringController extends Controller
             ->first();
 
         if (!$main) {
-            return redirect()->route('shuttle.index')
-                ->with('error', 'پخت مورد نظر یافت نشد.');
+            return redirect()->route('shuttle.index')->with('error', 'پخت مورد نظر یافت نشد.');
         }
 
         $items = ShuttleFiring::with('product')
@@ -203,9 +187,6 @@ class ShuttleFiringController extends Controller
         return view('shuttle.show', compact('firing'));
     }
 
-    /**
-     * نمایش فرم ویرایش پخت با کلید کامل
-     */
     public function edit($year, $month, $day, $kiln_type, $firingNumber)
     {
         $firing = ShuttleFiring::where('year', $year)
@@ -217,18 +198,15 @@ class ShuttleFiringController extends Controller
 
         $products = Product::where('status', 1)->orderBy('name')->get();
         $firing->jalali_date = Jalalian::fromCarbon($firing->date)->format('Y/m/d');
-        
+
         $kilnNumber = $this->mapKilnTypeToNumber($firing->kiln_type);
         $firing->kiln_number = $kilnNumber;
         $firing->firing_type = $this->getFiringType($firing);
         $firing->total_quantity = $firing->output_quantity + 0;
-        
+
         return view('shuttle.edit', compact('firing', 'products'));
     }
 
-    /**
-     * به‌روزرسانی پخت با کلید کامل
-     */
     public function update(Request $request, $year, $month, $day, $kiln_type, $firingNumber)
     {
         $firing = ShuttleFiring::where('year', $year)
@@ -275,6 +253,9 @@ class ShuttleFiringController extends Controller
 
         DB::beginTransaction();
         try {
+            // ✅ برگرداندن اثر قبلی
+            $this->applyInventoryForFiring($firing, 'return');
+
             $firing->update([
                 'date' => $gregorianDate,
                 'kiln_type' => $kilnType,
@@ -283,6 +264,10 @@ class ShuttleFiringController extends Controller
                 'output_quantity' => $validated['main_quantity'],
                 'is_packaged' => $packaged,
             ]);
+
+            // ✅ اعمال اثر جدید
+            $firing->refresh();
+            $this->applyInventoryForFiring($firing, 'add');
 
             DB::commit();
             return redirect()->route('shuttle.index')
@@ -293,9 +278,6 @@ class ShuttleFiringController extends Controller
         }
     }
 
-    /**
-     * حذف یک پخت (همه آیتم‌های آن) با کلید کامل
-     */
     public function destroy($year, $month, $day, $kiln_type, $firingNumber)
     {
         $firing = ShuttleFiring::where('year', $year)
@@ -307,6 +289,9 @@ class ShuttleFiringController extends Controller
 
         DB::beginTransaction();
         try {
+            // ✅ برگرداندن اثر
+            $this->applyInventoryForFiring($firing, 'return');
+
             ShuttleFiring::where('year', $year)
                 ->where('month', $month)
                 ->where('day', $day)
@@ -323,31 +308,171 @@ class ShuttleFiringController extends Controller
         }
     }
 
-    // ============================================================
-    //  توابع کمکی
-    // ============================================================
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ اعمال تغییرات موجودی و لاگ‌گیری
+    //  @param string $action = 'add' (ثبت) یا 'return' (برگشت)
+    // ═══════════════════════════════════════════════════════════
+    private function applyInventoryForFiring(ShuttleFiring $firing, $action = 'add')
+    {
+        $product = $firing->product;
+        if (!$product) return;
 
+        $qty = (float) $firing->output_quantity;
+        $kilnType = $firing->kiln_type;
+        $isPackaged = (int) $firing->is_packaged;
+
+        // ضریب: +1 برای add، -1 برای return
+        $sign = ($action === 'add') ? 1 : -1;
+
+        // ═══════════════════════════════════════════════════════════
+        //  کوره ۱ (معمولی)
+        // ═══════════════════════════════════════════════════════════
+        if ($kilnType === 'kiln_1') {
+            if ($isPackaged && $qty > 0) {
+                $this->changeStock(
+                    WarehouseInventory::class, $product->id,
+                    $qty * $sign,
+                    'shuttle_kiln_1',
+                    ($action === 'add' ? 'پخت کوره ۱' : 'برگشت پخت کوره ۱'),
+                    $product->name
+                );
+            }
+        }
+        // ═══════════════════════════════════════════════════════════
+        //  کوره ۲ (۱۳۰۰ درجه)
+        // ═══════════════════════════════════════════════════════════
+        elseif ($kilnType === 'kiln_2') {
+            if ($qty > 0) {
+                // خروجی به ۱۳۰۰ اضافه می‌شود
+                $this->changeStock(
+                    Glaze1300Inventory::class, $product->id,
+                    $qty * $sign,
+                    'shuttle_kiln_2',
+                    ($action === 'add' ? 'پخت کوره ۲ (۱۳۰۰)' : 'برگشت پخت کوره ۲ (۱۳۰۰)'),
+                    $product->name
+                );
+
+                // اگه بسته‌بندی شده: از ۱۳۰۰ کم می‌شود و به انبار اضافه می‌شود
+                if ($isPackaged) {
+                    $this->changeStock(
+                        Glaze1300Inventory::class, $product->id,
+                        -$qty * $sign,
+                        'shuttle_kiln_2_packaged',
+                        ($action === 'add' ? 'بسته‌بندی از کوره ۲' : 'برگشت بسته‌بندی از کوره ۲'),
+                        $product->name
+                    );
+                    $this->changeStock(
+                        WarehouseInventory::class, $product->id,
+                        $qty * $sign,
+                        'shuttle_kiln_2',
+                        ($action === 'add' ? 'پخت کوره ۲ (بسته‌بندی)' : 'برگشت پخت کوره ۲'),
+                        $product->name
+                    );
+                }
+            }
+        }
+        // ═══════════════════════════════════════════════════════════
+        //  کوره ۳
+        // ═══════════════════════════════════════════════════════════
+        elseif ($kilnType === 'kiln_3') {
+            if ($qty > 0) {
+                if ($firing->firing_subtype === 'mum') {
+                    // موم → موجودی موم
+                    $this->changeStock(
+                        WaxInventory::class, $product->id,
+                        $qty * $sign,
+                        'shuttle_kiln_3_mum',
+                        ($action === 'add' ? 'پخت کوره ۳ (موم)' : 'برگشت پخت کوره ۳ (موم)'),
+                        $product->name
+                    );
+                }
+                // لعاب → فقط رکورد، موجودی خاصی تغییر نمی‌کند
+            }
+        }
+        // ═══════════════════════════════════════════════════════════
+        //  کوره ۴
+        // ═══════════════════════════════════════════════════════════
+        elseif ($kilnType === 'kiln_4') {
+            if ($isPackaged && $qty > 0) {
+                // از ۱۳۰۰ کم می‌شود و به انبار اضافه می‌شود
+                $this->changeStock(
+                    Glaze1300Inventory::class, $product->id,
+                    -$qty * $sign,
+                    'shuttle_kiln_4_packaged',
+                    ($action === 'add' ? 'بسته‌بندی از کوره ۴' : 'برگشت بسته‌بندی از کوره ۴'),
+                    $product->name
+                );
+                $this->changeStock(
+                    WarehouseInventory::class, $product->id,
+                    $qty * $sign,
+                    'shuttle_kiln_4',
+                    ($action === 'add' ? 'پخت کوره ۴ (بسته‌بندی)' : 'برگشت پخت کوره ۴'),
+                    $product->name
+                );
+            }
+        }
+        // ═══════════════════════════════════════════════════════════
+        //  فقط بسته‌بندی
+        // ═══════════════════════════════════════════════════════════
+        elseif ($kilnType === 'packaging') {
+            if ($qty > 0) {
+                $this->changeStock(
+                    WarehouseInventory::class, $product->id,
+                    $qty * $sign,
+                    'shuttle_packaging',
+                    ($action === 'add' ? 'بسته‌بندی محصول' : 'برگشت بسته‌بندی محصول'),
+                    $product->name
+                );
+            }
+        }
+    }
+
+    /**
+     * ✅ تغییر موجودی + لاگ
+     */
+    private function changeStock($modelClass, $productId, $delta, $source, $desc, $productName)
+    {
+        if (abs($delta) < 0.001) return;
+
+        $inv = $modelClass::firstOrCreate(['product_id' => $productId]);
+        $oldStock = (float) $inv->stock;
+        $newStock = max(0, $oldStock + $delta);
+
+        if ($oldStock == $newStock) return;
+
+        $inv->stock = $newStock;
+        $inv->save();
+
+        InventoryChangeLog::log(
+            $inv, 'stock', $oldStock, $newStock,
+            'adjust', $productId,
+            $source,
+            "{$desc} - {$productName}"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  توابع کمکی
+    // ═══════════════════════════════════════════════════════════
     private function mapKilnNumberToType($kilnNumber, $firingType = null)
     {
         $kilnNumber = trim($kilnNumber);
-        
+
         if (is_numeric($kilnNumber)) {
             $num = (int)$kilnNumber;
-            if ($num >= 1 && $num <= 4) {
-                return 'kiln_' . $num;
-            }
+            if ($num >= 1 && $num <= 4) return 'kiln_' . $num;
         }
-        
+
         if (strtolower($kilnNumber) === 'بسته‌بندی' || strtolower($kilnNumber) === 'packaging') {
             return 'packaging';
         }
-        
+
         if ($firingType) {
             if (strpos($firingType, 'معمولی') !== false) return 'kiln_1';
             if (strpos($firingType, '1300') !== false) return 'kiln_2';
             if (strpos($firingType, 'لعاب') !== false || strpos($firingType, 'موم') !== false) return 'kiln_3';
         }
-        
+
         return 'kiln_1';
     }
 

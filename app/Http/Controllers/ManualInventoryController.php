@@ -13,6 +13,7 @@ use App\Models\ShoulderInventory;
 use App\Models\WasteMumInventory;
 use App\Models\RawInventory;
 use App\Models\ShuttleFiring;
+use App\Models\InventoryChangeLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -183,63 +184,108 @@ class ManualInventoryController extends Controller
 
         DB::beginTransaction();
         try {
+            $loggable = null;
+            $oldValue = 0;
+            $newValue = $quantity;
+            $logField = 'stock';
+            $customId = null;
+
             switch ($type) {
                 case 'opening':
-                    OpeningInventory::updateOrCreate(
-                        ['product_id' => $itemId],
-                        ['quantity' => $quantity]
-                    );
+                    $inv = OpeningInventory::firstOrCreate(['product_id' => $itemId]);
+                    $oldValue = (float) $inv->quantity;
+                    $inv->quantity = $quantity;
+                    $inv->save();
+                    $loggable = $inv;
+                    $logField = 'quantity';
+                    $customId = $itemId;
                     break;
 
                 case 'raw':
-                    RawInventory::updateOrCreate(
-                        ['product_id' => $itemId],
-                        ['stock' => $quantity]
-                    );
+                    $inv = RawInventory::firstOrCreate(['product_id' => $itemId]);
+                    $oldValue = (float) $inv->stock;
+                    $inv->stock = $quantity;
+                    $inv->save();
+                    $loggable = $inv;
+                    $customId = $itemId;
                     break;
 
                 case 'wax':
-                    WaxInventory::updateOrCreate(
-                        ['product_id' => $itemId],
-                        ['stock' => $quantity]
-                    );
+                    $inv = WaxInventory::firstOrCreate(['product_id' => $itemId]);
+                    $oldValue = (float) $inv->stock;
+                    $inv->stock = $quantity;
+                    $inv->save();
+                    $loggable = $inv;
+                    $customId = $itemId;
                     break;
 
                 case 'glaze1300':
-                    Glaze1300Inventory::updateOrCreate(
-                        ['product_id' => $itemId],
-                        ['stock' => $quantity]
-                    );
+                    $inv = Glaze1300Inventory::firstOrCreate(['product_id' => $itemId]);
+                    $oldValue = (float) $inv->stock;
+                    $inv->stock = $quantity;
+                    $inv->save();
+                    $loggable = $inv;
+                    $customId = $itemId;
                     break;
 
                 case 'warehouse':
-                    WarehouseInventory::updateOrCreate(
-                        ['product_id' => $itemId],
-                        ['stock' => $quantity]
-                    );
+                    $inv = WarehouseInventory::firstOrCreate(['product_id' => $itemId]);
+                    $oldValue = (float) $inv->stock;
+                    $inv->stock = $quantity;
+                    $inv->save();
+                    $loggable = $inv;
+                    $customId = $itemId;
                     break;
 
                 case 'shoulder':
-                    ShoulderInventory::updateOrCreate(
-                        ['product_id' => $itemId],
-                        ['stock' => $quantity]
-                    );
+                    $inv = ShoulderInventory::firstOrCreate(['product_id' => $itemId]);
+                    $oldValue = (float) $inv->stock;
+                    $inv->stock = $quantity;
+                    $inv->save();
+                    $loggable = $inv;
+                    $customId = $itemId;
                     break;
 
                 case 'waste_mum':
-                    WasteMumInventory::updateOrCreate(
-                        ['product_id' => $itemId],
-                        ['stock' => $quantity]
-                    );
+                    $inv = WasteMumInventory::firstOrCreate(['product_id' => $itemId]);
+                    $oldValue = (float) $inv->stock;
+                    $inv->stock = $quantity;
+                    $inv->save();
+                    $loggable = $inv;
+                    $customId = $itemId;
                     break;
 
                 case 'raw_material':
-                    RawMaterial::where('id', $itemId)->update(['stock' => $quantity]);
+                    $material = RawMaterial::find($itemId);
+                    if ($material) {
+                        $oldValue = (float) $material->stock;
+                        $material->stock = $quantity;
+                        $material->save();
+                        $loggable = $material;
+                    }
                     break;
 
                 case 'packaging':
-                    Packaging::where('id', $itemId)->update(['stock' => $quantity]);
+                    $packaging = Packaging::find($itemId);
+                    if ($packaging) {
+                        $oldValue = (float) $packaging->stock;
+                        $packaging->stock = (int) $quantity;
+                        $packaging->save();
+                        $loggable = $packaging;
+                    }
                     break;
+            }
+
+            // ✅ لاگ تغییر
+            if ($loggable && $oldValue != $newValue) {
+                $sourceLabel = 'manual_settings_' . $type;
+                $descLabel = "تنظیمات دستی - {$labels[$type]}";
+
+                InventoryChangeLog::log(
+                    $loggable, $logField, $oldValue, $newValue,
+                    'set', $customId,
+                    $sourceLabel, $descLabel
+                );
             }
 
             DB::commit();

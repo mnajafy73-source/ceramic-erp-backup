@@ -22,7 +22,6 @@
             margin: 0;
         }
 
-        /* ✅ Sidebar: به صورت پیش‌فرض بسته */
         .sidebar {
             position: fixed;
             right: 0;
@@ -173,7 +172,6 @@
             gap: 8px;
         }
 
-        /* ✅ Overlay لودینگ واردات */
         #importOverlay {
             display: none;
             position: fixed;
@@ -213,7 +211,6 @@
             transition: width 0.4s ease;
         }
 
-        /* ✅ Toast پیام */
         .toast-container-custom {
             position: fixed;
             top: 20px;
@@ -224,7 +221,6 @@
             width: 500px;
         }
 
-        /* ✅ Overlay پشت sidebar */
         #sidebarOverlay {
             display: none;
             position: fixed;
@@ -237,7 +233,6 @@
 </head>
 <body>
 
-    
     <div id="importOverlay">
         <div class="spinner-border text-warning" role="status"></div>
         <h4>در حال واردات خودکار از فایل اکسل...</h4>
@@ -250,13 +245,10 @@
         </div>
     </div>
 
-    
     <div class="toast-container-custom" id="toastContainer"></div>
 
-    
     <div id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-    
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h5 class="mb-0"><i class="fas fa-industry ms-2"></i>کارخانه سرامیک</h5>
@@ -314,7 +306,7 @@
             </div>
 
             <!-- ۷. موجودی -->
-            <button class="nav-link menu-title <?php echo e(request()->routeIs('inventory.*') || request()->routeIs('inventory-logs.*') ? 'active' : ''); ?>"
+            <button class="nav-link menu-title <?php echo e(request()->routeIs('inventory.*') ? 'active' : ''); ?>"
                     onclick="toggleSubmenu(this, 'submenu-inventory')">
                 <span><i class="fas fa-cubes"></i> موجودی</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -324,10 +316,25 @@
                 <a href="<?php echo e(route('inventory.packaging-stock')); ?>"><i class="fas fa-box"></i> کارتن و لایه</a>
                 <a href="<?php echo e(route('inventory.warehouse')); ?>"><i class="fas fa-warehouse"></i> موجودی انبار</a>
                 <a href="<?php echo e(route('inventory.all-stocks')); ?>"><i class="fas fa-chart-pie"></i> گزارش جامع موجودی‌ها</a>
-                <a href="<?php echo e(route('inventory-logs.index')); ?>"><i class="fas fa-history"></i> آخرین تغییرات</a>
             </div>
 
-            <!-- ۸. گزارشات -->
+            <!-- ۸. آخرین تغییرات (منوی اصلی) -->
+            <a href="<?php echo e(route('inventory-logs.index')); ?>" class="nav-link <?php echo e(request()->routeIs('inventory-logs.*') ? 'active' : ''); ?>">
+                <i class="fas fa-history"></i> آخرین تغییرات
+            </a>
+
+            <!-- ۹. حسابداری -->
+            <button class="nav-link menu-title <?php echo e(request()->routeIs('accounting.*') ? 'active' : ''); ?>"
+                    onclick="toggleSubmenu(this, 'submenu-accounting')">
+                <span><i class="fas fa-calculator"></i> حسابداری</span>
+                <i class="fas fa-chevron-down menu-arrow"></i>
+            </button>
+            <div class="submenu" id="submenu-accounting">
+                <a href="<?php echo e(route('accounting.index')); ?>"><i class="fas fa-money-bill-wave"></i> پرداخت‌ها</a>
+                <a href="<?php echo e(route('accounting.debtors')); ?>"><i class="fas fa-exclamation-triangle"></i> بدهکاران</a>
+            </div>
+
+            <!-- ۱۰. گزارشات -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-reports')">
                 <span><i class="fas fa-chart-bar"></i> گزارشات</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -338,12 +345,12 @@
                 <a href="<?php echo e(route('reports.annual')); ?>"><i class="fas fa-calendar-alt"></i> گزارش سالیانه</a>
             </div>
 
-            <!-- ۹. آمار -->
+            <!-- ۱۱. آمار -->
             <a href="<?php echo e(route('product-sales-stats.index')); ?>" class="nav-link <?php echo e(request()->routeIs('product-sales-stats.*') ? 'active' : ''); ?>">
                 <i class="fas fa-chart-line"></i> آمار
             </a>
 
-            <!-- ۱۰. وارد کردن -->
+            <!-- ۱۲. وارد کردن -->
             <form method="POST" action="<?php echo e(route('import.from-path')); ?>" id="sidebarImportForm" class="m-0 p-0">
                 <?php echo csrf_field(); ?>
                 <button type="submit" class="nav-link <?php echo e(request()->routeIs('import.*') ? 'active' : ''); ?>" id="sidebarImportBtn">
@@ -353,7 +360,7 @@
 
             <hr class="text-white-50 mx-3 my-2">
 
-            <!-- ۱۱. تنظیمات -->
+            <!-- ۱۳. تنظیمات -->
             <button class="nav-link menu-title" onclick="toggleSubmenu(this, 'submenu-settings')">
                 <span><i class="fas fa-cog"></i> تنظیمات</span>
                 <i class="fas fa-chevron-down menu-arrow"></i>
@@ -369,7 +376,6 @@
                 <a href="<?php echo e(route('presses.index')); ?>"><i class="fas fa-cogs"></i> مدیریت پرس‌ها</a>
                 <a href="<?php echo e(route('products.index')); ?>"><i class="fas fa-box"></i> مدیریت کالاها</a>
                 <a href="<?php echo e(route('customers.index')); ?>"><i class="fas fa-users"></i> مدیریت مشتریان</a>
-                <a href="<?php echo e(route('product_logs.index')); ?>"><i class="fas fa-history"></i> تاریخچه تغییرات کالاها</a>
             </div>
 
             <form method="POST" action="<?php echo e(route('logout')); ?>" class="mt-3 px-3 pb-3">
@@ -472,9 +478,6 @@
             button.classList.toggle('open');
         }
 
-        // ═══════════════════════════════════════════════════════════
-        //  نمایش Toast پیام
-        // ═══════════════════════════════════════════════════════════
         function showToast(message, type) {
             var container = document.getElementById('toastContainer');
             var isSuccess = (type === 'success');
@@ -529,9 +532,6 @@
             })();
         <?php endif; ?>
 
-        // ═══════════════════════════════════════════════════════════
-        //  واردات خودکار - فرم POST عادی
-        // ═══════════════════════════════════════════════════════════
         var importFormConfirmed = false;
 
         var importForm = document.getElementById('sidebarImportForm');
