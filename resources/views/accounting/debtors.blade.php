@@ -31,6 +31,15 @@
         border-radius: 8px;
         padding: 12px 16px;
     }
+    .period-badge {
+        background: #fff3cd;
+        color: #664d03;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+        border: 1px solid #ffecb5;
+    }
 </style>
 @endpush
 
@@ -66,8 +75,14 @@
             <div class="col-md-3">
                 <label class="form-label small fw-bold">ماه</label>
                 <select name="month" class="form-select form-select-sm">
+                    {{-- ✅ گزینه «همه ماه‌ها» --}}
+                    <option value="all" {{ $currentMonth == 'all' ? 'selected' : '' }}>
+                        📅 همه ماه‌ها
+                    </option>
                     @for($m = 1; $m <= 12; $m++)
-                        <option value="{{ $m }}" {{ $month == $m ? 'selected' : '' }}>{{ $monthNames[$m - 1] }}</option>
+                        <option value="{{ $m }}" {{ $currentMonth == $m ? 'selected' : '' }}>
+                            {{ $monthNames[$m - 1] }}
+                        </option>
                     @endfor
                 </select>
             </div>
@@ -76,6 +91,20 @@
                 <button type="submit" class="btn btn-primary btn-sm">
                     <i class="fas fa-search me-1"></i> نمایش
                 </button>
+            </div>
+
+            <div class="col-md-3 text-end">
+                @if($isAllMonths)
+                    <span class="period-badge">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        کل سال {{ $year }}
+                    </span>
+                @else
+                    <span class="period-badge">
+                        <i class="fas fa-calendar-day me-1"></i>
+                        {{ $monthNames[$currentMonth - 1] }} {{ $year }}
+                    </span>
+                @endif
             </div>
         </form>
     </div>
@@ -92,7 +121,15 @@
     <div class="col-md-4">
         <div class="card border-0 shadow-sm">
             <div class="card-body text-center">
-                <div class="stat-mini">مجموع فروش (تا پایان ماه)</div>
+                <div class="stat-mini">
+                    مجموع فروش (تا پایان 
+                    @if($isAllMonths)
+                        سال
+                    @else
+                        {{ $monthNames[$currentMonth - 1] }}
+                    @endif
+                    )
+                </div>
                 <div class="stat-value text-primary mt-2" style="font-size: 18px;">
                     {{ number_format($totalSales) }} <small>ریال</small>
                 </div>
@@ -127,6 +164,11 @@
         <h6 class="mb-0">
             <i class="fas fa-list me-1"></i>
             بدهکاران ({{ $debtorsData->count() }} مشتری)
+            @if($isAllMonths)
+                — کل سال {{ $year }}
+            @else
+                — {{ $monthNames[$currentMonth - 1] }} {{ $year }}
+            @endif
         </h6>
     </div>
     <div class="card-body p-0">
@@ -134,7 +176,13 @@
             <div class="text-center py-5 text-muted">
                 <i class="fas fa-check-circle fa-3x mb-3 text-success opacity-50"></i>
                 <h5>هیچ بدهکاری وجود ندارد</h5>
-                <p>همه مشتریان تا پایان این ماه تسویه کرده‌اند.</p>
+                <p>
+                    @if($isAllMonths)
+                        همه مشتریان تا پایان سال {{ $year }} تسویه کرده‌اند.
+                    @else
+                        همه مشتریان تا پایان {{ $monthNames[$currentMonth - 1] }} تسویه کرده‌اند.
+                    @endif
+                </p>
             </div>
         @else
             <div class="list-group list-group-flush">

@@ -48,6 +48,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('productions.by-date')
         ->where('date', '.*');
     Route::delete('/productions/group/{year}/{month}/{day}', [ProductionController::class, 'destroyGroup'])->name('productions.destroy-group');
+    Route::delete('/productions/clear-imported', [ProductionController::class, 'clearImported'])->name('productions.clear-imported');
+    Route::delete('/productions/clear-manual', [ProductionController::class, 'clearManual'])->name('productions.clear-manual');
 
     // کوره تونلی
     Route::resource('tonneli', TonneliFiringController::class);
@@ -173,7 +175,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/accounting', [AccountingController::class, 'index'])->name('accounting.index');
     Route::post('/accounting', [AccountingController::class, 'store'])->name('accounting.store');
     Route::post('/accounting/import', [AccountingController::class, 'importFromExcel'])->name('accounting.import');
-    Route::delete('/accounting/clear-all', [AccountingController::class, 'clearAll'])->name('accounting.clear-all');
+    Route::delete('/accounting/clear-imported', [AccountingController::class, 'clearImported'])->name('accounting.clear-imported');
+    Route::delete('/accounting/clear-manual', [AccountingController::class, 'clearManual'])->name('accounting.clear-manual');
     Route::delete('/accounting/{payment}', [AccountingController::class, 'destroy'])->name('accounting.destroy');
     Route::get('/accounting/debtors', [AccountingController::class, 'debtors'])->name('accounting.debtors');
 

@@ -4,12 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Traits\HasUndo;
-use Morilog\Jalali\Jalalian;
 
 class Production extends Model
 {
-    use HasFactory, HasUndo;
+    use HasFactory;
 
     protected $fillable = [
         'date',
@@ -21,29 +19,12 @@ class Production extends Model
         'quantity',
         'time_hours',
         'notes',
+        'is_imported',
     ];
 
-    private static $stageMap = [
-        'تولید' => 'production',
-        'پرداخت' => 'payment',
-        'بسته‌بندی' => 'packaging',
+    protected $casts = [
+        'is_imported' => 'boolean',
     ];
-
-    public function setStageAttribute($value)
-    {
-        $this->attributes['stage'] = self::$stageMap[$value] ?? $value;
-    }
-
-    public function getStageAttribute($value)
-    {
-        $reverseMap = array_flip(self::$stageMap);
-        return $reverseMap[$value] ?? $value;
-    }
-
-    public function getJalaliDateAttribute()
-    {
-        return $this->date;
-    }
 
     public function operator()
     {

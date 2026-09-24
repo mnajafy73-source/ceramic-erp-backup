@@ -64,8 +64,14 @@ class ImportController extends Controller
             set_time_limit(0);
             $beforeSnapshot = $this->takeInventorySnapshot();
 
-            DB::statement('DELETE FROM production_stops');
-            DB::statement('DELETE FROM productions');
+            // ✅ فقط استاپ‌های مربوط به تولیدات ایمپورتی رو پاک کن
+DB::statement('
+    DELETE FROM production_stops
+    WHERE production_id IN (
+        SELECT id FROM productions WHERE is_imported = 1
+    )
+');
+            DB::statement('DELETE FROM productions WHERE is_imported = 1');
             DB::statement('DELETE FROM tonneli_firing_items');
             DB::statement('DELETE FROM tonneli_firings');
             DB::statement('DELETE FROM shuttle_firings');
@@ -602,6 +608,7 @@ class ImportController extends Controller
                         'quantity' => $quantity,
                         'time_hours' => $timeHours,
                         'notes' => null,
+                        'is_imported' => true, // ✅ ایمپورتی
                     ]);
 
                     if ($waste > 0 && !empty($wasteReason)) {

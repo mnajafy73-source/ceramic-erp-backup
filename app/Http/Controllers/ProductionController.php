@@ -16,19 +16,34 @@ use Morilog\Jalali\Jalalian;
 
 class ProductionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $productions = Production::select(
+        // ✅ فیلتر منبع
+        $source = $request->input('source', 'all');
+
+        $query = Production::select(
             'date',
             DB::raw('count(*) as total_rows'),
             DB::raw('sum(quantity) as total_quantity'),
             DB::raw('group_concat(distinct operator_id) as operator_ids'),
             DB::raw('group_concat(distinct product_id) as product_ids'),
-            DB::raw('group_concat(distinct stage) as stages')
-        )
-        ->groupBy('date')
-        ->orderBy('date', 'desc')
-        ->paginate(50);
+            DB::raw('group_concat(distinct stage) as stages'),
+            DB::raw('group_concat(distinct is_imported) as imported_flags')
+        );
+
+        if ($source === 'manual') {
+            $query->where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            });
+        } elseif ($source === 'imported') {
+            $query->where('is_imported', true);
+        }
+
+        $productions = $query
+            ->groupBy('date')
+            ->orderBy('date', 'desc')
+            ->paginate(50)
+            ->appends($request->all());
 
         $productions->getCollection()->transform(function ($item) {
             $operatorIds = array_filter(explode(',', $item->operator_ids ?? ''));
@@ -38,15 +53,29 @@ class ProductionController extends Controller
             $products = Product::whereIn('id', $productIds)->pluck('name')->implode('، ');
 
             $stages = array_filter(explode(',', $item->stages ?? ''));
+            $flags = array_filter(explode(',', $item->imported_flags ?? ''));
 
             $item->operators_text = $operators ?: '-';
             $item->products_text = $products ?: '-';
             $item->stages_text = implode('، ', $stages) ?: '-';
 
+            $hasImported = in_array('1', $flags);
+            $hasManual = in_array('0', $flags);
+
+            if ($hasImported && $hasManual) {
+                $item->source = 'mixed';
+            } elseif ($hasImported) {
+                $item->source = 'imported';
+            } else {
+                $item->source = 'manual';
+            }
+
             return $item;
         });
 
-        return view('productions.index', compact('productions'));
+        $currentSource = $source;
+
+        return view('productions.index', compact('productions', 'currentSource'));
     }
 
     public function create()
@@ -99,9 +128,9 @@ class ProductionController extends Controller
                     'quantity' => $rowData['quantity'],
                     'time_hours' => $rowData['time_hours'] ?? 0,
                     'notes' => null,
+                    'is_imported' => false, // ✅ دستی
                 ]);
 
-                // ✅ فقط برای مرحله «تولید» به موجودی خام اضافه می‌شود
                 if ($rowData['stage'] === 'تولید' && $product) {
                     $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
                     $oldStock = (float) $rawInv->stock;
@@ -183,7 +212,6 @@ class ProductionController extends Controller
         DB::beginTransaction();
 
         try {
-            // ✅ برگرداندن اثر قبلی (اگه مرحله قبلی «تولید» بود)
             if ($production->stage === 'تولید') {
                 $oldProduct = Product::find($production->product_id);
                 if ($oldProduct) {
@@ -221,7 +249,6 @@ class ProductionController extends Controller
 
             $production->refresh();
 
-            // ✅ اعمال اثر جدید (اگه مرحله جدید «تولید» باشه)
             if ($validated['stage'] === 'تولید' && $product) {
                 $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
                 $oldStock = (float) $rawInv->stock;
@@ -265,7 +292,6 @@ class ProductionController extends Controller
         DB::beginTransaction();
 
         try {
-            // ✅ برگرداندن اثر (اگه مرحله «تولید» بود)
             if ($production->stage === 'تولید') {
                 $product = Product::find($production->product_id);
                 if ($product) {
@@ -317,6 +343,7 @@ class ProductionController extends Controller
         }
 
         $allItems = [];
+
         foreach ($productions as $production) {
             $prodData = $production->getAttributes();
             unset($prodData['id'], $prodData['created_at'], $prodData['updated_at']);
@@ -328,7 +355,10 @@ class ProductionController extends Controller
                 $stopsData[] = $stopData;
             }
 
-            $allItems[] = ['production' => $prodData, 'stops' => $stopsData];
+            $allItems[] = [
+                'production' => $prodData,
+                'stops' => $stopsData,
+            ];
         }
 
         session()->put('undo_record', [
@@ -341,7 +371,6 @@ class ProductionController extends Controller
 
         try {
             foreach ($productions as $production) {
-                // برگرداندن اثر
                 if ($production->stage === 'تولید') {
                     $product = Product::find($production->product_id);
                     if ($product) {
@@ -392,5 +421,69 @@ class ProductionController extends Controller
             ->get();
 
         return view('productions.by-date', compact('productions', 'date'));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حذف تولیدات ایمپورتی (اکسل)
+    // ═══════════════════════════════════════════════════════════
+    public function clearImported()
+    {
+        $count = Production::where('is_imported', true)->count();
+
+        if ($count > 0) {
+            Production::where('is_imported', true)->delete();
+        }
+
+        return redirect()->route('productions.index')
+            ->with('success', "✅ {$count} رکورد تولید ایمپورتی (اکسل) پاک شد.");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حذف تولیدات دستی (با اصلاح موجودی خام)
+    // ═══════════════════════════════════════════════════════════
+    public function clearManual()
+    {
+        DB::beginTransaction();
+        try {
+            $manualProductions = Production::where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            })->get();
+
+            foreach ($manualProductions as $production) {
+                if ($production->stage === 'تولید') {
+                    $product = Product::find($production->product_id);
+                    if ($product) {
+                        $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                        $oldStock = (float) $rawInv->stock;
+                        $newStock = max(0, $oldStock - (float) $production->quantity);
+                        $rawInv->stock = $newStock;
+                        $rawInv->save();
+
+                        if ($oldStock != $newStock) {
+                            InventoryChangeLog::log(
+                                $rawInv, 'stock', $oldStock, $newStock,
+                                'adjust', $product->id,
+                                'production_return',
+                                "برگشت تولید دستی (حذف) - {$product->name}"
+                            );
+                        }
+                    }
+                }
+
+                $production->stops()->delete();
+                $production->delete();
+            }
+
+            $count = $manualProductions->count();
+            DB::commit();
+
+            return redirect()->route('productions.index')
+                ->with('success', "✅ {$count} رکورد تولید دستی پاک شد و موجودی خام اصلاح شد.");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('productions.index')
+                ->with('error', 'خطا در حذف: ' . $e->getMessage());
+        }
     }
 }

@@ -88,10 +88,16 @@ class AccountingController extends Controller
             $rows = $sheet->toArray();
             array_shift($rows);
 
-            // ✅ فقط ایمپورتی‌ها رو پاک کن، دستی‌ها بمونن
-            DB::statement('DELETE FROM customer_payments WHERE is_imported = 1');
+            DB::statement('DELETE FROM customer_payments WHERE is_imported = 1 OR is_imported IS NULL');
+
+            $existingKeys = [];
+            foreach (CustomerPayment::all() as $p) {
+                $key = $p->year . '|' . $p->month . '|' . $p->day . '|' . $p->customer_name . '|' . $p->amount;
+                $existingKeys[$key] = true;
+            }
 
             $importedCount = 0;
+            $skippedCount = 0;
             $errors = [];
 
             DB::beginTransaction();
@@ -111,6 +117,13 @@ class AccountingController extends Controller
 
                         if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31) continue;
                         if (empty($name) || $amount <= 0) continue;
+
+                        $key = $year . '|' . $month . '|' . $day . '|' . $name . '|' . $amount;
+                        if (isset($existingKeys[$key])) {
+                            $skippedCount++;
+                            continue;
+                        }
+                        $existingKeys[$key] = true;
 
                         $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
                         try {
@@ -135,7 +148,7 @@ class AccountingController extends Controller
                             'day'            => $day,
                             'payment_method' => $method ?: null,
                             'description'    => $desc ?: null,
-                            'is_imported'    => true, // ✅ ایمپورتی
+                            'is_imported'    => true,
                         ]);
 
                         $importedCount++;
@@ -151,6 +164,9 @@ class AccountingController extends Controller
             }
 
             $message = "✅ {$importedCount} پرداخت از اکسل ایمپورت شد.";
+            if ($skippedCount > 0) {
+                $message .= " ({$skippedCount} رکورد تکراری رد شد)";
+            }
             if (!empty($errors)) {
                 $message .= " ⚠️ " . count($errors) . " خطا رخ داد.";
             }
@@ -217,7 +233,7 @@ class AccountingController extends Controller
             'day'            => $day,
             'payment_method' => $validated['payment_method'] ?? null,
             'description'    => $validated['description'] ?? null,
-            'is_imported'    => false, // ✅ دستی
+            'is_imported'    => false,
         ]);
 
         return redirect()->route('accounting.index')
@@ -231,25 +247,55 @@ class AccountingController extends Controller
             ->with('success', 'پرداخت حذف شد.');
     }
 
-    public function clearAll()
+    // ✅ حذف پرداخت‌های ایمپورتی (اکسل)
+    public function clearImported()
     {
-        // ✅ فقط ایمپورتی‌ها رو پاک کن
         $count = CustomerPayment::where('is_imported', true)->count();
         CustomerPayment::where('is_imported', true)->delete();
 
         return redirect()->route('accounting.index')
-            ->with('success', "✅ {$count} پرداخت ایمپورتی پاک شد. (پرداخت‌های دستی حفظ شدند)");
+            ->with('success', "✅ {$count} پرداخت ایمپورتی (اکسل) پاک شد.");
     }
 
+    // ✅ حذف پرداخت‌های دستی
+    public function clearManual()
+    {
+        $count = CustomerPayment::where(function ($q) {
+            $q->where('is_imported', false)->orWhereNull('is_imported');
+        })->count();
+
+        CustomerPayment::where(function ($q) {
+            $q->where('is_imported', false)->orWhereNull('is_imported');
+        })->delete();
+
+        return redirect()->route('accounting.index')
+            ->with('success', "✅ {$count} پرداخت دستی پاک شد.");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  گزارش بدهکاران (با پشتیبانی از «همه ماه‌ها»)
+    // ═══════════════════════════════════════════════════════════
     public function debtors(Request $request)
     {
         $currentJalali = Jalalian::now();
         $year = (int) $request->input('year', $currentJalali->getYear());
-        $month = (int) $request->input('month', $currentJalali->getMonth());
 
-        $startDateStr = sprintf('%04d/%02d/01', $year, $month);
-        $lastDay = Jalalian::fromFormat('Y/m/d', $startDateStr)->getMonthDays();
-        $endDateStr = sprintf('%04d/%02d/%02d', $year, $month, $lastDay);
+        $monthInput = $request->input('month', $currentJalali->getMonth());
+        $isAllMonths = ($monthInput === 'all' || empty($monthInput));
+
+        if ($isAllMonths) {
+            $endDateStr = sprintf('%04d/12/29', $year);
+            $month = 'all';
+        } else {
+            $month = (int) $monthInput;
+            $startDateStr = sprintf('%04d/%02d/01', $year, $month);
+            try {
+                $lastDay = Jalalian::fromFormat('Y/m/d', $startDateStr)->getMonthDays();
+            } catch (\Exception $e) {
+                $lastDay = 31;
+            }
+            $endDateStr = sprintf('%04d/%02d/%02d', $year, $month, $lastDay);
+        }
 
         try {
             $endDate = Jalalian::fromFormat('Y/m/d', $endDateStr)->toCarbon()->toDateString();
@@ -292,8 +338,10 @@ class AccountingController extends Controller
 
         $monthNames = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 
+        $currentMonth = $isAllMonths ? 'all' : $month;
+
         return view('accounting.debtors', compact(
-            'debtorsData', 'year', 'month', 'monthNames', 'currentJalali'
+            'debtorsData', 'year', 'month', 'monthNames', 'currentJalali', 'currentMonth', 'isAllMonths'
         ));
     }
 }

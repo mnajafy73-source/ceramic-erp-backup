@@ -62,22 +62,10 @@
         border-top: 2px solid #adb5bd;
     }
 
-    .quick-dates {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-    .quick-dates .btn {
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 12px;
-        padding: 4px 12px;
-    }
     .datepicker-plot-area {
         font-family: Tahoma, sans-serif !important;
     }
 
-    /* ✅ اینپوت مبلغ */
     .amount-input {
         text-align: left;
         direction: ltr;
@@ -90,6 +78,29 @@
     }
     .amount-input:focus {
         background: #fff;
+    }
+
+    #addPaymentModal .modal-header {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: #fff;
+    }
+    #addPaymentModal .modal-header .btn-close {
+        filter: invert(1) brightness(2);
+    }
+    #addPaymentModal .form-label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #495057;
+    }
+    #addPaymentModal .modal-body {
+        padding: 24px;
+    }
+    #addPaymentModal .modal-footer {
+        background: #f8f9fa;
+    }
+
+    .add-payment-btn {
+        box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
     }
 </style>
 @endpush
@@ -104,6 +115,10 @@
         <small class="text-muted">مدیریت پرداخت‌ها و مشاهده بدهکاران</small>
     </div>
     <div class="d-flex gap-2">
+        <button type="button" class="btn btn-success btn-sm add-payment-btn"
+                data-bs-toggle="modal" data-bs-target="#addPaymentModal">
+            <i class="fas fa-plus-circle me-1"></i> افزودن پرداخت جدید
+        </button>
         <a href="{{ route('accounting.debtors') }}" class="btn btn-warning btn-sm">
             <i class="fas fa-exclamation-triangle me-1"></i> گزارش بدهکاران
         </a>
@@ -175,89 +190,6 @@
     </div>
 </div>
 
-{{-- فرم افزودن دستی --}}
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-light">
-        <h6 class="mb-0 fw-bold">
-            <i class="fas fa-plus-circle text-success me-1"></i>
-            افزودن پرداخت جدید
-        </h6>
-    </div>
-    <div class="card-body">
-        <form action="{{ route('accounting.store') }}" method="POST" class="row g-3" id="paymentForm">
-            @csrf
-
-            <div class="col-md-3">
-                <label class="form-label small fw-bold">مشتری <span class="text-danger">*</span></label>
-                <select name="customer_id" id="customer_select" class="form-select form-select-sm customer-select" style="width:100%;">
-                    <option value="">— انتخاب مشتری —</option>
-                    @foreach($customers as $c)
-                        <option value="{{ $c->id }}">{{ $c->name }}</option>
-                    @endforeach
-                </select>
-                <small class="text-muted">یا نام مشتری جدید بنویس:</small>
-                <input type="text" name="customer_name" class="form-control form-control-sm mt-1"
-                       placeholder="نام مشتری جدید..." value="{{ old('customer_name') }}">
-            </div>
-
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">مبلغ (ریال) <span class="text-danger">*</span></label>
-                {{-- ✅ مهم: type="text" (نه number) تا کاما قبول کنه --}}
-                <input type="text"
-                       name="amount"
-                       id="amount_input"
-                       class="form-control form-control-sm amount-input"
-                       value="{{ old('amount') }}"
-                       placeholder="مثلاً 1000000"
-                       autocomplete="off"
-                       required>
-                <small class="text-muted" id="amount_hint" style="font-size: 11px;"></small>
-            </div>
-
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">تاریخ <span class="text-danger">*</span></label>
-                <input type="text" name="date" id="date_input"
-                       class="form-control form-control-sm jalali-date-input"
-                       value="{{ old('date', \Morilog\Jalali\Jalalian::now()->format('Y/m/d')) }}"
-                       autocomplete="off" required>
-            </div>
-
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">روش پرداخت</label>
-                <select name="payment_method" class="form-select form-select-sm">
-                    <option value="">—</option>
-                    <option value="نقد">نقد</option>
-                    <option value="کارت به کارت">کارت به کارت</option>
-                    <option value="چک">چک</option>
-                    <option value="حواله">حواله</option>
-                </select>
-            </div>
-
-            <div class="col-md-2">
-                <label class="form-label small fw-bold">توضیحات</label>
-                <input type="text" name="description" class="form-control form-control-sm"
-                       value="{{ old('description') }}">
-            </div>
-
-            <div class="col-md-1 d-flex align-items-end">
-                <button type="submit" class="btn btn-success btn-sm w-100">
-                    <i class="fas fa-save"></i>
-                </button>
-            </div>
-        </form>
-
-        @if($errors->any())
-            <div class="alert alert-danger mt-3 mb-0">
-                <ul class="mb-0">
-                    @foreach($errors->all() as $e)
-                        <li>{{ $e }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-    </div>
-</div>
-
 {{-- فیلترها --}}
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
@@ -317,14 +249,24 @@
     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
         <h6 class="mb-0"><i class="fas fa-list me-1"></i> لیست پرداخت‌ها ({{ $payments->total() }} مورد)</h6>
         @if($payments->total() > 0)
-            <form action="{{ route('accounting.clear-all') }}" method="POST" class="d-inline"
-                  onsubmit="return confirm('⚠️ مطمئن هستید؟ پرداخت‌های ایمپورتی پاک می‌شوند (دستی‌ها حفظ می‌شوند).')">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="btn btn-sm btn-outline-light">
-                    <i class="fas fa-trash me-1"></i> پاک کردن ایمپورتی‌ها
-                </button>
-            </form>
+            <div class="d-flex gap-2">
+                <form action="{{ route('accounting.clear-imported') }}" method="POST" class="d-inline"
+                      onsubmit="return confirm('⚠️ مطمئن هستید؟ همه پرداخت‌های ایمپورتی (اکسل) پاک می‌شوند.')">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-file-excel me-1"></i> حذف اکسل
+                    </button>
+                </form>
+                <form action="{{ route('accounting.clear-manual') }}" method="POST" class="d-inline"
+                      onsubmit="return confirm('⚠️ مطمئن هستید؟ همه پرداخت‌های دستی پاک می‌شوند.')">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-sm btn-outline-warning">
+                        <i class="fas fa-hand-paper me-1"></i> حذف دستی
+                    </button>
+                </form>
+            </div>
         @endif
     </div>
     <div class="card-body p-0">
@@ -332,6 +274,10 @@
             <div class="text-center py-5 text-muted">
                 <i class="fas fa-inbox fa-3x mb-3 opacity-25"></i>
                 <p>هیچ پرداختی ثبت نشده است</p>
+                <button type="button" class="btn btn-success btn-sm mt-2"
+                        data-bs-toggle="modal" data-bs-target="#addPaymentModal">
+                    <i class="fas fa-plus-circle me-1"></i> افزودن پرداخت جدید
+                </button>
             </div>
         @else
             <table class="table table-hover payments-table mb-0 align-middle">
@@ -405,45 +351,131 @@
 </div>
 
 <div class="mt-3">{{ $payments->links() }}</div>
+
+{{-- مدال افزودن پرداخت جدید --}}
+<div class="modal fade" id="addPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle me-2"></i>
+                    افزودن پرداخت جدید
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form action="{{ route('accounting.store') }}" method="POST" id="paymentForm">
+                @csrf
+                <div class="modal-body">
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">مشتری <span class="text-danger">*</span></label>
+                            <select name="customer_id" id="customer_select"
+                                    class="form-select customer-select" style="width:100%;">
+                                <option value="">— انتخاب مشتری —</option>
+                                @foreach($customers as $c)
+                                    <option value="{{ $c->id }}">{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">یا نام مشتری جدید بنویس:</small>
+                            <input type="text" name="customer_name"
+                                   class="form-control form-control-sm mt-1"
+                                   placeholder="نام مشتری جدید..."
+                                   value="{{ old('customer_name') }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">مبلغ (ریال) <span class="text-danger">*</span></label>
+                            <input type="text"
+                                   name="amount"
+                                   id="amount_input"
+                                   class="form-control amount-input"
+                                   value="{{ old('amount') }}"
+                                   placeholder="مثلاً 1000000"
+                                   autocomplete="off"
+                                   required>
+                            <small class="text-muted" id="amount_hint" style="font-size: 11px;"></small>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">تاریخ <span class="text-danger">*</span></label>
+                            <input type="text" name="date" id="date_input"
+                                   class="form-control jalali-date-input"
+                                   value="{{ old('date', \Morilog\Jalali\Jalalian::now()->format('Y/m/d')) }}"
+                                   autocomplete="off" required>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">روش پرداخت</label>
+                            <select name="payment_method" class="form-select">
+                                <option value="">—</option>
+                                <option value="نقد">نقد</option>
+                                <option value="کارت به کارت">کارت به کارت</option>
+                                <option value="چک">چک</option>
+                                <option value="حواله">حواله</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">توضیحات</label>
+                            <input type="text" name="description" class="form-control"
+                                   value="{{ old('description') }}"
+                                   placeholder="اختیاری...">
+                        </div>
+                    </div>
+
+                    @if($errors->any())
+                        <div class="alert alert-danger mt-3 mb-0">
+                            <ul class="mb-0">
+                                @foreach($errors->all() as $e)
+                                    <li>{{ $e }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> انصراف
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-1"></i> ذخیره پرداخت
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  ✅ فرمت سه رقم سه رقم مبلغ موقع تایپ — با JavaScript خالص
-// ═══════════════════════════════════════════════════════════════
 (function() {
     'use strict';
 
-    // صبر کن تا DOM آماده بشه
-    function init() {
+    function initAmountFormatter() {
         var input = document.getElementById('amount_input');
         var hint = document.getElementById('amount_hint');
 
-        if (!input) {
-            console.warn('[amount] input not found');
-            return;
-        }
+        if (!input) return;
 
-        console.log('[amount] formatter initialized');
-
-        // تبدیل اعداد فارسی/عربی به انگلیسی
         function toEnglishDigits(str) {
             return String(str)
                 .replace(/[۰-۹]/g, function(d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); })
                 .replace(/[٠-٩]/g, function(d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); });
         }
 
-        // فرمت‌دهی: حذف کاراکترهای غیر عددی + کاما
         function formatNumber(val) {
             var cleaned = toEnglishDigits(val).replace(/[^\d]/g, '');
             if (cleaned === '') return '';
             return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         }
 
-        // آپدیت hint (معادل فارسی)
         function updateHint() {
             if (!hint) return;
             var raw = toEnglishDigits(input.value).replace(/[^\d]/g, '');
@@ -463,21 +495,16 @@
             }
         }
 
-        // ✅ رویداد input - بهترین راه برای گرفتن همه تغییرات (keyboard, paste, drag)
-        input.addEventListener('input', function(e) {
+        input.addEventListener('input', function() {
             var cursorPos = this.selectionStart;
             var oldValue = this.value;
-            var oldLen = oldValue.length;
 
-            // فقط ارقام قبل از cursor رو بشمار
             var digitsBeforeCursor = toEnglishDigits(oldValue.substring(0, cursorPos))
                 .replace(/[^\d]/g, '').length;
 
-            // فرمت کن
             var formatted = formatNumber(oldValue);
             this.value = formatted;
 
-            // جای cursor رو درست پیدا کن
             var newPos = 0;
             var digitCount = 0;
             for (var i = 0; i < formatted.length; i++) {
@@ -496,23 +523,16 @@
 
             try {
                 this.setSelectionRange(newPos, newPos);
-            } catch (err) { /* ignore */ }
+            } catch (err) { }
 
             updateHint();
         });
 
-        // ✅ رویداد keyup به عنوان fallback
-        input.addEventListener('keyup', function() {
-            updateHint();
-        });
-
-        // ✅ مقدار اولیه
         if (input.value) {
             input.value = formatNumber(input.value);
         }
         updateHint();
 
-        // ✅ قبل از submit، کاماها رو حذف کن
         var form = document.getElementById('paymentForm');
         if (form) {
             form.addEventListener('submit', function() {
@@ -522,42 +542,33 @@
         }
     }
 
-    // اجرا
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', initAmountFormatter);
     } else {
-        init();
+        initAmountFormatter();
     }
 })();
 </script>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  Select2 و Date picker
-// ═══════════════════════════════════════════════════════════════
 (function() {
-    function init() {
-        // اگه jQuery نیست، کاری نکن
-        if (typeof window.jQuery === 'undefined') {
-            console.warn('[select2/datepicker] jQuery not loaded');
-            return;
-        }
+    function initSelect2AndDate() {
+        if (typeof window.jQuery === 'undefined') return;
 
         var $ = window.jQuery;
 
-        // Select2
         if ($.fn.select2) {
-            $('.customer-select').select2({
+            $('#customer_select').select2({
                 placeholder: 'جستجو و انتخاب مشتری...',
                 allowClear: true,
                 width: '100%',
-                dir: 'rtl'
+                dir: 'rtl',
+                dropdownParent: $('#addPaymentModal')
             });
         }
 
-        // Date picker
         if (typeof $.fn.pDatepicker !== 'undefined') {
-            $('.jalali-date-input').pDatepicker({
+            $('#date_input').pDatepicker({
                 format: 'YYYY/MM/DD',
                 initialValue: false,
                 autoClose: true,
@@ -568,16 +579,31 @@
                 },
                 toolbox: { calendarSwitch: { enabled: false } },
                 navigator: { scroll: { enabled: true } },
-                timePicker: { enabled: false }
+                timePicker: { enabled: false },
+                position: 'auto'
             });
         }
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', initSelect2AndDate);
     } else {
-        init();
+        initSelect2AndDate();
     }
+
+    var style = document.createElement('style');
+    style.textContent = `
+        .datepicker-plot-area { z-index: 99999 !important; }
+        .select2-container--open { z-index: 99999 !important; }
+    `;
+    document.head.appendChild(style);
+
+    @if($errors->any())
+        document.addEventListener('DOMContentLoaded', function() {
+            var modal = new bootstrap.Modal(document.getElementById('addPaymentModal'));
+            modal.show();
+        });
+    @endif
 })();
 </script>
 @endpush

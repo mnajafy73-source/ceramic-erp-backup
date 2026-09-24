@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="mb-4">
     <h4 class="fw-bold mb-1">لیست تولیدات</h4>
     <nav aria-label="breadcrumb">
@@ -10,7 +8,7 @@
     </nav>
 </div>
 
-{{-- ✅ نوار فیلتر منبع --}}
+
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body py-3">
         <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -18,20 +16,20 @@
                 <i class="fas fa-filter me-1"></i> فیلتر منبع:
             </span>
 
-            <a href="{{ route('productions.index', array_merge(request()->except('source', 'page'), ['source' => 'all'])) }}"
-               class="btn btn-sm {{ $currentSource === 'all' ? 'btn-dark' : 'btn-outline-dark' }}"
+            <a href="<?php echo e(route('productions.index', array_merge(request()->except('source', 'page'), ['source' => 'all']))); ?>"
+               class="btn btn-sm <?php echo e($currentSource === 'all' ? 'btn-dark' : 'btn-outline-dark'); ?>"
                style="border-radius: 20px; padding: 4px 16px;">
                 <i class="fas fa-list"></i> همه
             </a>
 
-            <a href="{{ route('productions.index', array_merge(request()->except('source', 'page'), ['source' => 'manual'])) }}"
-               class="btn btn-sm {{ $currentSource === 'manual' ? 'btn-success' : 'btn-outline-success' }}"
+            <a href="<?php echo e(route('productions.index', array_merge(request()->except('source', 'page'), ['source' => 'manual']))); ?>"
+               class="btn btn-sm <?php echo e($currentSource === 'manual' ? 'btn-success' : 'btn-outline-success'); ?>"
                style="border-radius: 20px; padding: 4px 16px;">
                 <i class="fas fa-hand-paper"></i> دستی
             </a>
 
-            <a href="{{ route('productions.index', array_merge(request()->except('source', 'page'), ['source' => 'imported'])) }}"
-               class="btn btn-sm {{ $currentSource === 'imported' ? 'btn-primary' : 'btn-outline-primary' }}"
+            <a href="<?php echo e(route('productions.index', array_merge(request()->except('source', 'page'), ['source' => 'imported']))); ?>"
+               class="btn btn-sm <?php echo e($currentSource === 'imported' ? 'btn-primary' : 'btn-outline-primary'); ?>"
                style="border-radius: 20px; padding: 4px 16px;">
                 <i class="fas fa-file-excel"></i> اکسل
             </a>
@@ -42,23 +40,23 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <a href="{{ route('productions.create') }}" class="btn btn-primary">
+            <a href="<?php echo e(route('productions.create')); ?>" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i> ثبت تولید جدید
             </a>
 
             <div class="d-flex gap-2">
-                <form action="{{ route('productions.clear-imported') }}" method="POST" class="d-inline"
+                <form action="<?php echo e(route('productions.clear-imported')); ?>" method="POST" class="d-inline"
                       onsubmit="return confirm('⚠️ مطمئن هستید؟ همه تولیدات ایمپورتی (اکسل) پاک می‌شوند.\n\nدستی‌ها حفظ می‌شوند.')">
-                    @csrf
-                    @method('DELETE')
+                    <?php echo csrf_field(); ?>
+                    <?php echo method_field('DELETE'); ?>
                     <button type="submit" class="btn btn-outline-info">
                         <i class="fas fa-file-excel me-1"></i> حذف اکسل
                     </button>
                 </form>
-                <form action="{{ route('productions.clear-manual') }}" method="POST" class="d-inline"
+                <form action="<?php echo e(route('productions.clear-manual')); ?>" method="POST" class="d-inline"
                       onsubmit="return confirm('⚠️ مطمئن هستید؟ همه تولیدات دستی پاک می‌شوند.\n\nموجودی خام اصلاح می‌شود.\nاکسل‌ها حفظ می‌شوند.')">
-                    @csrf
-                    @method('DELETE')
+                    <?php echo csrf_field(); ?>
+                    <?php echo method_field('DELETE'); ?>
                     <button type="submit" class="btn btn-outline-warning">
                         <i class="fas fa-hand-paper me-1"></i> حذف دستی
                     </button>
@@ -66,29 +64,31 @@
             </div>
         </div>
 
-        @if(session('success'))
+        <?php if(session('success')): ?>
             <div class="alert alert-success alert-dismissible fade show">
-                <i class="fas fa-check-circle me-1"></i> {{ session('success') }}
+                <i class="fas fa-check-circle me-1"></i> <?php echo e(session('success')); ?>
+
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-        @endif
-        @if(session('error'))
+        <?php endif; ?>
+        <?php if(session('error')): ?>
             <div class="alert alert-danger alert-dismissible fade show">
-                <i class="fas fa-exclamation-triangle me-1"></i> {{ session('error') }}
+                <i class="fas fa-exclamation-triangle me-1"></i> <?php echo e(session('error')); ?>
+
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-        @endif
-        @if($errors->any())
+        <?php endif; ?>
+        <?php if($errors->any()): ?>
             <div class="alert alert-danger">
                 <ul class="mb-0">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
+                    <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <li><?php echo e($error); ?></li>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </ul>
             </div>
-        @endif
+        <?php endif; ?>
 
-        @if($productions->count())
+        <?php if($productions->count()): ?>
             <div class="table-responsive">
                 <table class="table table-bordered table-hover align-middle">
                     <thead class="table-light">
@@ -105,77 +105,79 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($productions as $index => $group)
-                            @php
+                        <?php $__currentLoopData = $productions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $group): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php
                                 $dateParts = explode('/', $group->date);
                                 $year = $dateParts[0] ?? '';
                                 $month = $dateParts[1] ?? '';
                                 $day = $dateParts[2] ?? '';
-                            @endphp
+                            ?>
                             <tr>
-                                <td>{{ $productions->firstItem() + $index }}</td>
+                                <td><?php echo e($productions->firstItem() + $index); ?></td>
                                 <td>
-                                    @php
+                                    <?php
                                         try {
                                             \Morilog\Jalali\Jalalian::fromFormat('Y/m/d', $group->date);
                                             $displayDate = $group->date;
                                         } catch (\Exception $e) {
                                             $displayDate = 'نامعتبر';
                                         }
-                                    @endphp
-                                    <span class="badge bg-light text-dark">{{ $displayDate }}</span>
+                                    ?>
+                                    <span class="badge bg-light text-dark"><?php echo e($displayDate); ?></span>
                                 </td>
-                                <td>{{ number_format($group->total_rows) }}</td>
-                                <td class="fw-bold">{{ number_format($group->total_quantity) }}</td>
-                                <td>{{ $group->operators_text }}</td>
-                                <td>{{ $group->products_text }}</td>
-                                <td>{{ $group->stages_text }}</td>
+                                <td><?php echo e(number_format($group->total_rows)); ?></td>
+                                <td class="fw-bold"><?php echo e(number_format($group->total_quantity)); ?></td>
+                                <td><?php echo e($group->operators_text); ?></td>
+                                <td><?php echo e($group->products_text); ?></td>
+                                <td><?php echo e($group->stages_text); ?></td>
 
                                 <td class="text-center">
-                                    @if($group->source === 'mixed')
+                                    <?php if($group->source === 'mixed'): ?>
                                         <span class="badge bg-secondary">ترکیبی</span>
-                                    @elseif($group->source === 'imported')
+                                    <?php elseif($group->source === 'imported'): ?>
                                         <span class="badge bg-primary">اکسل</span>
-                                    @else
+                                    <?php else: ?>
                                         <span class="badge bg-success">دستی</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
 
                                 <td>
-                                    <a href="{{ route('productions.by-date', ['date' => $group->date]) }}" class="btn btn-sm btn-info">
+                                    <a href="<?php echo e(route('productions.by-date', ['date' => $group->date])); ?>" class="btn btn-sm btn-info">
                                         <i class="fas fa-eye"></i> جزئیات
                                     </a>
 
-                                    @if($year && $month && $day)
-                                        <form action="{{ route('productions.destroy-group', ['year' => $year, 'month' => $month, 'day' => $day]) }}" method="POST" class="d-inline"
-                                              onsubmit="return confirm('آیا از حذف تمام تولیدات تاریخ {{ $group->date }} مطمئن هستید؟');">
-                                            @csrf
-                                            @method('DELETE')
+                                    <?php if($year && $month && $day): ?>
+                                        <form action="<?php echo e(route('productions.destroy-group', ['year' => $year, 'month' => $month, 'day' => $day])); ?>" method="POST" class="d-inline"
+                                              onsubmit="return confirm('آیا از حذف تمام تولیدات تاریخ <?php echo e($group->date); ?> مطمئن هستید؟');">
+                                            <?php echo csrf_field(); ?>
+                                            <?php echo method_field('DELETE'); ?>
                                             <button type="submit" class="btn btn-sm btn-danger">
                                                 <i class="fas fa-trash"></i> حذف گروه
                                             </button>
                                         </form>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
                             </tr>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tbody>
                 </table>
             </div>
             <div class="mt-3">
-                {{ $productions->links() }}
+                <?php echo e($productions->links()); ?>
+
             </div>
-        @else
+        <?php else: ?>
             <div class="alert alert-info">
-                @if($currentSource === 'manual')
+                <?php if($currentSource === 'manual'): ?>
                     هیچ تولید دستی ثبت نشده است.
-                @elseif($currentSource === 'imported')
+                <?php elseif($currentSource === 'imported'): ?>
                     هیچ تولید ایمپورتی (اکسل) وجود ندارد.
-                @else
+                <?php else: ?>
                     هیچ تولیدی ثبت نشده است.
-                @endif
+                <?php endif; ?>
             </div>
-        @endif
+        <?php endif; ?>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/productions/index.blade.php ENDPATH**/ ?>
