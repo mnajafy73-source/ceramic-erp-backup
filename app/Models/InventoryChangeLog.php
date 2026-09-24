@@ -49,6 +49,10 @@ class InventoryChangeLog extends Model
         'manual_packaging_adjust'  => 'کسر/اضافه دستی کارتن/لایه',
         'manual_reset_all'         => 'صفر کردن همه موجودی‌ها',
 
+        // ─── مواد سازی دستی ───
+        'manual_material_making'        => 'مواد سازی دستی',
+        'manual_material_making_return' => 'برگشت مواد سازی دستی',
+
         // ─── ایمپورت ───
         'import_warehouse'          => 'ایمپورت اکسل - موجودی انبار',
         'import_raw'                => 'ایمپورت اکسل - موجودی خام',
@@ -76,6 +80,7 @@ class InventoryChangeLog extends Model
 
         // ─── تولید ───
         'production'          => 'ثبت تولید',
+        'production_return'   => 'برگشت تولید',
 
         // ─── کوره تونلی (دستی) ───
         'tonneli_input'              => 'ورودی کوره تونلی',

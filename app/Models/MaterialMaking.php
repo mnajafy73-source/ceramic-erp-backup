@@ -17,5 +17,10 @@ class MaterialMaking extends Model
         'material',
         'quantity',
         'mill_weight',
+        'is_imported',
+    ];
+
+    protected $casts = [
+        'is_imported' => 'boolean',
     ];
 }

@@ -62,21 +62,39 @@ class ImportController extends Controller
 
         try {
             set_time_limit(0);
+
+            // ═══════════════════════════════════════════════════════════
+            //  ✅ مرحله ۱: پاک کردن همه رکوردهای ایمپورتی (قبل از اسنپ‌شات)
+            //  PRAGMA OFF تا FK چک نشه (چون جدول invoices وجود نداره)
+            // ═══════════════════════════════════════════════════════════
+            DB::statement('PRAGMA foreign_keys = OFF');
+
+            try {
+                DB::statement('
+                    DELETE FROM production_stops
+                    WHERE production_id IN (
+                        SELECT id FROM productions WHERE is_imported = 1
+                    )
+                ');
+                DB::statement('DELETE FROM productions WHERE is_imported = 1');
+                DB::statement('DELETE FROM tonneli_firing_items');
+                DB::statement('DELETE FROM tonneli_firings');
+                DB::statement('DELETE FROM shuttle_firings');
+                DB::statement('DELETE FROM material_makings WHERE is_imported = 1');
+                DB::statement('DELETE FROM shoulder_records');
+                DB::statement('DELETE FROM waste_mum_records');
+                DB::statement('DELETE FROM informal_sale_products');
+                DB::statement('DELETE FROM informal_sales');
+                DB::statement('DELETE FROM sale_products');
+                DB::statement('DELETE FROM sales');
+            } finally {
+                DB::statement('PRAGMA foreign_keys = ON');
+            }
+
+            // ✅ مرحله ۲: اسنپ‌شات قبل (بعد از پاک کردن)
             $beforeSnapshot = $this->takeInventorySnapshot();
 
-            // ✅ فقط استاپ‌های مربوط به تولیدات ایمپورتی رو پاک کن
-DB::statement('
-    DELETE FROM production_stops
-    WHERE production_id IN (
-        SELECT id FROM productions WHERE is_imported = 1
-    )
-');
-            DB::statement('DELETE FROM productions WHERE is_imported = 1');
-            DB::statement('DELETE FROM tonneli_firing_items');
-            DB::statement('DELETE FROM tonneli_firings');
-            DB::statement('DELETE FROM shuttle_firings');
-            DB::statement('DELETE FROM material_makings');
-
+            // ✅ مرحله ۳: ایمپورت از اکسل
             $reader = IOFactory::createReaderForFile($filePath);
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($filePath);
@@ -136,8 +154,6 @@ DB::statement('
 
     // ═══════════════════════════════════════════════════════════
     //  ✅ ایمپورت پرداخت‌های مشتریان (شیت: حسابداری)
-    //  ✅ فقط ایمپورتی‌ها پاک می‌شن، دستی‌ها می‌مونن
-    //  ✅ چک تکراری برای جلوگیری از دوبار ثبت
     // ═══════════════════════════════════════════════════════════
     private function importCustomerPaymentsFromSpreadsheet($spreadsheet)
     {
@@ -177,11 +193,9 @@ DB::statement('
                     $method = trim($row[5] ?? '');
                     $desc   = trim($row[6] ?? '');
 
-                    // اعتبارسنجی
                     if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31) continue;
                     if (empty($name) || $amount <= 0) continue;
 
-                    // ✅ چک تکراری — اگه همین پرداخت قبلاً (دستی) ثبت شده، skip کن
                     $key = $year . '|' . $month . '|' . $day . '|' . $name . '|' . $amount;
                     if (isset($existingKeys[$key])) {
                         Log::info("پرداخت تکراری skip شد: {$key}");
@@ -608,7 +622,7 @@ DB::statement('
                         'quantity' => $quantity,
                         'time_hours' => $timeHours,
                         'notes' => null,
-                        'is_imported' => true, // ✅ ایمپورتی
+                        'is_imported' => true,
                     ]);
 
                     if ($waste > 0 && !empty($wasteReason)) {
@@ -783,9 +797,6 @@ DB::statement('
         array_shift($rows);
         if (empty($rows)) return;
 
-        DB::statement('DELETE FROM informal_sale_products');
-        DB::statement('DELETE FROM informal_sales');
-
         DB::beginTransaction();
         try {
             foreach ($rows as $row) {
@@ -859,10 +870,6 @@ DB::statement('
         $rows = $sheet->toArray();
         array_shift($rows);
         if (empty($rows)) return;
-
-        DB::statement('PRAGMA foreign_keys = OFF');
-        DB::statement('DELETE FROM sale_products');
-        DB::statement('DELETE FROM sales');
 
         DB::beginTransaction();
         try {
@@ -959,8 +966,6 @@ DB::statement('
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in importFormalSalesFromSpreadsheet: ' . $e->getMessage());
-        } finally {
-            DB::statement('PRAGMA foreign_keys = ON');
         }
     }
 
@@ -974,9 +979,6 @@ DB::statement('
 
         DB::beginTransaction();
         try {
-            ShoulderRecord::truncate();
-            WasteMumRecord::truncate();
-
             foreach ($rows as $row) {
                 if (empty(array_filter($row))) continue;
 
@@ -1042,6 +1044,7 @@ DB::statement('
                         'year' => $year, 'month' => $month, 'day' => $day,
                         'name' => $name, 'material' => $formulaName,
                         'quantity' => $quantity, 'mill_weight' => $millWeightGram,
+                        'is_imported' => true,
                     ]);
                 } catch (\Exception $e) {
                     Log::warning("خطا در ردیف مواد سازی: " . $e->getMessage());

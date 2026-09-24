@@ -203,10 +203,13 @@ Route::middleware(['auth'])->group(function () {
 
     // مواد سازی
     Route::get('/material-making', [MaterialMakingController::class, 'index'])->name('material-making.index');
+    Route::post('/material-making', [MaterialMakingController::class, 'store'])->name('material-making.store');
     Route::get('/material-making/import', [MaterialMakingController::class, 'import'])->name('material-making.import');
     Route::post('/material-making/import', [MaterialMakingController::class, 'importStore'])->name('material-making.import.store');
-    Route::delete('/material-making/{id}', [MaterialMakingController::class, 'destroy'])->name('material-making.destroy');
+    Route::delete('/material-making/clear-imported', [MaterialMakingController::class, 'clearImported'])->name('material-making.clear-imported');
+    Route::delete('/material-making/clear-manual', [MaterialMakingController::class, 'clearManual'])->name('material-making.clear-manual');
     Route::delete('/material-making/group/{year}/{month}/{day}', [MaterialMakingController::class, 'destroyGroup'])->name('material-making.destroy-group');
+    Route::delete('/material-making/{id}', [MaterialMakingController::class, 'destroy'])->name('material-making.destroy');
 });
 
 require __DIR__.'/auth.php';
