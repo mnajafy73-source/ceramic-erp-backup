@@ -12,6 +12,12 @@ class WaxInventory extends Model
     protected $fillable = [
         'product_id',
         'stock',
+        'imported_delta_sum',   // ✅ اضافه شد
+    ];
+
+    protected $casts = [
+        'stock' => 'decimal:2',
+        'imported_delta_sum' => 'decimal:4',   // ✅ اضافه شد
     ];
 
     public function product()

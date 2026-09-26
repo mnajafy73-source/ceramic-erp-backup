@@ -201,10 +201,7 @@ class ImportController extends Controller
                     if (empty($name) || $amount <= 0) continue;
 
                     $key = $year . '|' . $month . '|' . $day . '|' . $name . '|' . $amount;
-                    if (isset($existingKeys[$key])) {
-                        Log::info("پرداخت تکراری skip شد: {$key}");
-                        continue;
-                    }
+                    if (isset($existingKeys[$key])) continue;
                     $existingKeys[$key] = true;
 
                     $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
@@ -360,6 +357,10 @@ class ImportController extends Controller
         return $snapshot;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ محاسبه دلتا و اعمال idempotent
+    //  stock_جدید = (stock_فعلی - imported_delta_sum) + دلتای_جدید
+    // ═══════════════════════════════════════════════════════════
     private function applyInventoryDeltas($before, $after)
     {
         DB::beginTransaction();
@@ -367,6 +368,7 @@ class ImportController extends Controller
             foreach (Product::where('status', 1)->get() as $product) {
                 $id = $product->id;
 
+                // ═══ موجودی انبار ═══
                 $whDeltas = [
                     'import_tonneli_packaged' => [
                         'delta' => ($after['tonneli_packaged'][$id] ?? 0) - ($before['tonneli_packaged'][$id] ?? 0),
@@ -397,13 +399,13 @@ class ImportController extends Controller
                         'description' => 'فروش غیررسمی',
                     ],
                 ];
-
                 $this->applyDeltasWithLogs(
                     WarehouseInventory::firstOrCreate(['product_id' => $id]),
                     $whDeltas,
                     $product->id
                 );
 
+                // ═══ موجودی خام ═══
                 $rawDeltas = [
                     'import_production' => [
                         'delta' => ($after['raw_production'][$id] ?? 0) - ($before['raw_production'][$id] ?? 0),
@@ -418,13 +420,13 @@ class ImportController extends Controller
                         'description' => 'خروجی کوره شاتل',
                     ],
                 ];
-
                 $this->applyDeltasWithLogs(
                     RawInventory::firstOrCreate(['product_id' => $id]),
                     $rawDeltas,
                     $product->id
                 );
 
+                // ═══ موجودی ۱۳۰۰ ═══
                 $g1300Deltas = [
                     'import_shuttle_k2_output' => [
                         'delta' => ($after['glaze1300_k2_output'][$id] ?? 0) - ($before['glaze1300_k2_output'][$id] ?? 0),
@@ -439,39 +441,43 @@ class ImportController extends Controller
                         'description' => 'بسته‌بندی از کوره ۴',
                     ],
                 ];
-
                 $this->applyDeltasWithLogs(
                     Glaze1300Inventory::firstOrCreate(['product_id' => $id]),
                     $g1300Deltas,
                     $product->id
                 );
 
+                // ═══ شانه شده ═══
                 $shoulderDelta = ($after['shoulder_records'][$product->name] ?? 0) - ($before['shoulder_records'][$product->name] ?? 0);
-                if ($shoulderDelta != 0) {
-                    $inv = ShoulderInventory::firstOrCreate(['product_id' => $id]);
-                    $oldStock = (float) $inv->stock;
-                    $newStock = max(0, $oldStock + $shoulderDelta);
-                    $inv->stock = $newStock;
-                    $inv->save();
+                $inv = ShoulderInventory::firstOrCreate(['product_id' => $id]);
+                $oldStock = (float) $inv->stock;
+                $oldImportedSum = (float) ($inv->imported_delta_sum ?? 0);
+                $baseStock = $oldStock - $oldImportedSum;
+                $newStock = max(0, $baseStock + $shoulderDelta);
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log($inv, 'stock', $oldStock, $newStock, 'adjust', $product->id, 'import_shoulder', 'شانه زنی');
-                    }
+                if ($newStock != $oldStock) {
+                    InventoryChangeLog::log($inv, 'stock', $oldStock, $newStock, 'adjust', $product->id, 'import_shoulder', 'شانه زنی');
                 }
+                $inv->stock = $newStock;
+                $inv->imported_delta_sum = $shoulderDelta;
+                $inv->save();
 
+                // ═══ ضایعات موم ═══
                 $wasteDelta = ($after['waste_records'][$product->name] ?? 0) - ($before['waste_records'][$product->name] ?? 0);
-                if ($wasteDelta != 0) {
-                    $inv = WasteMumInventory::firstOrCreate(['product_id' => $id]);
-                    $oldStock = (float) $inv->stock;
-                    $newStock = max(0, $oldStock + $wasteDelta);
-                    $inv->stock = $newStock;
-                    $inv->save();
+                $inv = WasteMumInventory::firstOrCreate(['product_id' => $id]);
+                $oldStock = (float) $inv->stock;
+                $oldImportedSum = (float) ($inv->imported_delta_sum ?? 0);
+                $baseStock = $oldStock - $oldImportedSum;
+                $newStock = max(0, $baseStock + $wasteDelta);
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log($inv, 'stock', $oldStock, $newStock, 'adjust', $product->id, 'import_waste_mum', 'ضایعات موم');
-                    }
+                if ($newStock != $oldStock) {
+                    InventoryChangeLog::log($inv, 'stock', $oldStock, $newStock, 'adjust', $product->id, 'import_waste_mum', 'ضایعات موم');
                 }
+                $inv->stock = $newStock;
+                $inv->imported_delta_sum = $wasteDelta;
+                $inv->save();
 
+                // ═══ موجودی موم ═══
                 $waxDeltas = [
                     'import_shuttle_k3_mum' => [
                         'delta' => ($after['mum_k3_output'][$id] ?? 0) - ($before['mum_k3_output'][$id] ?? 0),
@@ -486,7 +492,6 @@ class ImportController extends Controller
                         'description' => 'ضایعات موم',
                     ],
                 ];
-
                 $this->applyDeltasWithLogs(
                     WaxInventory::firstOrCreate(['product_id' => $id]),
                     $waxDeltas,
@@ -494,55 +499,49 @@ class ImportController extends Controller
                 );
             }
 
+            // ═══ مواد اولیه ═══
             $allMaterialIds = array_unique(array_merge(
                 array_keys($before['raw_material_used']),
                 array_keys($after['raw_material_used'])
             ));
             foreach ($allMaterialIds as $matId) {
                 $delta = ($after['raw_material_used'][$matId] ?? 0) - ($before['raw_material_used'][$matId] ?? 0);
-                if ($delta != 0) {
-                    $raw = RawMaterial::find($matId);
-                    if ($raw) {
-                        $oldStock = (float) $raw->stock;
-                        $newStock = max(0, $oldStock - $delta);
-                        $raw->stock = $newStock;
-                        $raw->save();
+                $raw = RawMaterial::find($matId);
+                if (!$raw) continue;
 
-                        if ($oldStock != $newStock) {
-                            InventoryChangeLog::log($raw, 'stock', $oldStock, $newStock, 'adjust', null, 'import_material_making', 'مواد سازی');
-                        }
-                    }
+                $oldStock = (float) $raw->stock;
+                $oldImportedSum = (float) ($raw->imported_delta_sum ?? 0);
+                $baseStock = $oldStock - $oldImportedSum;
+                $newImportedSum = -$delta; // مصرف = کاهش
+                $newStock = max(0, $baseStock + $newImportedSum);
+
+                if ($newStock != $oldStock) {
+                    InventoryChangeLog::log($raw, 'stock', $oldStock, $newStock, 'adjust', null, 'import_material_making', 'مواد سازی');
                 }
+
+                $raw->stock = $newStock;
+                $raw->imported_delta_sum = $newImportedSum;
+                $raw->save();
             }
 
+            // ═══ کارتن و لایه ═══
             foreach (Packaging::all() as $pkg) {
                 $consumedAfter = $after['packaging_used'][$pkg->id] ?? 0;
+                $consumedBefore = $before['packaging_used'][$pkg->id] ?? 0;
+                $delta = $consumedAfter - $consumedBefore;
 
-                if ($pkg->baseline_consumed !== null) {
-                    $delta = $consumedAfter - $pkg->baseline_consumed;
-                    if ($delta != 0) {
-                        $oldStock = (float) $pkg->stock;
-                        $newStock = max(0, $oldStock - $delta);
-                        $pkg->stock = $newStock;
+                $oldStock = (float) $pkg->stock;
+                $oldImportedSum = (float) ($pkg->imported_delta_sum ?? 0);
+                $baseStock = $oldStock - $oldImportedSum;
+                $newImportedSum = -$delta;
+                $newStock = max(0, $baseStock + $newImportedSum);
 
-                        if ($oldStock != $newStock) {
-                            InventoryChangeLog::log($pkg, 'stock', $oldStock, $newStock, 'adjust', null, 'import_packaging_consumed', 'مصرف بسته‌بندی');
-                        }
-                    }
-                    $pkg->baseline_consumed = $consumedAfter;
-                } else {
-                    $consumedBefore = $before['packaging_used'][$pkg->id] ?? 0;
-                    $delta = $consumedAfter - $consumedBefore;
-                    if ($delta != 0) {
-                        $oldStock = (float) $pkg->stock;
-                        $newStock = max(0, $oldStock - $delta);
-                        $pkg->stock = $newStock;
-
-                        if ($oldStock != $newStock) {
-                            InventoryChangeLog::log($pkg, 'stock', $oldStock, $newStock, 'adjust', null, 'import_packaging_consumed', 'مصرف بسته‌بندی');
-                        }
-                    }
+                if ($newStock != $oldStock) {
+                    InventoryChangeLog::log($pkg, 'stock', $oldStock, $newStock, 'adjust', null, 'import_packaging_consumed', 'مصرف بسته‌بندی');
                 }
+
+                $pkg->stock = $newStock;
+                $pkg->imported_delta_sum = $newImportedSum;
                 $pkg->save();
             }
 
@@ -554,32 +553,44 @@ class ImportController extends Controller
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ اعمال دلتا با فرمول idempotent
+    // ═══════════════════════════════════════════════════════════
     private function applyDeltasWithLogs($model, array $deltas, $productId = null)
     {
         $oldStock = (float) $model->stock;
-        $currentStock = $oldStock;
-        $hasChange = false;
+        $oldImportedSum = (float) ($model->imported_delta_sum ?? 0);
 
+        // مقدار پایه = موجودی قبل از هر ایمپورت (با حفظ تغییرات دستی)
+        $baseStock = $oldStock - $oldImportedSum;
+
+        // مجموع دلتای جدید
+        $totalDelta = 0;
         foreach ($deltas as $source => $info) {
             $delta = $info['delta'] ?? 0;
-            $desc = $info['description'] ?? $source;
-
             if (abs($delta) < 0.001) continue;
+            $totalDelta += $delta;
+        }
 
-            $newStock = max(0, $currentStock + $delta);
+        $newStock = max(0, $baseStock + $totalDelta);
 
-            if ($newStock != $currentStock) {
-                InventoryChangeLog::log($model, 'stock', $currentStock, $newStock, 'adjust', $productId, $source, $desc);
+        // ثبت لاگ (اگه موجودی تغییر کرده)
+        if ($newStock != $oldStock) {
+            $running = $baseStock;
+            foreach ($deltas as $source => $info) {
+                $delta = $info['delta'] ?? 0;
+                if (abs($delta) < 0.001) continue;
+                $desc = $info['description'] ?? $source;
+                $next = max(0, $running + $delta);
+                InventoryChangeLog::log($model, 'stock', $running, $next, 'adjust', $productId, $source, $desc);
+                $running = $next;
             }
-
-            $currentStock = $newStock;
-            $hasChange = true;
         }
 
-        if ($hasChange) {
-            $model->stock = $currentStock;
-            $model->save();
-        }
+        // ذخیره
+        $model->stock = $newStock;
+        $model->imported_delta_sum = $totalDelta;
+        $model->save();
     }
 
     private function importProductionsFromSpreadsheet($spreadsheet)
@@ -868,10 +879,6 @@ class ImportController extends Controller
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ ایمپورت فروش رسمی
-    //  ⚠️ PRAGMA foreign_keys = OFF چون جدول invoices وجود نداره
-    // ═══════════════════════════════════════════════════════════
     private function importFormalSalesFromSpreadsheet($spreadsheet)
     {
         $sheetNames = ['رسمی', 'فروش رسمی', 'رسمی فروش'];
@@ -881,7 +888,7 @@ class ImportController extends Controller
             if ($sheet) break;
         }
         if (!$sheet) {
-            Log::warning('importFormalSales: هیچ شیتی با نام رسمی/فروش رسمی/رسمی فروش پیدا نشد.');
+            Log::warning('importFormalSales: هیچ شیتی با نام رسمی پیدا نشد.');
             return;
         }
 
@@ -894,7 +901,6 @@ class ImportController extends Controller
 
         Log::info('importFormalSales: تعداد ردیف‌ها = ' . count($rows));
 
-        // ✅ خاموش کردن FK check چون جدول invoices وجود نداره
         DB::statement('PRAGMA foreign_keys = OFF');
 
         DB::beginTransaction();
@@ -988,7 +994,7 @@ class ImportController extends Controller
                     $successCount++;
                 } catch (\Exception $e) {
                     $errorCount++;
-                    Log::error('FormalSales row error: ' . $e->getMessage() . ' | RowIndex: ' . $rowIndex . ' | Row: ' . json_encode($row, JSON_UNESCAPED_UNICODE));
+                    Log::error('FormalSales row error: ' . $e->getMessage() . ' | RowIndex: ' . $rowIndex);
                 }
             }
 
@@ -1008,13 +1014,11 @@ class ImportController extends Controller
             }
 
             DB::commit();
-
             Log::info("importFormalSales خلاصه: موفق={$successCount} | رد شده={$skipCount} | خطا={$errorCount}");
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in importFormalSalesFromSpreadsheet: ' . $e->getMessage());
         } finally {
-            // ✅ روشن کردن مجدد FK check
             DB::statement('PRAGMA foreign_keys = ON');
         }
     }

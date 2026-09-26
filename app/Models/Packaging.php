@@ -14,13 +14,15 @@ class Packaging extends Model
         'name',
         'stock',
         'sort_order',
-        'baseline_consumed',   // ✅ جدید
+        'baseline_consumed',
+        'imported_delta_sum',   // ✅ اضافه شد
     ];
 
     protected $casts = [
-        'stock'              => 'integer',
+        'stock'              => 'decimal:4',    // ✅ تغییر: integer → decimal
         'sort_order'         => 'integer',
         'baseline_consumed'  => 'integer',
+        'imported_delta_sum' => 'decimal:4',   // ✅ اضافه شد
     ];
 
     public function purchaseItems()

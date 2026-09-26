@@ -14,12 +14,14 @@ class RawMaterial extends Model
         'name',
         'unit',
         'stock',
-        'sort_order',    // ✅ اضافه شد
+        'sort_order',
+        'imported_delta_sum',   // ✅ اضافه شد
     ];
 
     protected $casts = [
-        'stock'      => 'integer',
+        'stock'      => 'decimal:4',            // ✅ تغییر: integer → decimal (چون دلتا می‌تونه اعشاری باشه)
         'sort_order' => 'integer',
+        'imported_delta_sum' => 'decimal:4',   // ✅ اضافه شد
     ];
 
     public function purchaseItems()
