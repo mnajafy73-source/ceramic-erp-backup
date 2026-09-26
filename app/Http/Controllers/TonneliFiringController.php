@@ -15,10 +15,23 @@ use Illuminate\Support\Facades\DB;
 
 class TonneliFiringController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $firings = TonneliFiring::with('items.product')->latest('date')->paginate(15);
-        return view('tonneli.index', compact('firings'));
+        $source = $request->input('source', 'all');
+
+        $query = TonneliFiring::with('items.product')->latest('date');
+
+        if ($source === 'manual') {
+            $query->where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            });
+        } elseif ($source === 'imported') {
+            $query->where('is_imported', true);
+        }
+
+        $firings = $query->paginate(15)->appends($request->all());
+
+        return view('tonneli.index', compact('firings', 'source'));
     }
 
     public function create()
@@ -28,6 +41,9 @@ class TonneliFiringController extends Controller
         return view('tonneli.create', compact('products', 'yesterday'));
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ثبت پخت تونلی — یک لاگ واحد
+    // ═══════════════════════════════════════════════════════════
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -47,7 +63,17 @@ class TonneliFiringController extends Controller
 
         DB::beginTransaction();
         try {
-            $firing = TonneliFiring::create(['date' => $gregorianDate]);
+            // ✅ ثبت دستی → is_imported = false
+            $firing = TonneliFiring::create([
+                'date' => $gregorianDate,
+                'is_imported' => false,
+            ]);
+
+            $changes = [
+                'raw'       => [],
+                'warehouse' => [],
+                'packaging' => [],
+            ];
 
             foreach ($validated['items'] as $item) {
                 $inputQty = $item['input_quantity'] ?? 0;
@@ -66,45 +92,56 @@ class TonneliFiringController extends Controller
                 $product = $newItem->product;
                 if (!$product) continue;
 
-                // ✅ لاگ ورودی تونلی (کسر از موجودی خام)
                 if ($inputQty > 0) {
                     $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $rawInv->stock;
-                    $newStock = max(0, $oldStock - $inputQty);
-                    $rawInv->stock = $newStock;
+                    $old = (float) $rawInv->stock;
+                    $new = max(0, $old - $inputQty);
+                    $rawInv->stock = $new;
                     $rawInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $rawInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_input',
-                            "ورودی کوره تونلی - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $changes['raw'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
                 }
 
-                // ✅ لاگ خروجی تونلی (به انبار اضافه می‌شود اگر بسته‌بندی شده)
                 if ($outputQty > 0 && $isPackaged) {
                     $whInv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $whInv->stock;
-                    $newStock = $oldStock + $outputQty;
-                    $whInv->stock = $newStock;
+                    $old = (float) $whInv->stock;
+                    $new = $old + $outputQty;
+                    $whInv->stock = $new;
                     $whInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $whInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_packaged',
-                            "پخت کوره تونلی - بسته‌بندی‌شده - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $changes['warehouse'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
-                }
 
-                if ($isPackaged && $outputQty > 0) {
-                    $this->subtractPackagingForItem($newItem);
+                    $this->collectPackagingChanges($newItem, $changes);
                 }
+            }
+
+            $hasAny = !empty($changes['raw']) || !empty($changes['warehouse']) || !empty($changes['packaging']);
+            if ($hasAny) {
+                $details = $this->buildTonneliDetails(
+                    $validated['date'],
+                    $firing->fresh('items.product'),
+                    $changes,
+                    'ثبت پخت تونلی'
+                );
+                InventoryChangeLog::logEvent(
+                    'App\Models\RawInventory',
+                    $firing->id,
+                    'tonneli_input',
+                    'ثبت پخت تونلی',
+                    $details
+                );
             }
 
             DB::commit();
@@ -149,50 +186,50 @@ class TonneliFiringController extends Controller
 
         DB::beginTransaction();
         try {
-            // ✅ برگرداندن تغییرات قبلی
+            $allChanges = [
+                'raw'       => [],
+                'warehouse' => [],
+                'packaging' => [],
+            ];
+
+            // برگرداندن تغییرات قبلی
             $oldItems = $tonneli->items()->with('product')->get();
             foreach ($oldItems as $oldItem) {
                 $product = $oldItem->product;
                 if (!$product) continue;
 
-                // برگرداندن ورودی به خام
                 if ($oldItem->input_quantity > 0) {
                     $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $rawInv->stock;
-                    $newStock = $oldStock + $oldItem->input_quantity;
-                    $rawInv->stock = $newStock;
+                    $old = (float) $rawInv->stock;
+                    $new = $old + $oldItem->input_quantity;
+                    $rawInv->stock = $new;
                     $rawInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $rawInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_input_return',
-                            "برگشت ورودی تونلی (ویرایش) - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $allChanges['raw'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
                 }
 
-                // برگرداندن خروجی از انبار
                 if ($oldItem->output_quantity > 0 && $oldItem->is_packaged) {
                     $whInv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $whInv->stock;
-                    $newStock = max(0, $oldStock - $oldItem->output_quantity);
-                    $whInv->stock = $newStock;
+                    $old = (float) $whInv->stock;
+                    $new = max(0, $old - $oldItem->output_quantity);
+                    $whInv->stock = $new;
                     $whInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $whInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_packaged_return',
-                            "برگشت بسته‌بندی تونلی (ویرایش) - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $allChanges['warehouse'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
-                }
 
-                if ($oldItem->is_packaged && $oldItem->output_quantity > 0) {
-                    $this->returnPackagingForItem($oldItem);
+                    $this->collectPackagingReturn($oldItem, $allChanges);
                 }
             }
 
@@ -216,45 +253,56 @@ class TonneliFiringController extends Controller
                 $product = $newItem->product;
                 if (!$product) continue;
 
-                // ✅ لاگ ورودی
                 if ($inputQty > 0) {
                     $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $rawInv->stock;
-                    $newStock = max(0, $oldStock - $inputQty);
-                    $rawInv->stock = $newStock;
+                    $old = (float) $rawInv->stock;
+                    $new = max(0, $old - $inputQty);
+                    $rawInv->stock = $new;
                     $rawInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $rawInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_input',
-                            "ورودی کوره تونلی (ویرایش) - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $allChanges['raw'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
                 }
 
-                // ✅ لاگ خروجی
                 if ($outputQty > 0 && $isPackaged) {
                     $whInv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $whInv->stock;
-                    $newStock = $oldStock + $outputQty;
-                    $whInv->stock = $newStock;
+                    $old = (float) $whInv->stock;
+                    $new = $old + $outputQty;
+                    $whInv->stock = $new;
                     $whInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $whInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_packaged',
-                            "پخت کوره تونلی - بسته‌بندی‌شده (ویرایش) - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $allChanges['warehouse'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
-                }
 
-                if ($isPackaged && $outputQty > 0) {
-                    $this->subtractPackagingForItem($newItem);
+                    $this->collectPackagingChanges($newItem, $allChanges);
                 }
+            }
+
+            $hasAny = !empty($allChanges['raw']) || !empty($allChanges['warehouse']) || !empty($allChanges['packaging']);
+            if ($hasAny) {
+                $details = $this->buildTonneliDetails(
+                    $validated['date'],
+                    $tonneli->fresh('items.product'),
+                    $allChanges,
+                    'ویرایش پخت تونلی'
+                );
+                InventoryChangeLog::logEvent(
+                    'App\Models\RawInventory',
+                    $tonneli->id,
+                    'tonneli_input',
+                    'ویرایش پخت تونلی',
+                    $details
+                );
             }
 
             DB::commit();
@@ -271,52 +319,69 @@ class TonneliFiringController extends Controller
         DB::beginTransaction();
         try {
             $items = $tonneli->items()->with('product')->get();
+            $changes = [
+                'raw'       => [],
+                'warehouse' => [],
+                'packaging' => [],
+            ];
 
             foreach ($items as $item) {
                 $product = $item->product;
                 if (!$product) continue;
 
-                // برگرداندن ورودی
                 if ($item->input_quantity > 0) {
                     $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $rawInv->stock;
-                    $newStock = $oldStock + $item->input_quantity;
-                    $rawInv->stock = $newStock;
+                    $old = (float) $rawInv->stock;
+                    $new = $old + $item->input_quantity;
+                    $rawInv->stock = $new;
                     $rawInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $rawInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_input_return',
-                            "برگشت ورودی تونلی (حذف) - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $changes['raw'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
                 }
 
-                // برگرداندن خروجی
                 if ($item->output_quantity > 0 && $item->is_packaged) {
                     $whInv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $whInv->stock;
-                    $newStock = max(0, $oldStock - $item->output_quantity);
-                    $whInv->stock = $newStock;
+                    $old = (float) $whInv->stock;
+                    $new = max(0, $old - $item->output_quantity);
+                    $whInv->stock = $new;
                     $whInv->save();
 
-                    if ($oldStock != $newStock) {
-                        InventoryChangeLog::log(
-                            $whInv, 'stock', $oldStock, $newStock,
-                            'adjust', $product->id,
-                            'tonneli_packaged_return',
-                            "برگشت بسته‌بندی تونلی (حذف) - {$product->name}"
-                        );
+                    if ($old != $new) {
+                        $changes['warehouse'][] = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
                     }
-                }
 
-                if ($item->is_packaged && $item->output_quantity > 0) {
-                    $this->returnPackagingForItem($item);
+                    $this->collectPackagingReturn($item, $changes);
                 }
             }
 
+            $hasAny = !empty($changes['raw']) || !empty($changes['warehouse']) || !empty($changes['packaging']);
+            if ($hasAny) {
+                $details = $this->buildTonneliDetails(
+                    $tonneli->jalali_date,
+                    $tonneli,
+                    $changes,
+                    'حذف پخت تونلی'
+                );
+                InventoryChangeLog::logEvent(
+                    'App\Models\RawInventory',
+                    $tonneli->id,
+                    'tonneli_input_return',
+                    'حذف پخت تونلی',
+                    $details
+                );
+            }
+
+            $tonneli->items()->delete();
             $tonneli->delete();
             DB::commit();
 
@@ -327,7 +392,102 @@ class TonneliFiringController extends Controller
         }
     }
 
-    private function returnPackagingForItem($item)
+    public function clearImported()
+    {
+        DB::beginTransaction();
+        try {
+            $records = TonneliFiring::where('is_imported', true)->get();
+            $count = 0;
+
+            foreach ($records as $firing) {
+                $firing->items()->delete();
+                $firing->delete();
+                $count++;
+            }
+
+            DB::commit();
+
+            return redirect()->route('tonneli.index')
+                ->with('success', "✅ {$count} پخت تونلی ایمپورتی (اکسل) پاک شد.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('tonneli.index')
+                ->with('error', 'خطا در حذف: ' . $e->getMessage());
+        }
+    }
+
+    public function clearManual()
+    {
+        DB::beginTransaction();
+        try {
+            $records = TonneliFiring::where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            })->get();
+
+            $count = 0;
+            foreach ($records as $firing) {
+                $items = $firing->items()->with('product')->get();
+
+                foreach ($items as $item) {
+                    $product = $item->product;
+                    if (!$product) continue;
+
+                    if ($item->input_quantity > 0) {
+                        $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
+                        $old = (float) $rawInv->stock;
+                        $new = $old + $item->input_quantity;
+                        $rawInv->stock = $new;
+                        $rawInv->save();
+
+                        if ($old != $new) {
+                            InventoryChangeLog::log(
+                                $rawInv, 'stock', $old, $new,
+                                'adjust', $product->id,
+                                'tonneli_input_return',
+                                "برگشت ورودی تونلی (حذف دستی) - {$product->name}"
+                            );
+                        }
+                    }
+
+                    if ($item->output_quantity > 0 && $item->is_packaged) {
+                        $whInv = WarehouseInventory::firstOrCreate(['product_id' => $product->id]);
+                        $old = (float) $whInv->stock;
+                        $new = max(0, $old - $item->output_quantity);
+                        $whInv->stock = $new;
+                        $whInv->save();
+
+                        if ($old != $new) {
+                            InventoryChangeLog::log(
+                                $whInv, 'stock', $old, $new,
+                                'adjust', $product->id,
+                                'tonneli_packaged_return',
+                                "برگشت بسته‌بندی تونلی (حذف دستی) - {$product->name}"
+                            );
+                        }
+                    }
+
+                    if ($item->is_packaged && $item->output_quantity > 0) {
+                        $this->returnPackagingForItem($item);
+                    }
+                }
+
+                $firing->items()->delete();
+                $firing->delete();
+                $count++;
+            }
+
+            DB::commit();
+
+            return redirect()->route('tonneli.index')
+                ->with('success', "✅ {$count} پخت تونلی دستی پاک شد و موجودی اصلاح شد.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('tonneli.index')
+                ->with('error', 'خطا در حذف: ' . $e->getMessage());
+        }
+    }
+
+    private function collectPackagingChanges($item, array &$changes)
     {
         $product = $item->product;
         $quantity = $item->output_quantity;
@@ -337,18 +497,17 @@ class TonneliFiringController extends Controller
             $cartonCount = ceil($quantity / $product->per_box);
             $carton = Packaging::find($product->carton_packaging_id);
             if ($carton) {
-                $oldStock = (int) $carton->stock;
-                $carton->stock += $cartonCount;
+                $old = (int) $carton->stock;
+                $carton->stock = max(0, $old - $cartonCount);
                 $carton->save();
-                $newStock = (int) $carton->stock;
+                $new = (int) $carton->stock;
 
-                if ($oldStock != $newStock) {
-                    InventoryChangeLog::log(
-                        $carton, 'stock', $oldStock, $newStock,
-                        'adjust', null,
-                        'tonneli_packaging_return',
-                        "برگشت کارتن (تونلی) - {$carton->name}"
-                    );
+                if ($old != $new) {
+                    $changes['packaging'][] = [
+                        'name' => '[کارتن] ' . $carton->name,
+                        'old'  => $old,
+                        'new'  => $new,
+                    ];
                 }
             }
         }
@@ -358,24 +517,23 @@ class TonneliFiringController extends Controller
             $layerCount = $cartonCount * $product->layers_per_box;
             $layer = Packaging::find($product->layer_packaging_id);
             if ($layer) {
-                $oldStock = (int) $layer->stock;
-                $layer->stock += $layerCount;
+                $old = (int) $layer->stock;
+                $layer->stock = max(0, $old - $layerCount);
                 $layer->save();
-                $newStock = (int) $layer->stock;
+                $new = (int) $layer->stock;
 
-                if ($oldStock != $newStock) {
-                    InventoryChangeLog::log(
-                        $layer, 'stock', $oldStock, $newStock,
-                        'adjust', null,
-                        'tonneli_packaging_return',
-                        "برگشت لایه (تونلی) - {$layer->name}"
-                    );
+                if ($old != $new) {
+                    $changes['packaging'][] = [
+                        'name' => '[لایه] ' . $layer->name,
+                        'old'  => $old,
+                        'new'  => $new,
+                    ];
                 }
             }
         }
     }
 
-    private function subtractPackagingForItem($item)
+    private function collectPackagingReturn($item, array &$changes)
     {
         $product = $item->product;
         $quantity = $item->output_quantity;
@@ -385,18 +543,17 @@ class TonneliFiringController extends Controller
             $cartonCount = ceil($quantity / $product->per_box);
             $carton = Packaging::find($product->carton_packaging_id);
             if ($carton) {
-                $oldStock = (int) $carton->stock;
-                $carton->stock = max(0, $carton->stock - $cartonCount);
+                $old = (int) $carton->stock;
+                $carton->stock = $old + $cartonCount;
                 $carton->save();
-                $newStock = (int) $carton->stock;
+                $new = (int) $carton->stock;
 
-                if ($oldStock != $newStock) {
-                    InventoryChangeLog::log(
-                        $carton, 'stock', $oldStock, $newStock,
-                        'adjust', null,
-                        'tonneli_packaging_consumed',
-                        "مصرف کارتن (پخت تونلی) - {$carton->name}"
-                    );
+                if ($old != $new) {
+                    $changes['packaging'][] = [
+                        'name' => '[کارتن] ' . $carton->name,
+                        'old'  => $old,
+                        'new'  => $new,
+                    ];
                 }
             }
         }
@@ -406,20 +563,101 @@ class TonneliFiringController extends Controller
             $layerCount = $cartonCount * $product->layers_per_box;
             $layer = Packaging::find($product->layer_packaging_id);
             if ($layer) {
-                $oldStock = (int) $layer->stock;
-                $layer->stock = max(0, $layer->stock - $layerCount);
+                $old = (int) $layer->stock;
+                $layer->stock = $old + $layerCount;
                 $layer->save();
-                $newStock = (int) $layer->stock;
+                $new = (int) $layer->stock;
 
-                if ($oldStock != $newStock) {
-                    InventoryChangeLog::log(
-                        $layer, 'stock', $oldStock, $newStock,
-                        'adjust', null,
-                        'tonneli_packaging_consumed',
-                        "مصرف لایه (پخت تونلی) - {$layer->name}"
-                    );
+                if ($old != $new) {
+                    $changes['packaging'][] = [
+                        'name' => '[لایه] ' . $layer->name,
+                        'old'  => $old,
+                        'new'  => $new,
+                    ];
                 }
             }
         }
+    }
+
+    private function buildTonneliDetails($jalaliDate, $firing, array $changes, $actionTitle)
+    {
+        $lines = [];
+
+        $lines[] = '📋 ' . $actionTitle;
+        $lines[] = "🔹 تاریخ: {$jalaliDate}";
+
+        $productTexts = [];
+        foreach ($firing->items as $item) {
+            $p = $item->product;
+            if (!$p) continue;
+            $label = "«{$p->name}»";
+            $parts = [];
+            if ($item->input_quantity > 0) $parts[] = 'ورودی: ' . number_format($item->input_quantity);
+            if ($item->output_quantity > 0) $parts[] = 'خروجی: ' . number_format($item->output_quantity);
+            if ($item->is_packaged) $parts[] = 'بسته‌بندی‌شده';
+            if (!empty($parts)) $label .= ' (' . implode('، ', $parts) . ')';
+            $productTexts[] = $label;
+        }
+        if (!empty($productTexts)) {
+            $lines[] = '🔹 محصولات: ' . implode(' — ', $productTexts);
+        }
+
+        $lines[] = '📦 تغییرات موجودی به شرح زیر اعمال شد:';
+
+        if (!empty($changes['raw'])) {
+            $lines[] = '📌 موجودی خام:';
+            foreach ($changes['raw'] as $c) {
+                $delta = $c['new'] - $c['old'];
+                $lines[] = sprintf(
+                    'CHANGE_RAW|%s|%d|%d|%d',
+                    $c['name'],
+                    (int) round($c['old']),
+                    (int) round($c['new']),
+                    (int) round($delta)
+                );
+            }
+        }
+
+        if (!empty($changes['warehouse'])) {
+            $lines[] = '📌 موجودی انبار:';
+            foreach ($changes['warehouse'] as $c) {
+                $delta = $c['new'] - $c['old'];
+                $lines[] = sprintf(
+                    'CHANGE_RAW|%s|%d|%d|%d',
+                    $c['name'],
+                    (int) round($c['old']),
+                    (int) round($c['new']),
+                    (int) round($delta)
+                );
+            }
+        }
+
+        if (!empty($changes['packaging'])) {
+            $lines[] = '📌 کارتن و لایه:';
+            foreach ($changes['packaging'] as $c) {
+                $delta = $c['new'] - $c['old'];
+                $lines[] = sprintf(
+                    'CHANGE_PKG|%s|%d|%d|%d',
+                    $c['name'],
+                    (int) round($c['old']),
+                    (int) round($c['new']),
+                    (int) round($delta)
+                );
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function returnPackagingForItem($item)
+    {
+        $changes = ['packaging' => []];
+        $this->collectPackagingReturn($item, $changes);
+    }
+
+    private function subtractPackagingForItem($item)
+    {
+        $changes = ['packaging' => []];
+        $this->collectPackagingChanges($item, $changes);
     }
 }

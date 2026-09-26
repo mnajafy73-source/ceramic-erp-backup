@@ -21,11 +21,13 @@ class ShuttleFiring extends Model
         'year',
         'month',
         'day',
+        'is_imported',
     ];
 
     protected $casts = [
         'date' => 'date',
         'is_packaged' => 'boolean',
+        'is_imported' => 'boolean',
     ];
 
     protected $appends = ['jalali_date'];

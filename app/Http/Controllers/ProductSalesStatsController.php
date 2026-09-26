@@ -51,25 +51,37 @@ class ProductSalesStatsController extends Controller
         $month = (int) $request->input('month', Jalalian::now()->getMonth());
         $year  = (int) $request->input('year', Jalalian::now()->getYear());
 
-        $startDateStr = sprintf('%04d/%02d/01', $year, $month);
-        $lastDay = Jalalian::fromFormat('Y/m/d', $startDateStr)->getMonthDays();
-        $endDateStr = sprintf('%04d/%02d/%02d', $year, $month, $lastDay);
+        // ✅ اگه month = 0 → همه ماه‌های سال
+        if ($month === 0) {
+            $startDateStr = sprintf('%04d/01/01', $year);
+            $endDateStr   = sprintf('%04d/12/29', $year);
 
-        try {
-            $startDate = Jalalian::fromFormat('Y/m/d', $startDateStr)->toCarbon()->toDateString();
-            $endDate = Jalalian::fromFormat('Y/m/d', $endDateStr)->toCarbon()->toDateString();
-        } catch (\Exception $e) {
-            $startDate = null;
-            $endDate = null;
+            try {
+                $startDate = Jalalian::fromFormat('Y/m/d', $startDateStr)->toCarbon()->toDateString();
+                $endDate   = Jalalian::fromFormat('Y/m/d', $endDateStr)->toCarbon()->toDateString();
+            } catch (\Exception $e) {
+                $startDate = null;
+                $endDate = null;
+            }
+        } else {
+            $startDateStr = sprintf('%04d/%02d/01', $year, $month);
+            $lastDay = Jalalian::fromFormat('Y/m/d', $startDateStr)->getMonthDays();
+            $endDateStr = sprintf('%04d/%02d/%02d', $year, $month, $lastDay);
+
+            try {
+                $startDate = Jalalian::fromFormat('Y/m/d', $startDateStr)->toCarbon()->toDateString();
+                $endDate = Jalalian::fromFormat('Y/m/d', $endDateStr)->toCarbon()->toDateString();
+            } catch (\Exception $e) {
+                $startDate = null;
+                $endDate = null;
+            }
         }
 
         $reportData = collect();
 
-        // ===== تعیین لیست مشتری‌ها =====
         if ($selectedCustomers->count() > 0) {
             $customersToShow = $selectedCustomers;
         } else {
-            // اگه مشتری انتخاب نشده، همه مشتری‌ها رو بررسی کن
             $customersToShow = $allCustomersList;
         }
 
@@ -139,10 +151,8 @@ class ProductSalesStatsController extends Controller
                 $productData[$pid]['informal_amount'] += $item->quantity * $item->unit_price;
             }
 
-            // اگه فروشی برای این مشتری نبود، برو بعدی
             if (empty($productData)) continue;
 
-            // ===== محاسبه مجموع هر محصول + مجموع مشتری =====
             $customerFormalQty = 0;
             $customerFormalAmount = 0;
             $customerInformalQty = 0;
@@ -163,10 +173,8 @@ class ProductSalesStatsController extends Controller
             }
             unset($p);
 
-            // مرتب‌سازی محصولات بر اساس مبلغ کل نزولی
             uasort($productData, fn($a, $b) => $b['total_amount'] <=> $a['total_amount']);
 
-            // ===== محاسبه پرداختی و مانده =====
             $paidAmount = CustomerPayment::getTotalPaidForCustomer($customerName, $endDate);
             $remaining  = $customerTotalAmount - $paidAmount;
 
@@ -186,7 +194,6 @@ class ProductSalesStatsController extends Controller
             ]);
         }
 
-        // مرتب‌سازی مشتری‌ها بر اساس مبلغ کل نزولی
         $reportData = $reportData->sortByDesc('total_amount')->values();
 
         return view('reports.product-sales-stats', [
@@ -200,6 +207,21 @@ class ProductSalesStatsController extends Controller
             'currentYear'       => Jalalian::now()->getYear(),
             'monthNames'        => ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'],
         ]);
+    }
+
+    // ============================================================
+    //  ✅ پارامترهای فیلتر که باید توی redirect حفظ بشن
+    // ============================================================
+    private function filterParams(Request $request): array
+    {
+        $params = [];
+        if ($request->filled('year')) {
+            $params['year'] = $request->input('year');
+        }
+        if ($request->filled('month')) {
+            $params['month'] = $request->input('month');
+        }
+        return $params;
     }
 
     // ============================================================
@@ -225,11 +247,11 @@ class ProductSalesStatsController extends Controller
                 'manually_added' => true,
             ]);
 
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('success', 'محصول به لیست اضافه شد.');
         }
 
-        return redirect()->route('product-sales-stats.index')
+        return redirect()->route('product-sales-stats.index', $this->filterParams($request))
             ->with('info', 'این محصول قبلاً به لیست اضافه شده است.');
     }
 
@@ -255,12 +277,12 @@ class ProductSalesStatsController extends Controller
 
             DB::commit();
 
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('success', 'محصول از لیست حذف شد.');
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('error', 'خطا: ' . $e->getMessage());
         }
     }
@@ -327,7 +349,7 @@ class ProductSalesStatsController extends Controller
             ->exists();
 
         if ($exists) {
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('info', 'این مشتری قبلاً به لیست اضافه شده است.');
         }
 
@@ -395,13 +417,13 @@ class ProductSalesStatsController extends Controller
                 $message .= " و {$addedCount} محصول از فروش‌های او اضافه شد.";
             }
 
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('addCustomer failed: ' . $e->getMessage());
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('error', 'خطا در افزودن مشتری: ' . $e->getMessage());
         }
     }
@@ -458,13 +480,13 @@ class ProductSalesStatsController extends Controller
                 $message .= " و {$deletedCount} محصول مرتبط هم حذف شد.";
             }
 
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('removeCustomer failed: ' . $e->getMessage());
-            return redirect()->route('product-sales-stats.index')
+            return redirect()->route('product-sales-stats.index', $this->filterParams($request))
                 ->with('error', 'خطا در حذف مشتری: ' . $e->getMessage());
         }
     }

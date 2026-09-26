@@ -11,14 +11,12 @@ use App\Models\RawInventory;
 use App\Models\InventoryChangeLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Morilog\Jalali\Jalalian;
 
 class ProductionController extends Controller
 {
     public function index(Request $request)
     {
-        // ✅ فیلتر منبع
         $source = $request->input('source', 'all');
 
         $query = Production::select(
@@ -87,6 +85,10 @@ class ProductionController extends Controller
         return view('productions.create', compact('operators', 'presses', 'products', 'today'));
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ثبت تولید (دستی)
+    //  فقط موجودی خام زیاد می‌شه — نه مواد، نه کارتن، نه لایه
+    // ═══════════════════════════════════════════════════════════
     public function store(Request $request)
     {
         $request->validate([
@@ -117,6 +119,8 @@ class ProductionController extends Controller
             foreach ($request->rows as $rowData) {
                 $product = Product::find($rowData['product_id']);
                 $productWeight = $product ? $product->weight : null;
+                $operator = Operator::find($rowData['operator_id']);
+                $press = !empty($rowData['press_id']) ? Press::find($rowData['press_id']) : null;
 
                 $production = Production::create([
                     'date' => $request->date,
@@ -128,24 +132,40 @@ class ProductionController extends Controller
                     'quantity' => $rowData['quantity'],
                     'time_hours' => $rowData['time_hours'] ?? 0,
                     'notes' => null,
-                    'is_imported' => false, // ✅ دستی
+                    'is_imported' => false,
                 ]);
 
+                // ✅ فقط موجودی خام زیاد می‌شه
+                $rawChange = null;
                 if ($rowData['stage'] === 'تولید' && $product) {
                     $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
-                    $oldStock = (float) $rawInv->stock;
-                    $newStock = $oldStock + (float) $rowData['quantity'];
-                    $rawInv->stock = $newStock;
+                    $old = (float) $rawInv->stock;
+                    $new = $old + (float) $rowData['quantity'];
+                    $rawInv->stock = $new;
                     $rawInv->save();
 
-                    InventoryChangeLog::log(
-                        $rawInv, 'stock', $oldStock, $newStock,
-                        'adjust', $product->id,
+                    if ($old != $new) {
+                        $rawChange = [
+                            'name' => $product->name,
+                            'old'  => $old,
+                            'new'  => $new,
+                        ];
+                    }
+                }
+
+                // ✅ لاگ (فقط اگه تغییر داشته)
+                if ($rawChange) {
+                    $details = $this->buildProductionDetails($rowData, $product, $operator, $press, $rawChange);
+                    InventoryChangeLog::logEvent(
+                        'App\Models\RawInventory',
+                        $product->id,
                         'production',
-                        "ثبت تولید دستی - {$product->name}"
+                        'ثبت تولید',
+                        $details
                     );
                 }
 
+                // استاپ‌ها
                 if (!empty($rowData['stop_types']) && !empty($rowData['stop_hours'])) {
                     foreach ($rowData['stop_types'] as $index => $type) {
                         if (isset($rowData['stop_hours'][$index])) {
@@ -186,6 +206,9 @@ class ProductionController extends Controller
         return view('productions.edit', compact('production', 'operators', 'presses', 'products'));
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ویرایش تولید — فقط موجودی خام اصلاح می‌شه
+    // ═══════════════════════════════════════════════════════════
     public function update(Request $request, Production $production)
     {
         $validated = $request->validate([
@@ -212,6 +235,7 @@ class ProductionController extends Controller
         DB::beginTransaction();
 
         try {
+            // ۱. برگرداندن موجودی خام قدیمی
             if ($production->stage === 'تولید') {
                 $oldProduct = Product::find($production->product_id);
                 if ($oldProduct) {
@@ -249,6 +273,7 @@ class ProductionController extends Controller
 
             $production->refresh();
 
+            // ۲. افزودن موجودی خام جدید
             if ($validated['stage'] === 'تولید' && $product) {
                 $rawInv = RawInventory::firstOrCreate(['product_id' => $product->id]);
                 $oldStock = (float) $rawInv->stock;
@@ -256,14 +281,17 @@ class ProductionController extends Controller
                 $rawInv->stock = $newStock;
                 $rawInv->save();
 
-                InventoryChangeLog::log(
-                    $rawInv, 'stock', $oldStock, $newStock,
-                    'adjust', $product->id,
-                    'production',
-                    "ثبت تولید دستی (ویرایش) - {$product->name}"
-                );
+                if ($oldStock != $newStock) {
+                    InventoryChangeLog::log(
+                        $rawInv, 'stock', $oldStock, $newStock,
+                        'adjust', $product->id,
+                        'production',
+                        "ثبت تولید دستی (ویرایش) - {$product->name}"
+                    );
+                }
             }
 
+            // استاپ‌ها
             $production->stops()->delete();
             if (!empty($request->stop_types) && !empty($request->stop_hours)) {
                 foreach ($request->stop_types as $index => $type) {
@@ -287,6 +315,9 @@ class ProductionController extends Controller
             ->with('success', 'تولید با موفقیت به‌روزرسانی شد.');
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حذف تولید — فقط موجودی خام اصلاح می‌شه
+    // ═══════════════════════════════════════════════════════════
     public function destroy(Production $production)
     {
         DB::beginTransaction();
@@ -423,9 +454,6 @@ class ProductionController extends Controller
         return view('productions.by-date', compact('productions', 'date'));
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ حذف تولیدات ایمپورتی (اکسل)
-    // ═══════════════════════════════════════════════════════════
     public function clearImported()
     {
         $count = Production::where('is_imported', true)->count();
@@ -438,9 +466,6 @@ class ProductionController extends Controller
             ->with('success', "✅ {$count} رکورد تولید ایمپورتی (اکسل) پاک شد.");
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ حذف تولیدات دستی (با اصلاح موجودی خام)
-    // ═══════════════════════════════════════════════════════════
     public function clearManual()
     {
         DB::beginTransaction();
@@ -485,5 +510,38 @@ class ProductionController extends Controller
             return redirect()->route('productions.index')
                 ->with('error', 'خطا در حذف: ' . $e->getMessage());
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ساخت متن جزئیات ثبت تولید (فقط موجودی خام)
+    // ═══════════════════════════════════════════════════════════
+    private function buildProductionDetails($rowData, $product, $operator, $press, array $rawChange)
+    {
+        $lines = [];
+
+        $lines[] = '📋 ثبت تولید دستی';
+
+        $pressText = $press ? " — پرس «{$press->name}»" : '';
+        $operatorText = $operator ? " — اپراتور «{$operator->name}»" : '';
+        $lines[] = sprintf(
+            '🔹 محصول «%s» — تعداد %s عدد%s%s',
+            $product ? $product->name : '—',
+            number_format($rowData['quantity']),
+            $pressText,
+            $operatorText
+        );
+
+        $lines[] = '📦 تغییرات موجودی:';
+
+        $delta = $rawChange['new'] - $rawChange['old'];
+        $lines[] = sprintf(
+            'CHANGE_RAW|%s|%d|%d|%d',
+            $rawChange['name'] . ' (خام)',
+            (int) round($rawChange['old']),
+            (int) round($rawChange['new']),
+            (int) round($delta)
+        );
+
+        return implode("\n", $lines);
     }
 }

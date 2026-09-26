@@ -48,9 +48,6 @@ class MaterialMakingController extends Controller
         return redirect()->route('material-making.index');
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ ثبت دستی مواد سازی
-    // ═══════════════════════════════════════════════════════════
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -70,12 +67,11 @@ class MaterialMakingController extends Controller
             return back()->withErrors(['date' => 'تاریخ شمسی نادرست است.'])->withInput();
         }
 
-        // تبدیل وزن بالمیل از کیلوگرم به گرم
         $millWeightGram = (float) $validated['mill_weight'] * 1000;
 
         DB::beginTransaction();
         try {
-            MaterialMaking::create([
+            $record = MaterialMaking::create([
                 'year'        => $year,
                 'month'       => $month,
                 'day'         => $day,
@@ -83,14 +79,15 @@ class MaterialMakingController extends Controller
                 'material'    => $validated['material'],
                 'quantity'    => $validated['quantity'],
                 'mill_weight' => $millWeightGram,
-                'is_imported' => false, // ✅ دستی
+                'is_imported' => false,
             ]);
 
-            // ✅ کسر از مواد اولیه (چون دستی ثبت کردیم)
             $this->subtractMaterialsForFormula(
                 $validated['material'],
                 $validated['quantity'],
-                $millWeightGram
+                $millWeightGram,
+                $record->id,
+                $validated['name'] ?? null
             );
 
             DB::commit();
@@ -110,7 +107,13 @@ class MaterialMakingController extends Controller
         try {
             $record = MaterialMaking::findOrFail($id);
 
-            $this->addMaterialsForFormula($record->material, $record->quantity, $record->mill_weight);
+            $this->addMaterialsForFormula(
+                $record->material,
+                $record->quantity,
+                $record->mill_weight,
+                $record->name,
+                'حذف رکورد مواد سازی'
+            );
 
             session(['undo_record' => [
                 'class' => MaterialMaking::class,
@@ -145,7 +148,13 @@ class MaterialMakingController extends Controller
         DB::beginTransaction();
         try {
             foreach ($records as $record) {
-                $this->addMaterialsForFormula($record->material, $record->quantity, $record->mill_weight);
+                $this->addMaterialsForFormula(
+                    $record->material,
+                    $record->quantity,
+                    $record->mill_weight,
+                    $record->name,
+                    'حذف گروهی مواد سازی'
+                );
             }
 
             session(['undo_record' => [
@@ -170,18 +179,20 @@ class MaterialMakingController extends Controller
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ حذف ایمپورتی‌ها (اکسل)
-    // ═══════════════════════════════════════════════════════════
     public function clearImported()
     {
         DB::beginTransaction();
         try {
             $records = MaterialMaking::where('is_imported', true)->get();
 
-            // برگرداندن مواد اولیه به انبار
             foreach ($records as $record) {
-                $this->addMaterialsForFormula($record->material, $record->quantity, $record->mill_weight);
+                $this->addMaterialsForFormula(
+                    $record->material,
+                    $record->quantity,
+                    $record->mill_weight,
+                    $record->name,
+                    'حذف ایمپورت اکسل مواد سازی'
+                );
             }
 
             $count = $records->count();
@@ -198,9 +209,6 @@ class MaterialMakingController extends Controller
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ حذف دستی‌ها
-    // ═══════════════════════════════════════════════════════════
     public function clearManual()
     {
         DB::beginTransaction();
@@ -210,7 +218,13 @@ class MaterialMakingController extends Controller
             })->get();
 
             foreach ($records as $record) {
-                $this->addMaterialsForFormula($record->material, $record->quantity, $record->mill_weight);
+                $this->addMaterialsForFormula(
+                    $record->material,
+                    $record->quantity,
+                    $record->mill_weight,
+                    $record->name,
+                    'حذف دستی مواد سازی'
+                );
             }
 
             $count = $records->count();
@@ -230,10 +244,7 @@ class MaterialMakingController extends Controller
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ کسر مواد اولیه (برای ثبت دستی) + ثبت لاگ
-    // ═══════════════════════════════════════════════════════════
-    private function subtractMaterialsForFormula($formulaName, $quantity, $millWeight)
+    private function subtractMaterialsForFormula($formulaName, $quantity, $millWeight, $materialMakingId, $name = null)
     {
         $millWeightKg = $millWeight / 1000;
         $totalKg = $quantity * $millWeightKg;
@@ -244,6 +255,8 @@ class MaterialMakingController extends Controller
             return;
         }
 
+        $changes = [];
+
         foreach ($formula->items as $item) {
             $consumedKg = ($totalKg * $item->percentage) / 100;
             $consumedGram = $consumedKg * 1000;
@@ -253,30 +266,44 @@ class MaterialMakingController extends Controller
                 $oldStock = (float) $rawMaterial->stock;
                 $newStock = max(0, $oldStock - $consumedGram);
 
-                // ✅ ثبت لاگ
                 if ($oldStock != $newStock) {
-                    InventoryChangeLog::log(
-                        $rawMaterial,
-                        'stock',
-                        $oldStock,
-                        $newStock,
-                        'adjust',
-                        null,
-                        'manual_material_making',
-                        'مواد سازی دستی - ' . $formulaName
-                    );
+                    $changes[] = [
+                        'id'       => $rawMaterial->id,
+                        'material' => $rawMaterial->name,
+                        'old'      => $oldStock,
+                        'new'      => $newStock,
+                    ];
                 }
 
                 $rawMaterial->stock = $newStock;
                 $rawMaterial->save();
             }
         }
+
+        if (empty($changes)) {
+            return;
+        }
+
+        $details = $this->buildDetailsText(
+            'ثبت دستی در مواد سازی',
+            $quantity,
+            $formulaName,
+            $millWeight,
+            $name,
+            $changes,
+            'کاهش'
+        );
+
+        InventoryChangeLog::logEvent(
+            'App\Models\RawMaterial',
+            $changes[0]['id'],
+            'manual_material_making',
+            'ثبت دستی در مواد سازی',
+            $details
+        );
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ برگرداندن مواد اولیه (برای حذف) + ثبت لاگ
-    // ═══════════════════════════════════════════════════════════
-    private function addMaterialsForFormula($formulaName, $quantity, $millWeight)
+    private function addMaterialsForFormula($formulaName, $quantity, $millWeight, $name = null, $actionTitle = 'برگشت مواد')
     {
         $millWeightKg = $millWeight / 1000;
         $totalKg = $quantity * $millWeightKg;
@@ -287,6 +314,8 @@ class MaterialMakingController extends Controller
             return;
         }
 
+        $changes = [];
+
         foreach ($formula->items as $item) {
             $consumedKg = ($totalKg * $item->percentage) / 100;
             $consumedGram = $consumedKg * 1000;
@@ -296,23 +325,73 @@ class MaterialMakingController extends Controller
                 $oldStock = (float) $rawMaterial->stock;
                 $newStock = $oldStock + $consumedGram;
 
-                // ✅ ثبت لاگ برگشت
                 if ($oldStock != $newStock) {
-                    InventoryChangeLog::log(
-                        $rawMaterial,
-                        'stock',
-                        $oldStock,
-                        $newStock,
-                        'adjust',
-                        null,
-                        'manual_material_making_return',
-                        'برگشت مواد سازی دستی - ' . $formulaName
-                    );
+                    $changes[] = [
+                        'id'       => $rawMaterial->id,
+                        'material' => $rawMaterial->name,
+                        'old'      => $oldStock,
+                        'new'      => $newStock,
+                    ];
                 }
 
                 $rawMaterial->stock = $newStock;
                 $rawMaterial->save();
             }
         }
+
+        if (empty($changes)) {
+            return;
+        }
+
+        $details = $this->buildDetailsText(
+            $actionTitle,
+            $quantity,
+            $formulaName,
+            $millWeight,
+            $name,
+            $changes,
+            'افزایش'
+        );
+
+        InventoryChangeLog::logEvent(
+            'App\Models\RawMaterial',
+            $changes[0]['id'],
+            'manual_material_making_return',
+            $actionTitle,
+            $details
+        );
+    }
+
+    private function buildDetailsText($title, $quantity, $formulaName, $millWeightGram, $name, array $changes, $actionLabel)
+    {
+        $lines = [];
+
+        $lines[] = '📋 ' . $title;
+
+        $mabna = ($name !== null && $name !== '') ? "«{$name}» " : '';
+        $lines[] = sprintf(
+            '🔹 %s بالمیل %sبا فرمول «%s» با وزن %s گرم ساخته شد',
+            number_format($quantity),
+            $mabna,
+            $formulaName,
+            number_format($millWeightGram)
+        );
+
+        $lines[] = "📦 موجودی مواد اولیه به شرح زیر {$actionLabel} یافت:";
+
+        foreach ($changes as $c) {
+            $delta = $c['new'] - $c['old'];
+
+            // ✅ فرمت: CHANGE|نام ماده|قدیم|جدید|دلتا
+            $lines[] = sprintf(
+                'CHANGE|%s|%d|%d|%d',
+                $c['material'],
+                (int) round($c['old']),
+                (int) round($c['new']),
+                (int) round($delta)
+            );
+        }
+
+        return implode("\n", $lines);
     }
 }

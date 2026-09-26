@@ -17,6 +17,7 @@ class ShuttleFiringController extends Controller
     public function index(Request $request)
     {
         $filterKiln = $request->query('kiln');
+        $source = $request->input('source', 'all');
 
         $query = ShuttleFiring::with('product')
             ->orderBy('date', 'desc')
@@ -24,6 +25,14 @@ class ShuttleFiringController extends Controller
 
         if ($filterKiln && $filterKiln !== 'all') {
             $query->where('kiln_type', $filterKiln);
+        }
+
+        if ($source === 'manual') {
+            $query->where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            });
+        } elseif ($source === 'imported') {
+            $query->where('is_imported', true);
         }
 
         $allFirings = $query->get();
@@ -46,6 +55,7 @@ class ShuttleFiringController extends Controller
                 'total_quantity' => $items->sum('output_quantity'),
                 'products_count' => $items->count(),
                 'is_packaged' => $items->contains('is_packaged', true),
+                'is_imported' => $items->contains('is_imported', true),
             ];
         })->values();
 
@@ -64,7 +74,7 @@ class ShuttleFiringController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        return view('shuttle.index', compact('paginated', 'allKilnCounts', 'filterKiln'));
+        return view('shuttle.index', compact('paginated', 'allKilnCounts', 'filterKiln', 'source'));
     }
 
     public function create()
@@ -74,6 +84,9 @@ class ShuttleFiringController extends Controller
         return view('shuttle.create', compact('products', 'today'));
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ثبت پخت شاتل — یک لاگ واحد
+    // ═══════════════════════════════════════════════════════════
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -125,6 +138,9 @@ class ShuttleFiringController extends Controller
 
             $newFiringNumber = $maxNumber + 1;
 
+            $product = Product::find($validated['product_id']);
+
+            // ✅ ثبت دستی → is_imported = false
             $firing = ShuttleFiring::create([
                 'date' => $gregorianDate,
                 'kiln_type' => $kilnType,
@@ -136,10 +152,17 @@ class ShuttleFiringController extends Controller
                 'year' => $yearNum,
                 'month' => $monthNum,
                 'day' => $dayNum,
+                'is_imported' => false,
             ]);
 
-            // ✅ اعمال تغییرات موجودی + لاگ
-            $this->applyInventoryForFiring($firing, 'add');
+            $this->applyInventoryForFiringWithLog(
+                $firing,
+                'add',
+                $validated['date'],
+                $validated['total_quantity'],
+                $validated['main_quantity'],
+                $validated['waste']
+            );
 
             DB::commit();
             return redirect()->route('shuttle.index')
@@ -253,8 +276,14 @@ class ShuttleFiringController extends Controller
 
         DB::beginTransaction();
         try {
-            // ✅ برگرداندن اثر قبلی
-            $this->applyInventoryForFiring($firing, 'return');
+            $this->applyInventoryForFiringWithLog(
+                $firing,
+                'return',
+                $firing->jalali_date,
+                0,
+                $firing->output_quantity,
+                0
+            );
 
             $firing->update([
                 'date' => $gregorianDate,
@@ -265,9 +294,16 @@ class ShuttleFiringController extends Controller
                 'is_packaged' => $packaged,
             ]);
 
-            // ✅ اعمال اثر جدید
             $firing->refresh();
-            $this->applyInventoryForFiring($firing, 'add');
+
+            $this->applyInventoryForFiringWithLog(
+                $firing,
+                'add',
+                $validated['date'],
+                $validated['total_quantity'],
+                $validated['main_quantity'],
+                $validated['waste']
+            );
 
             DB::commit();
             return redirect()->route('shuttle.index')
@@ -289,8 +325,14 @@ class ShuttleFiringController extends Controller
 
         DB::beginTransaction();
         try {
-            // ✅ برگرداندن اثر
-            $this->applyInventoryForFiring($firing, 'return');
+            $this->applyInventoryForFiringWithLog(
+                $firing,
+                'return',
+                $firing->jalali_date,
+                0,
+                $firing->output_quantity,
+                0
+            );
 
             ShuttleFiring::where('year', $year)
                 ->where('month', $month)
@@ -308,152 +350,189 @@ class ShuttleFiringController extends Controller
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ اعمال تغییرات موجودی و لاگ‌گیری
-    //  @param string $action = 'add' (ثبت) یا 'return' (برگشت)
-    // ═══════════════════════════════════════════════════════════
-    private function applyInventoryForFiring(ShuttleFiring $firing, $action = 'add')
+    public function clearImported()
     {
+        DB::beginTransaction();
+        try {
+            $count = ShuttleFiring::where('is_imported', true)->count();
+            ShuttleFiring::where('is_imported', true)->delete();
+
+            DB::commit();
+
+            return redirect()->route('shuttle.index')
+                ->with('success', "✅ {$count} پخت شاتل ایمپورتی (اکسل) پاک شد.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('shuttle.index')
+                ->with('error', 'خطا در حذف: ' . $e->getMessage());
+        }
+    }
+
+    public function clearManual()
+    {
+        DB::beginTransaction();
+        try {
+            $records = ShuttleFiring::where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            })->get();
+
+            $count = 0;
+            foreach ($records as $firing) {
+                $this->applyInventoryForFiringWithLog(
+                    $firing,
+                    'return',
+                    $firing->jalali_date,
+                    0,
+                    $firing->output_quantity,
+                    0
+                );
+                $firing->delete();
+                $count++;
+            }
+
+            DB::commit();
+
+            return redirect()->route('shuttle.index')
+                ->with('success', "✅ {$count} پخت شاتل دستی پاک شد و موجودی اصلاح شد.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('shuttle.index')
+                ->with('error', 'خطا در حذف: ' . $e->getMessage());
+        }
+    }
+
+    private function applyInventoryForFiringWithLog(
+        ShuttleFiring $firing,
+        $action,
+        $jalaliDate,
+        $totalQty,
+        $mainQty,
+        $waste
+    ) {
         $product = $firing->product;
         if (!$product) return;
 
         $qty = (float) $firing->output_quantity;
         $kilnType = $firing->kiln_type;
         $isPackaged = (int) $firing->is_packaged;
-
-        // ضریب: +1 برای add، -1 برای return
         $sign = ($action === 'add') ? 1 : -1;
 
-        // ═══════════════════════════════════════════════════════════
-        //  کوره ۱ (معمولی)
-        // ═══════════════════════════════════════════════════════════
+        $changes = [];
+
         if ($kilnType === 'kiln_1') {
             if ($isPackaged && $qty > 0) {
-                $this->changeStock(
-                    WarehouseInventory::class, $product->id,
-                    $qty * $sign,
-                    'shuttle_kiln_1',
-                    ($action === 'add' ? 'پخت کوره ۱' : 'برگشت پخت کوره ۱'),
-                    $product->name
-                );
+                $this->collectStock($changes, WarehouseInventory::class, $product->id, $qty * $sign, $product->name, 'انبار');
             }
         }
-        // ═══════════════════════════════════════════════════════════
-        //  کوره ۲ (۱۳۰۰ درجه)
-        // ═══════════════════════════════════════════════════════════
         elseif ($kilnType === 'kiln_2') {
             if ($qty > 0) {
-                // خروجی به ۱۳۰۰ اضافه می‌شود
-                $this->changeStock(
-                    Glaze1300Inventory::class, $product->id,
-                    $qty * $sign,
-                    'shuttle_kiln_2',
-                    ($action === 'add' ? 'پخت کوره ۲ (۱۳۰۰)' : 'برگشت پخت کوره ۲ (۱۳۰۰)'),
-                    $product->name
-                );
-
-                // اگه بسته‌بندی شده: از ۱۳۰۰ کم می‌شود و به انبار اضافه می‌شود
+                $this->collectStock($changes, Glaze1300Inventory::class, $product->id, $qty * $sign, $product->name, '۱۳۰۰');
                 if ($isPackaged) {
-                    $this->changeStock(
-                        Glaze1300Inventory::class, $product->id,
-                        -$qty * $sign,
-                        'shuttle_kiln_2_packaged',
-                        ($action === 'add' ? 'بسته‌بندی از کوره ۲' : 'برگشت بسته‌بندی از کوره ۲'),
-                        $product->name
-                    );
-                    $this->changeStock(
-                        WarehouseInventory::class, $product->id,
-                        $qty * $sign,
-                        'shuttle_kiln_2',
-                        ($action === 'add' ? 'پخت کوره ۲ (بسته‌بندی)' : 'برگشت پخت کوره ۲'),
-                        $product->name
-                    );
+                    $this->collectStock($changes, Glaze1300Inventory::class, $product->id, -$qty * $sign, $product->name, '۱۳۰۰ (خروج برای بسته‌بندی)');
+                    $this->collectStock($changes, WarehouseInventory::class, $product->id, $qty * $sign, $product->name, 'انبار');
                 }
             }
         }
-        // ═══════════════════════════════════════════════════════════
-        //  کوره ۳
-        // ═══════════════════════════════════════════════════════════
         elseif ($kilnType === 'kiln_3') {
-            if ($qty > 0) {
-                if ($firing->firing_subtype === 'mum') {
-                    // موم → موجودی موم
-                    $this->changeStock(
-                        WaxInventory::class, $product->id,
-                        $qty * $sign,
-                        'shuttle_kiln_3_mum',
-                        ($action === 'add' ? 'پخت کوره ۳ (موم)' : 'برگشت پخت کوره ۳ (موم)'),
-                        $product->name
-                    );
-                }
-                // لعاب → فقط رکورد، موجودی خاصی تغییر نمی‌کند
+            if ($qty > 0 && $firing->firing_subtype === 'mum') {
+                $this->collectStock($changes, WaxInventory::class, $product->id, $qty * $sign, $product->name, 'موم');
             }
         }
-        // ═══════════════════════════════════════════════════════════
-        //  کوره ۴
-        // ═══════════════════════════════════════════════════════════
         elseif ($kilnType === 'kiln_4') {
             if ($isPackaged && $qty > 0) {
-                // از ۱۳۰۰ کم می‌شود و به انبار اضافه می‌شود
-                $this->changeStock(
-                    Glaze1300Inventory::class, $product->id,
-                    -$qty * $sign,
-                    'shuttle_kiln_4_packaged',
-                    ($action === 'add' ? 'بسته‌بندی از کوره ۴' : 'برگشت بسته‌بندی از کوره ۴'),
-                    $product->name
-                );
-                $this->changeStock(
-                    WarehouseInventory::class, $product->id,
-                    $qty * $sign,
-                    'shuttle_kiln_4',
-                    ($action === 'add' ? 'پخت کوره ۴ (بسته‌بندی)' : 'برگشت پخت کوره ۴'),
-                    $product->name
-                );
+                $this->collectStock($changes, Glaze1300Inventory::class, $product->id, -$qty * $sign, $product->name, '۱۳۰۰ (خروج برای بسته‌بندی)');
+                $this->collectStock($changes, WarehouseInventory::class, $product->id, $qty * $sign, $product->name, 'انبار');
             }
         }
-        // ═══════════════════════════════════════════════════════════
-        //  فقط بسته‌بندی
-        // ═══════════════════════════════════════════════════════════
         elseif ($kilnType === 'packaging') {
             if ($qty > 0) {
-                $this->changeStock(
-                    WarehouseInventory::class, $product->id,
-                    $qty * $sign,
-                    'shuttle_packaging',
-                    ($action === 'add' ? 'بسته‌بندی محصول' : 'برگشت بسته‌بندی محصول'),
-                    $product->name
-                );
+                $this->collectStock($changes, WarehouseInventory::class, $product->id, $qty * $sign, $product->name, 'انبار');
             }
+        }
+
+        if (!empty($changes)) {
+            $title = ($action === 'add') ? 'ثبت پخت شاتل' : 'برگشت پخت شاتل';
+            $details = $this->buildShuttleDetails(
+                $title,
+                $jalaliDate,
+                $firing,
+                $product,
+                $totalQty,
+                $mainQty,
+                $waste,
+                $changes,
+                $action
+            );
+            InventoryChangeLog::logEvent(
+                'App\Models\WarehouseInventory',
+                $product->id,
+                ($action === 'add' ? 'shuttle' : 'shuttle_return'),
+                $title,
+                $details
+            );
         }
     }
 
-    /**
-     * ✅ تغییر موجودی + لاگ
-     */
-    private function changeStock($modelClass, $productId, $delta, $source, $desc, $productName)
+    private function collectStock(&$changes, $modelClass, $productId, $delta, $productName, $inventoryType)
     {
         if (abs($delta) < 0.001) return;
 
         $inv = $modelClass::firstOrCreate(['product_id' => $productId]);
-        $oldStock = (float) $inv->stock;
-        $newStock = max(0, $oldStock + $delta);
+        $old = (float) $inv->stock;
+        $new = max(0, $old + $delta);
 
-        if ($oldStock == $newStock) return;
+        if ($old == $new) return;
 
-        $inv->stock = $newStock;
+        $inv->stock = $new;
         $inv->save();
 
-        InventoryChangeLog::log(
-            $inv, 'stock', $oldStock, $newStock,
-            'adjust', $productId,
-            $source,
-            "{$desc} - {$productName}"
-        );
+        $changes[] = [
+            'inventory' => $inventoryType,
+            'product'   => $productName,
+            'old'       => $old,
+            'new'       => $new,
+        ];
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  توابع کمکی
-    // ═══════════════════════════════════════════════════════════
+    private function buildShuttleDetails($title, $jalaliDate, $firing, $product, $totalQty, $mainQty, $waste, array $changes, $action)
+    {
+        $lines = [];
+        $lines[] = '📋 ' . $title;
+        $lines[] = "🔹 تاریخ: {$jalaliDate}";
+
+        $kilnDisplay = $this->getKilnDisplayName($firing->kiln_type);
+        $firingTypeDisplay = $this->getFiringType($firing);
+        $packagedText = $firing->is_packaged ? ' — بسته‌بندی‌شده' : '';
+        $lines[] = "🔹 کوره «{$kilnDisplay}» — نوع پخت: {$firingTypeDisplay}{$packagedText}";
+        $lines[] = "🔹 محصول «{$product->name}» — تعداد اصلی: " . number_format($mainQty) . " عدد";
+        if ($totalQty > 0) $lines[] = "🔹 تعداد کل: " . number_format($totalQty) . " عدد";
+        if ($waste > 0) $lines[] = "🔹 ضایعات: " . number_format($waste) . " عدد";
+
+        $lines[] = '📦 تغییرات موجودی به شرح زیر اعمال شد:';
+        $lines[] = '📌 موجودی‌ها:';
+
+        foreach ($changes as $c) {
+            $delta = $c['new'] - $c['old'];
+            $lines[] = sprintf(
+                'CHANGE_RAW|%s (%s)|%d|%d|%d',
+                $c['product'],
+                $c['inventory'],
+                (int) round($c['old']),
+                (int) round($c['new']),
+                (int) round($delta)
+            );
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function getKilnDisplayName($kilnType)
+    {
+        if ($kilnType === 'packaging') return 'بسته‌بندی';
+        if (str_starts_with($kilnType, 'kiln_')) return 'کوره ' . substr($kilnType, 5);
+        return 'نامشخص';
+    }
+
     private function mapKilnNumberToType($kilnNumber, $firingType = null)
     {
         $kilnNumber = trim($kilnNumber);

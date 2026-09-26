@@ -51,10 +51,18 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/productions/clear-imported', [ProductionController::class, 'clearImported'])->name('productions.clear-imported');
     Route::delete('/productions/clear-manual', [ProductionController::class, 'clearManual'])->name('productions.clear-manual');
 
-    // کوره تونلی
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ کوره تونلی
+    // ═══════════════════════════════════════════════════════════
+    Route::delete('/tonneli/clear-imported', [TonneliFiringController::class, 'clearImported'])->name('tonneli.clear-imported');
+    Route::delete('/tonneli/clear-manual', [TonneliFiringController::class, 'clearManual'])->name('tonneli.clear-manual');
     Route::resource('tonneli', TonneliFiringController::class);
 
-    // کوره شاتل
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ کوره شاتل
+    // ═══════════════════════════════════════════════════════════
+    Route::delete('/shuttle/clear-imported', [ShuttleFiringController::class, 'clearImported'])->name('shuttle.clear-imported');
+    Route::delete('/shuttle/clear-manual', [ShuttleFiringController::class, 'clearManual'])->name('shuttle.clear-manual');
     Route::get('/shuttle', [ShuttleFiringController::class, 'index'])->name('shuttle.index');
     Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create');
     Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store');
@@ -63,7 +71,11 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update');
     Route::delete('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy');
 
-    // فروش رسمی
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ فروش رسمی
+    // ═══════════════════════════════════════════════════════════
+    Route::delete('/sales/clear-imported', [SaleController::class, 'clearImported'])->name('sales.clear-imported');
+    Route::delete('/sales/clear-manual', [SaleController::class, 'clearManual'])->name('sales.clear-manual');
     Route::resource('sales', SaleController::class);
     Route::post('/sales/{sale}/mark-paid', [SaleController::class, 'markAsPaid'])->name('sales.mark-paid');
     Route::post('/sales/{sale}/cancel', [SaleController::class, 'cancel'])->name('sales.cancel');

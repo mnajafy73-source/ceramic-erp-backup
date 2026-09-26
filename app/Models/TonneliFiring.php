@@ -13,10 +13,12 @@ class TonneliFiring extends Model
 
     protected $fillable = [
         'date',
+        'is_imported',
     ];
 
     protected $casts = [
         'date' => 'date',
+        'is_imported' => 'boolean',
     ];
 
     public function items()

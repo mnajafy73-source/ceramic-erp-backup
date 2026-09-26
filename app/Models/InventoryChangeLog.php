@@ -18,6 +18,7 @@ class InventoryChangeLog extends Model
         'mode',
         'source',
         'description',
+        'details',
         'user_id',
     ];
 
@@ -26,9 +27,6 @@ class InventoryChangeLog extends Model
         'new_value' => 'decimal:2',
     ];
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ برچسب‌های فارسی برای منبع تغییر
-    // ═══════════════════════════════════════════════════════════
     public const SOURCE_LABELS = [
         // ─── ویرایش دستی ───
         'manual_warehouse'         => 'ویرایش دستی موجودی انبار',
@@ -50,7 +48,7 @@ class InventoryChangeLog extends Model
         'manual_reset_all'         => 'صفر کردن همه موجودی‌ها',
 
         // ─── مواد سازی دستی ───
-        'manual_material_making'        => 'مواد سازی دستی',
+        'manual_material_making'        => 'ثبت دستی مواد سازی',
         'manual_material_making_return' => 'برگشت مواد سازی دستی',
 
         // ─── ایمپورت ───
@@ -82,7 +80,7 @@ class InventoryChangeLog extends Model
         'production'          => 'ثبت تولید',
         'production_return'   => 'برگشت تولید',
 
-        // ─── کوره تونلی (دستی) ───
+        // ─── کوره تونلی ───
         'tonneli_input'              => 'ورودی کوره تونلی',
         'tonneli_input_return'       => 'برگشت ورودی کوره تونلی',
         'tonneli_packaged'           => 'پخت تونلی - بسته‌بندی‌شده',
@@ -116,9 +114,6 @@ class InventoryChangeLog extends Model
         return self::SOURCE_LABELS[$this->source] ?? $this->source;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ برچسب فارسی برای نوع موجودی
-    // ═══════════════════════════════════════════════════════════
     public function getInventoryTypeLabelAttribute(): string
     {
         $type = $this->loggable_type;
@@ -154,9 +149,6 @@ class InventoryChangeLog extends Model
         };
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ اسم کالا
-    // ═══════════════════════════════════════════════════════════
     public function getSubjectNameAttribute(): ?string
     {
         static $cache = [];
@@ -230,6 +222,11 @@ class InventoryChangeLog extends Model
         return 'secondary';
     }
 
+    public function getHasDetailsAttribute(): bool
+    {
+        return !empty($this->details);
+    }
+
     public function loggable()
     {
         return $this->morphTo();
@@ -259,6 +256,28 @@ class InventoryChangeLog extends Model
             'mode'          => $mode,
             'source'        => $source,
             'description'   => $description,
+            'user_id'       => auth()->id(),
+        ]);
+    }
+
+    public static function logEvent(
+        $loggableType,
+        $loggableId,
+        $source,
+        $description,
+        $details,
+        $field = 'stock'
+    ) {
+        return self::create([
+            'loggable_type' => $loggableType,
+            'loggable_id'   => $loggableId,
+            'field'         => $field,
+            'old_value'     => 0,
+            'new_value'     => 0,
+            'mode'          => 'event',
+            'source'        => $source,
+            'description'   => $description,
+            'details'       => $details,
             'user_id'       => auth()->id(),
         ]);
     }

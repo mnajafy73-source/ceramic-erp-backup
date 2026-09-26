@@ -61,10 +61,35 @@ class SaleController extends Controller
 
     // ==================== متدهای اصلی ====================
 
-    public function index()
+    public function index(Request $request)
     {
-        $sales = Sale::orderBy('date', 'desc')->orderBy('id', 'desc')->paginate(15);
-        return view('sales.index', compact('sales'));
+        $source = $request->input('source', 'all');
+        $status = $request->input('status', 'all');
+
+        $query = Sale::orderBy('date', 'desc')->orderBy('id', 'desc');
+
+        if ($source === 'manual') {
+            $query->where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            });
+        } elseif ($source === 'imported') {
+            $query->where('is_imported', true);
+        }
+
+        if ($status !== 'all' && in_array($status, ['pending', 'paid', 'cancelled'])) {
+            $query->where('status', $status);
+        }
+
+        $sales = $query->paginate(15)->appends($request->all());
+
+        $statusCounts = [
+            'all'       => Sale::count(),
+            'pending'   => Sale::where('status', 'pending')->count(),
+            'paid'      => Sale::where('status', 'paid')->count(),
+            'cancelled' => Sale::where('status', 'cancelled')->count(),
+        ];
+
+        return view('sales.index', compact('sales', 'source', 'status', 'statusCounts'));
     }
 
     public function create()
@@ -77,6 +102,9 @@ class SaleController extends Controller
         return view('sales.create', compact('products', 'today', 'defaultTax'));
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ثبت فاکتور جدید
+    // ═══════════════════════════════════════════════════════════
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -90,6 +118,7 @@ class SaleController extends Controller
             'products.*.unit_price' => 'required|numeric|min:0',
         ]);
 
+        DB::statement('PRAGMA foreign_keys = OFF');
         DB::beginTransaction();
 
         try {
@@ -107,6 +136,7 @@ class SaleController extends Controller
                 'total_price' => $totalPrice,
                 'total_with_tax' => $totalWithTax,
                 'status' => 'pending',
+                'is_imported' => false,
             ]);
 
             foreach ($validated['products'] as $item) {
@@ -122,10 +152,13 @@ class SaleController extends Controller
             }
 
             DB::commit();
+            DB::statement('PRAGMA foreign_keys = ON');
+
             return redirect()->route('sales.index')->with('success', "فاکتور شماره {$validated['invoice_number']} با موفقیت ثبت شد.");
 
         } catch (\Exception $e) {
             DB::rollBack();
+            DB::statement('PRAGMA foreign_keys = ON');
             return back()->withErrors(['error' => 'خطا در ثبت فاکتور: ' . $e->getMessage()]);
         }
     }
@@ -149,6 +182,9 @@ class SaleController extends Controller
         return view('sales.edit', compact('sale', 'products'));
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ویرایش فاکتور
+    // ═══════════════════════════════════════════════════════════
     public function update(Request $request, Sale $sale)
     {
         if ($sale->status !== 'pending') {
@@ -166,10 +202,10 @@ class SaleController extends Controller
             'products.*.unit_price' => 'required|numeric|min:0',
         ]);
 
+        DB::statement('PRAGMA foreign_keys = OFF');
         DB::beginTransaction();
 
         try {
-            // برگرداندن موجودی قبلی
             foreach ($sale->products as $oldProduct) {
                 $calc = $this->calculateBoxAndLayer($oldProduct->product_id, $oldProduct->quantity);
                 $this->increaseStock($oldProduct->product_id, $oldProduct->quantity, $calc['box'], $calc['layer'], $calc['pallet']);
@@ -205,14 +241,20 @@ class SaleController extends Controller
             }
 
             DB::commit();
+            DB::statement('PRAGMA foreign_keys = ON');
+
             return redirect()->route('sales.index')->with('success', 'فاکتور با موفقیت ویرایش شد.');
 
         } catch (\Exception $e) {
             DB::rollBack();
+            DB::statement('PRAGMA foreign_keys = ON');
             return back()->withErrors(['error' => 'خطا در ویرایش فاکتور: ' . $e->getMessage()]);
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حذف فاکتور
+    // ═══════════════════════════════════════════════════════════
     public function destroy(Sale $sale)
     {
         if ($sale->status === 'paid') {
@@ -232,6 +274,7 @@ class SaleController extends Controller
             ]]);
         }
 
+        DB::statement('PRAGMA foreign_keys = OFF');
         DB::beginTransaction();
 
         try {
@@ -242,13 +285,18 @@ class SaleController extends Controller
                 }
             }
 
+            // ✅ اول product ها رو پاک کن، بعد خود sale
+            $sale->products()->delete();
             $sale->delete();
+
             DB::commit();
+            DB::statement('PRAGMA foreign_keys = ON');
 
             return redirect()->route('sales.index')->with('success', 'فاکتور با موفقیت حذف شد.');
 
         } catch (\Exception $e) {
             DB::rollBack();
+            DB::statement('PRAGMA foreign_keys = ON');
             return back()->withErrors(['error' => 'خطا در حذف فاکتور: ' . $e->getMessage()]);
         }
     }
@@ -265,12 +313,16 @@ class SaleController extends Controller
         return back()->with('success', 'وضعیت فاکتور به "پرداخت شده" تغییر کرد.');
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ باطل کردن فاکتور
+    // ═══════════════════════════════════════════════════════════
     public function cancel(Sale $sale)
     {
         if ($sale->status === 'cancelled') {
             return back()->with('error', 'فاکتور قبلاً باطل شده است.');
         }
 
+        DB::statement('PRAGMA foreign_keys = OFF');
         DB::beginTransaction();
 
         try {
@@ -285,11 +337,84 @@ class SaleController extends Controller
             $sale->save();
 
             DB::commit();
+            DB::statement('PRAGMA foreign_keys = ON');
+
             return back()->with('success', 'فاکتور با موفقیت باطل شد و موجودی برگردانده شد.');
 
         } catch (\Exception $e) {
             DB::rollBack();
+            DB::statement('PRAGMA foreign_keys = ON');
             return back()->withErrors(['error' => 'خطا در باطل کردن فاکتور: ' . $e->getMessage()]);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حذف رکوردهای ایمپورتی
+    // ═══════════════════════════════════════════════════════════
+    public function clearImported()
+    {
+        DB::statement('PRAGMA foreign_keys = OFF');
+        DB::beginTransaction();
+
+        try {
+            $ids = Sale::where('is_imported', true)->pluck('id')->toArray();
+            $count = count($ids);
+
+            if ($count > 0) {
+                SaleProduct::whereIn('sale_id', $ids)->delete();
+                Sale::whereIn('id', $ids)->delete();
+            }
+
+            DB::commit();
+            DB::statement('PRAGMA foreign_keys = ON');
+
+            return redirect()->route('sales.index')
+                ->with('success', "✅ {$count} فاکتور رسمی ایمپورتی (اکسل) پاک شد.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            DB::statement('PRAGMA foreign_keys = ON');
+            return redirect()->route('sales.index')
+                ->with('error', 'خطا در حذف: ' . $e->getMessage());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حذف رکوردهای دستی
+    // ═══════════════════════════════════════════════════════════
+    public function clearManual()
+    {
+        DB::statement('PRAGMA foreign_keys = OFF');
+        DB::beginTransaction();
+
+        try {
+            $records = Sale::where(function ($q) {
+                $q->where('is_imported', false)->orWhereNull('is_imported');
+            })->with('products')->get();
+
+            $count = 0;
+            foreach ($records as $sale) {
+                if ($sale->status === 'pending') {
+                    foreach ($sale->products as $product) {
+                        $calc = $this->calculateBoxAndLayer($product->product_id, $product->quantity);
+                        $this->increaseStock($product->product_id, $product->quantity, $calc['box'], $calc['layer'], $calc['pallet']);
+                    }
+                }
+
+                $sale->products()->delete();
+                $sale->delete();
+                $count++;
+            }
+
+            DB::commit();
+            DB::statement('PRAGMA foreign_keys = ON');
+
+            return redirect()->route('sales.index')
+                ->with('success', "✅ {$count} فاکتور رسمی دستی پاک شد و موجودی اصلاح شد.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            DB::statement('PRAGMA foreign_keys = ON');
+            return redirect()->route('sales.index')
+                ->with('error', 'خطا در حذف: ' . $e->getMessage());
         }
     }
 }

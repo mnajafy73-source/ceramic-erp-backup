@@ -39,12 +39,11 @@
         border-right: 4px solid #dee2e6;
         transition: background 0.15s;
     }
-    .log-row:hover {
-        background: #f8f9fa;
-    }
-    .log-row.positive { border-right-color: #198754; }
-    .log-row.negative { border-right-color: #dc3545; }
+    .log-row:hover { background: #f8f9fa; }
+    .log-row.positive { border-right-color: #0a8754; }
+    .log-row.negative { border-right-color: #c1121f; }
     .log-row.neutral  { border-right-color: #6c757d; }
+    .log-row.event    { border-right-color: #0d6efd; background: #f8f9ff; }
 
     .log-subject-name {
         font-size: 15px;
@@ -54,10 +53,7 @@
         align-items: center;
         gap: 6px;
     }
-    .log-subject-name i {
-        color: #0d6efd;
-        font-size: 14px;
-    }
+    .log-subject-name i { color: #0d6efd; font-size: 14px; }
 
     .log-source {
         font-size: 12px;
@@ -67,50 +63,103 @@
         gap: 4px;
     }
     .log-delta {
-        font-weight: bold;
-        font-size: 16px;
+        font-weight: 900;
+        font-size: 17px;
         font-family: 'Courier New', monospace;
     }
-    .log-description {
-        font-size: 12px;
-        color: #6c757d;
+    .log-delta.text-success { color: #0a8754 !important; }
+    .log-delta.text-danger  { color: #c1121f !important; }
+    .log-description { font-size: 12px; color: #6c757d; margin-top: 6px; }
+    .log-time { font-size: 12px; color: #6c757d; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: #adb5bd; }
+    .empty-state i { font-size: 64px; margin-bottom: 16px; opacity: 0.3; }
+
+    .quick-dates { display: flex; gap: 6px; flex-wrap: wrap; }
+    .quick-dates .btn { border-radius: 20px; font-weight: 600; font-size: 12px; padding: 5px 12px; }
+
+    .datepicker-plot-area { font-family: Tahoma, sans-serif !important; }
+
+    .select2-container--bootstrap-5 .select2-selection { font-size: 14px; }
+
+    /* ═══════════════════════════════════════════════════════════
+       استایل جزئیات رویداد
+       ═══════════════════════════════════════════════════════════ */
+    .log-details-box {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 6px 10px;
         margin-top: 6px;
+        font-size: 13px;
+        line-height: 1.4;
+        font-family: Tahoma, sans-serif;
+        color: #343a40;
     }
-    .log-time {
-        font-size: 12px;
-        color: #6c757d;
+    .log-details-title {
+        font-weight: bold;
+        color: #1e3a5f;
+        font-size: 13px;
+        margin: 0 0 2px 0;
+        padding: 0;
     }
-
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: #adb5bd;
+    .log-details-line {
+        margin: 0;
+        padding: 0;
+        line-height: 1.5;
     }
-    .empty-state i {
-        font-size: 64px;
-        margin-bottom: 16px;
-        opacity: 0.3;
-    }
-
-    .quick-dates {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-    .quick-dates .btn {
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 12px;
-        padding: 5px 12px;
+    .log-details-line.heading {
+        font-weight: bold;
+        color: #495057;
+        margin-top: 4px;
     }
 
-    .datepicker-plot-area {
-        font-family: Tahoma, sans-serif !important;
+    /* ✅ رنگ‌های پررنگ برای تغییرات مواد */
+    .material-change {
+        padding: 3px 10px;
+        border-radius: 4px;
+        margin: 2px 0;
+        font-weight: 700;
+        border-right: 4px solid;
+    }
+    .material-change.increase {
+        border-right-color: #0a8754;
+        color: #065f3b;
+        background: #d1f4e0;
+    }
+    .material-change.decrease {
+        border-right-color: #c1121f;
+        color: #8a0a14;
+        background: #fbdde0;
+    }
+    .material-change .mat-name {
+        font-weight: 800;
+        color: #212529;
+        margin-left: 4px;
     }
 
-    /* ✅ استایل select2 */
-    .select2-container--bootstrap-5 .select2-selection {
-        font-size: 14px;
+    /* ✅ کلید حل مشکل bidi */
+    .ltr-num {
+        display: inline-block;
+        direction: ltr;
+        unicode-bidi: isolate;
+        font-family: 'Courier New', monospace;
+        font-weight: 900;
+        font-size: 13.5px;
+    }
+    .material-change.increase .ltr-num { color: #0a8754; }
+    .material-change.decrease .ltr-num { color: #c1121f; }
+
+    .event-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #cfe2ff;
+        color: #084298;
+        font-size: 11px;
+        font-weight: bold;
+        padding: 3px 8px;
+        border-radius: 6px;
     }
 </style>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -168,7 +217,7 @@
     @endforeach
 </div>
 
-{{-- ✅ دکمه‌های سریع تاریخ --}}
+{{-- دکمه‌های سریع تاریخ --}}
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body py-3">
         <div class="row g-2 align-items-center">
@@ -216,24 +265,16 @@
 
             <div class="col-md-3">
                 <label class="form-label small fw-bold">از تاریخ</label>
-                <input type="text"
-                       name="date_from"
-                       id="date_from"
+                <input type="text" name="date_from" id="date_from"
                        class="form-control form-control-sm jalali-date-input"
-                       value="{{ $currentDateFrom }}"
-                       placeholder="مثال: 1405/06/01"
-                       autocomplete="off">
+                       value="{{ $currentDateFrom }}" placeholder="مثال: 1405/06/01" autocomplete="off">
             </div>
 
             <div class="col-md-3">
                 <label class="form-label small fw-bold">تا تاریخ</label>
-                <input type="text"
-                       name="date_to"
-                       id="date_to"
+                <input type="text" name="date_to" id="date_to"
                        class="form-control form-control-sm jalali-date-input"
-                       value="{{ $currentDateTo }}"
-                       placeholder="مثال: 1405/06/30"
-                       autocomplete="off">
+                       value="{{ $currentDateTo }}" placeholder="مثال: 1405/06/30" autocomplete="off">
             </div>
 
             <div class="col-md-3">
@@ -261,7 +302,6 @@
                 </select>
             </div>
 
-            {{-- ✅ انتخاب محصول از dropdown --}}
             @if($products->count() > 0)
                 <div class="col-md-4">
                     <label class="form-label small fw-bold">انتخاب محصول</label>
@@ -276,7 +316,6 @@
                 </div>
             @endif
 
-            {{-- ✅ جستجوی متنی --}}
             <div class="col-md-5">
                 <label class="form-label small fw-bold">جستجو</label>
                 <input type="text" name="search" class="form-control form-control-sm"
@@ -309,72 +348,161 @@
             <div class="list-group list-group-flush">
                 @foreach($logs as $log)
                     @php
+                        $isEvent = $log->has_details;
                         $delta = $log->delta;
-                        $deltaClass = $delta > 0 ? 'positive' : ($delta < 0 ? 'negative' : 'neutral');
+                        if ($isEvent) {
+                            $deltaClass = 'event';
+                        } else {
+                            $deltaClass = $delta > 0 ? 'positive' : ($delta < 0 ? 'negative' : 'neutral');
+                        }
                     @endphp
                     <div class="list-group-item log-row {{ $deltaClass }}">
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                            <div class="flex-grow-1">
+                            <div class="flex-grow-1 w-100">
 
-                                <div class="mb-2">
-                                    <span class="log-subject-name">
-                                        <i class="fas fa-box-open"></i>
-                                        {{ $log->subject_name ?? '—' }}
-                                    </span>
-                                </div>
-
-                                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                                    <span class="badge {{ $log->inventory_type_badge }}">
-                                        {{ $log->inventory_type_label }}
-                                    </span>
-
-                                    @if($log->source_label)
-                                        <span class="log-source text-primary">
-                                            <i class="fas fa-arrow-left"></i>
-                                            {{ $log->source_label }}
+                                @if($isEvent)
+                                    <div class="mb-2">
+                                        <span class="log-subject-name">
+                                            <i class="fas fa-layer-group"></i>
+                                            {{ $log->subject_name ?? '—' }}
                                         </span>
+                                        <span class="event-badge ms-2">
+                                            <i class="fas fa-bolt"></i>
+                                            رویداد گروهی
+                                        </span>
+                                    </div>
+
+                                    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                        <span class="badge {{ $log->inventory_type_badge }}">
+                                            {{ $log->inventory_type_label }}
+                                        </span>
+                                        @if($log->source_label)
+                                            <span class="log-source text-primary">
+                                                <i class="fas fa-arrow-left"></i>
+                                                {{ $log->source_label }}
+                                            </span>
+                                        @endif
+                                        @if($log->user)
+                                            <span class="badge bg-light text-dark">
+                                                <i class="fas fa-user me-1"></i>
+                                                {{ $log->user->name }}
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    {{-- ✅ نمایش جزئیات کامل --}}
+                                    @php
+                                        $lines = explode("\n", $log->details);
+                                    @endphp
+                                    <div class="log-details-box">
+                                        @foreach($lines as $line)
+                                            @php $trimmed = trim($line); @endphp
+                                            @if($trimmed === '')
+                                                {{-- خط خالی --}}
+                                            @elseif(str_starts_with($trimmed, 'CHANGE|') || str_starts_with($trimmed, 'CHANGE_RAW|') || str_starts_with($trimmed, 'CHANGE_PKG|'))
+                                                @php
+                                                    $parts = explode('|', $trimmed);
+                                                    $type = $parts[0] ?? 'CHANGE';
+                                                    $matName = $parts[1] ?? '';
+                                                    $oldVal  = (int) ($parts[2] ?? 0);
+                                                    $newVal  = (int) ($parts[3] ?? 0);
+                                                    $deltaVal = (int) ($parts[4] ?? 0);
+                                                    $sign = $deltaVal > 0 ? '+' : '';
+                                                    $isIncrease = $deltaVal > 0;
+                                                    $unit = ($type === 'CHANGE') ? 'گرم' : 'عدد';
+                                                @endphp
+                                                <div class="log-details-line material-change {{ $isIncrease ? 'increase' : 'decrease' }}">
+                                                    <span class="mat-name">• {{ $matName }}:</span>
+                                                    <span class="ltr-num">{{ number_format($oldVal) }} → {{ number_format($newVal) }} {{ $unit }}</span>
+                                                    <span class="ltr-num">({{ $sign }}{{ number_format($deltaVal) }} {{ $unit }})</span>
+                                                </div>
+                                            @elseif(str_starts_with($trimmed, '📋'))
+                                                <div class="log-details-title">{{ $trimmed }}</div>
+                                            @elseif(str_starts_with($trimmed, '🔹'))
+                                                <div class="log-details-line">{{ $trimmed }}</div>
+                                            @elseif(str_starts_with($trimmed, '📦'))
+                                                <div class="log-details-line heading">{{ $trimmed }}</div>
+                                            @elseif(str_starts_with($trimmed, '📌'))
+                                                <div class="log-details-line heading">{{ $trimmed }}</div>
+                                            @elseif(str_contains($trimmed, '•'))
+                                                @php
+                                                    $isIncrease = str_contains($trimmed, '+');
+                                                    $clean = preg_replace('/[\x{202A}-\x{202E}]/u', '', $trimmed);
+                                                @endphp
+                                                <div class="log-details-line material-change {{ $isIncrease ? 'increase' : 'decrease' }}">
+                                                    <span class="ltr-num">{{ $clean }}</span>
+                                                </div>
+                                            @else
+                                                <div class="log-details-line">{{ $trimmed }}</div>
+                                            @endif
+                                        @endforeach
+                                    </div>
+
+                                    <div class="log-time mt-2">
+                                        <i class="far fa-clock me-1"></i>
+                                        {{ \Morilog\Jalali\Jalalian::fromCarbon($log->created_at)->format('Y/m/d H:i:s') }}
+                                    </div>
+                                @else
+                                    <div class="mb-2">
+                                        <span class="log-subject-name">
+                                            <i class="fas fa-box-open"></i>
+                                            {{ $log->subject_name ?? '—' }}
+                                        </span>
+                                    </div>
+
+                                    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                        <span class="badge {{ $log->inventory_type_badge }}">
+                                            {{ $log->inventory_type_label }}
+                                        </span>
+                                        @if($log->source_label)
+                                            <span class="log-source text-primary">
+                                                <i class="fas fa-arrow-left"></i>
+                                                {{ $log->source_label }}
+                                            </span>
+                                        @endif
+                                        @if($log->user)
+                                            <span class="badge bg-light text-dark">
+                                                <i class="fas fa-user me-1"></i>
+                                                {{ $log->user->name }}
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    @if($log->description)
+                                        <div class="log-description">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            {{ $log->description }}
+                                        </div>
                                     @endif
 
-                                    @if($log->user)
-                                        <span class="badge bg-light text-dark">
-                                            <i class="fas fa-user me-1"></i>
-                                            {{ $log->user->name }}
-                                        </span>
-                                    @endif
-                                </div>
-
-                                @if($log->description)
-                                    <div class="log-description">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        {{ $log->description }}
+                                    <div class="log-time mt-2">
+                                        <i class="far fa-clock me-1"></i>
+                                        {{ \Morilog\Jalali\Jalalian::fromCarbon($log->created_at)->format('Y/m/d H:i:s') }}
                                     </div>
                                 @endif
-
-                                <div class="log-time mt-2">
-                                    <i class="far fa-clock me-1"></i>
-                                    {{ \Morilog\Jalali\Jalalian::fromCarbon($log->created_at)->format('Y/m/d H:i:s') }}
-                                </div>
                             </div>
 
-                            <div class="text-start" style="min-width: 240px;">
-                                <div class="d-flex gap-3 justify-content-end align-items-center">
-                                    <div class="text-center">
-                                        <div class="small text-muted">قبل</div>
-                                        <div class="fw-bold">{{ number_format($log->old_value) }}</div>
-                                    </div>
-                                    <i class="fas fa-arrow-left text-muted"></i>
-                                    <div class="text-center">
-                                        <div class="small text-muted">بعد</div>
-                                        <div class="fw-bold">{{ number_format($log->new_value) }}</div>
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="small text-muted">تغییر</div>
-                                        <div class="log-delta text-{{ $log->delta_color }}">
-                                            {{ $log->delta_label }}
+                            @if(!$isEvent)
+                                <div class="text-start" style="min-width: 240px;">
+                                    <div class="d-flex gap-3 justify-content-end align-items-center">
+                                        <div class="text-center">
+                                            <div class="small text-muted">قبل</div>
+                                            <div class="fw-bold">{{ number_format($log->old_value) }}</div>
+                                        </div>
+                                        <i class="fas fa-arrow-left text-muted"></i>
+                                        <div class="text-center">
+                                            <div class="small text-muted">بعد</div>
+                                            <div class="fw-bold">{{ number_format($log->new_value) }}</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="small text-muted">تغییر</div>
+                                            <div class="log-delta text-{{ $log->delta_color }}">
+                                                {{ $log->delta_label }}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            @endif
                         </div>
                     </div>
                 @endforeach
@@ -438,7 +566,6 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() {
-        // ✅ راه‌اندازی date picker شمسی
         if (typeof $.fn.pDatepicker !== 'undefined') {
             $('.jalali-date-input').pDatepicker({
                 format: 'YYYY/MM/DD',
@@ -447,22 +574,14 @@
                 persianDigit: false,
                 observer: true,
                 calendar: {
-                    persian: {
-                        locale: 'fa',
-                        leapYearMode: 'algorithmic'
-                    }
+                    persian: { locale: 'fa', leapYearMode: 'algorithmic' }
                 },
-                toolbox: {
-                    calendarSwitch: { enabled: false }
-                },
-                navigator: {
-                    scroll: { enabled: true }
-                },
+                toolbox: { calendarSwitch: { enabled: false } },
+                navigator: { scroll: { enabled: true } },
                 timePicker: { enabled: false }
             });
         }
 
-        // ✅ راه‌اندازی select2 برای محصولات
         if ($.fn.select2 && $('#product_id').length) {
             $('#product_id').select2({
                 placeholder: 'جستجو و انتخاب محصول...',

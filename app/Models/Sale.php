@@ -18,10 +18,12 @@ class Sale extends Model
         'total_price',
         'total_with_tax',
         'status',
+        'is_imported',   // ✅ اضافه شد
     ];
 
     protected $casts = [
         'date' => 'date',
+        'is_imported' => 'boolean',   // ✅ اضافه شد
     ];
 
     public function products()

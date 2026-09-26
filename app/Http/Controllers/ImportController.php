@@ -63,10 +63,6 @@ class ImportController extends Controller
         try {
             set_time_limit(0);
 
-            // ═══════════════════════════════════════════════════════════
-            //  ✅ مرحله ۱: پاک کردن همه رکوردهای ایمپورتی (قبل از اسنپ‌شات)
-            //  PRAGMA OFF تا FK چک نشه (چون جدول invoices وجود نداره)
-            // ═══════════════════════════════════════════════════════════
             DB::statement('PRAGMA foreign_keys = OFF');
 
             try {
@@ -77,24 +73,37 @@ class ImportController extends Controller
                     )
                 ');
                 DB::statement('DELETE FROM productions WHERE is_imported = 1');
-                DB::statement('DELETE FROM tonneli_firing_items');
-                DB::statement('DELETE FROM tonneli_firings');
-                DB::statement('DELETE FROM shuttle_firings');
+
+                DB::statement('
+                    DELETE FROM tonneli_firing_items
+                    WHERE tonneli_firing_id IN (
+                        SELECT id FROM tonneli_firings WHERE is_imported = 1
+                    )
+                ');
+                DB::statement('DELETE FROM tonneli_firings WHERE is_imported = 1');
+
+                DB::statement('DELETE FROM shuttle_firings WHERE is_imported = 1');
+
                 DB::statement('DELETE FROM material_makings WHERE is_imported = 1');
+
+                DB::statement('
+                    DELETE FROM sale_products
+                    WHERE sale_id IN (
+                        SELECT id FROM sales WHERE is_imported = 1
+                    )
+                ');
+                DB::statement('DELETE FROM sales WHERE is_imported = 1');
+
                 DB::statement('DELETE FROM shoulder_records');
                 DB::statement('DELETE FROM waste_mum_records');
                 DB::statement('DELETE FROM informal_sale_products');
                 DB::statement('DELETE FROM informal_sales');
-                DB::statement('DELETE FROM sale_products');
-                DB::statement('DELETE FROM sales');
             } finally {
                 DB::statement('PRAGMA foreign_keys = ON');
             }
 
-            // ✅ مرحله ۲: اسنپ‌شات قبل (بعد از پاک کردن)
             $beforeSnapshot = $this->takeInventorySnapshot();
 
-            // ✅ مرحله ۳: ایمپورت از اکسل
             $reader = IOFactory::createReaderForFile($filePath);
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($filePath);
@@ -152,9 +161,6 @@ class ImportController extends Controller
         return redirect()->back()->with($status === 'success' ? 'success' : 'error', $message);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ ایمپورت پرداخت‌های مشتریان (شیت: حسابداری)
-    // ═══════════════════════════════════════════════════════════
     private function importCustomerPaymentsFromSpreadsheet($spreadsheet)
     {
         $sheetNames = ['حسابداری', 'پرداخت‌ها', 'پرداختی‌ها', 'پرداخت'];
@@ -166,12 +172,10 @@ class ImportController extends Controller
         if (!$sheet) return;
 
         $rows = $sheet->toArray();
-        array_shift($rows); // حذف هدر
+        array_shift($rows);
 
-        // ✅ فقط ایمپورتی‌های قبلی رو پاک کن — دستی‌ها بمونن
         DB::statement('DELETE FROM customer_payments WHERE is_imported = 1 OR is_imported IS NULL');
 
-        // ✅ کلیدهای موجود (دستی‌های باقی‌مونده) رو جمع کن
         $existingKeys = [];
         foreach (CustomerPayment::all() as $p) {
             $key = $p->year . '|' . $p->month . '|' . $p->day . '|' . $p->customer_name . '|' . $p->amount;
@@ -239,9 +243,6 @@ class ImportController extends Controller
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  اسنپ‌شات با تفکیک منبع
-    // ═══════════════════════════════════════════════════════════
     private function takeInventorySnapshot()
     {
         $snapshot = [
@@ -666,7 +667,10 @@ class ImportController extends Controller
                     $packaged = ($isPackaged == '1' || $isPackaged == 'بله') ? 1 : 0;
 
                     if ($inputQty > 0) {
-                        $tonneliIn = TonneliFiring::create(['date' => $jalaliDate->toCarbon()]);
+                        $tonneliIn = TonneliFiring::create([
+                            'date' => $jalaliDate->toCarbon(),
+                            'is_imported' => true,
+                        ]);
                         TonneliFiringItem::create([
                             'tonneli_firing_id' => $tonneliIn->id,
                             'product_id' => $product->id,
@@ -676,7 +680,10 @@ class ImportController extends Controller
                         ]);
                     }
                     if ($outputQty > 0) {
-                        $tonneliOut = TonneliFiring::create(['date' => $jalaliDate->toCarbon()]);
+                        $tonneliOut = TonneliFiring::create([
+                            'date' => $jalaliDate->toCarbon(),
+                            'is_imported' => true,
+                        ]);
                         TonneliFiringItem::create([
                             'tonneli_firing_id' => $tonneliOut->id,
                             'product_id' => $product->id,
@@ -776,11 +783,15 @@ class ImportController extends Controller
                         'year' => $group['year'],
                         'month' => $group['month'],
                         'day' => $group['day'],
+                        'is_imported' => true,
                     ]);
                 }
             }
             DB::commit();
-        } catch (\Exception $e) { DB::rollBack(); throw $e; }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
     private function importInformalSalesFromSpreadsheet($spreadsheet)
@@ -857,6 +868,10 @@ class ImportController extends Controller
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ایمپورت فروش رسمی
+    //  ⚠️ PRAGMA foreign_keys = OFF چون جدول invoices وجود نداره
+    // ═══════════════════════════════════════════════════════════
     private function importFormalSalesFromSpreadsheet($spreadsheet)
     {
         $sheetNames = ['رسمی', 'فروش رسمی', 'رسمی فروش'];
@@ -865,11 +880,22 @@ class ImportController extends Controller
             $sheet = $spreadsheet->getSheetByName($name);
             if ($sheet) break;
         }
-        if (!$sheet) return;
+        if (!$sheet) {
+            Log::warning('importFormalSales: هیچ شیتی با نام رسمی/فروش رسمی/رسمی فروش پیدا نشد.');
+            return;
+        }
 
         $rows = $sheet->toArray();
         array_shift($rows);
-        if (empty($rows)) return;
+        if (empty($rows)) {
+            Log::warning('importFormalSales: شیت رسمی خالیه.');
+            return;
+        }
+
+        Log::info('importFormalSales: تعداد ردیف‌ها = ' . count($rows));
+
+        // ✅ خاموش کردن FK check چون جدول invoices وجود نداره
+        DB::statement('PRAGMA foreign_keys = OFF');
 
         DB::beginTransaction();
         try {
@@ -878,9 +904,16 @@ class ImportController extends Controller
             $invoiceWithTaxTotals = [];
             $invoiceStatus = [];
 
-            foreach ($rows as $row) {
+            $successCount = 0;
+            $skipCount = 0;
+            $errorCount = 0;
+
+            foreach ($rows as $rowIndex => $row) {
                 try {
-                    if (empty(array_filter($row))) continue;
+                    if (empty(array_filter($row))) {
+                        $skipCount++;
+                        continue;
+                    }
                     $col = array_pad($row, 14, '');
 
                     $year = (int) trim($col[0]);
@@ -897,13 +930,19 @@ class ImportController extends Controller
                     $paymentStatus = isset($col[13]) ? trim($col[13]) : '';
 
                     if ($year < 1400 || $month < 1 || $month > 12 || $day < 1 || $day > 31 ||
-                        empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) continue;
+                        empty($invoiceNumber) || empty($customerName) || empty($productName) || $quantity <= 0) {
+                        $skipCount++;
+                        continue;
+                    }
 
                     $dateStr = sprintf('%04d/%02d/%02d', $year, $month, $day);
                     try {
                         $jalaliDate = Jalalian::fromFormat('Y/m/d', $dateStr);
                         $gregorianDate = $jalaliDate->toCarbon();
-                    } catch (\Exception $e) { continue; }
+                    } catch (\Exception $e) {
+                        $skipCount++;
+                        continue;
+                    }
 
                     $product = $this->findOrCreateProduct($productName, 'SALE');
                     if ($priceAfterDiscount <= 0) $priceAfterDiscount = $quantity * $unitPrice;
@@ -936,6 +975,7 @@ class ImportController extends Controller
                             'total_price' => 0,
                             'total_with_tax' => 0,
                             'status' => $invoiceStatus[$invoiceNumber],
+                            'is_imported' => true,
                         ]);
                     }
                     SaleProduct::create([
@@ -944,7 +984,12 @@ class ImportController extends Controller
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                     ]);
-                } catch (\Exception $e) { /* ادامه */ }
+
+                    $successCount++;
+                } catch (\Exception $e) {
+                    $errorCount++;
+                    Log::error('FormalSales row error: ' . $e->getMessage() . ' | RowIndex: ' . $rowIndex . ' | Row: ' . json_encode($row, JSON_UNESCAPED_UNICODE));
+                }
             }
 
             foreach ($invoiceTotals as $invNum => $total) {
@@ -963,9 +1008,14 @@ class ImportController extends Controller
             }
 
             DB::commit();
+
+            Log::info("importFormalSales خلاصه: موفق={$successCount} | رد شده={$skipCount} | خطا={$errorCount}");
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in importFormalSalesFromSpreadsheet: ' . $e->getMessage());
+        } finally {
+            // ✅ روشن کردن مجدد FK check
+            DB::statement('PRAGMA foreign_keys = ON');
         }
     }
 

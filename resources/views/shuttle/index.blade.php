@@ -11,6 +11,20 @@
     </nav>
 </div>
 
+@if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show">
+        {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 <div class="card border-0 shadow-sm">
     <div class="card-body">
         {{-- دکمه ثبت پخت جدید --}}
@@ -18,19 +32,57 @@
             <a href="{{ route('shuttle.create') }}" class="btn btn-primary">
                 <i class="fas fa-plus-circle me-1"></i> ثبت پخت جدید
             </a>
+
+            <div class="d-flex gap-2">
+                @if(request('source') === 'imported')
+                    <form action="{{ route('shuttle.clear-imported') }}" method="POST" onsubmit="return confirm('همه رکوردهای ایمپورتی پاک بشن؟')">
+                        @csrf @method('DELETE')
+                        <button class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash me-1"></i> پاک کردن ایمپورتی‌ها
+                        </button>
+                    </form>
+                @endif
+                @if(request('source') === 'manual')
+                    <form action="{{ route('shuttle.clear-manual') }}" method="POST" onsubmit="return confirm('همه رکوردهای دستی پاک بشن؟ (موجودی برگردانده می‌شود)')">
+                        @csrf @method('DELETE')
+                        <button class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash me-1"></i> پاک کردن دستی‌ها
+                        </button>
+                    </form>
+                @endif
+            </div>
         </div>
 
-        {{-- ===== دکمه‌های فیلتر بر اساس نوع کوره ===== --}}
+        {{-- ✅ فیلتر منبع --}}
+        <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
+            <span class="fw-bold small text-muted me-2">
+                <i class="fas fa-filter me-1"></i> منبع:
+            </span>
+            @php
+                $currentSource = request('source', 'all');
+                $sourceButtons = [
+                    'all'      => ['label' => 'همه',           'color' => 'dark'],
+                    'manual'   => ['label' => 'دستی',          'color' => 'primary'],
+                    'imported' => ['label' => 'ایمپورت اکسل',  'color' => 'info'],
+                ];
+            @endphp
+            @foreach($sourceButtons as $key => $cfg)
+                <a href="{{ route('shuttle.index', array_merge(request()->except('source', 'page'), ['source' => $key])) }}"
+                   class="btn btn-sm {{ $currentSource === $key ? 'btn-' . $cfg['color'] : 'btn-outline-' . $cfg['color'] }}">
+                    {{ $cfg['label'] }}
+                </a>
+            @endforeach
+        </div>
+
+        {{-- دکمه‌های فیلتر کوره --}}
         @if($allKilnCounts->count())
             <div class="row g-2 mb-3">
-                {{-- دکمه "همه" --}}
                 <div class="col-auto">
-                    <a href="{{ route('shuttle.index') }}" 
+                    <a href="{{ route('shuttle.index', array_merge(request()->except('kiln'), ['kiln' => 'all'])) }}"
                        class="badge {{ is_null($filterKiln) || $filterKiln === 'all' ? 'bg-dark' : 'bg-secondary' }} p-2 fs-6 text-decoration-none">
                         همه ({{ $allKilnCounts->sum() }})
                     </a>
                 </div>
-
                 @foreach($allKilnCounts as $kilnType => $count)
                     @php
                         $kilnDisplay = 'نامشخص';
@@ -42,7 +94,7 @@
                         $isActive = ($filterKiln == $kilnType);
                     @endphp
                     <div class="col-auto">
-                        <a href="{{ route('shuttle.index', ['kiln' => $kilnType]) }}" 
+                        <a href="{{ route('shuttle.index', array_merge(request()->except('kiln'), ['kiln' => $kilnType])) }}"
                            class="badge {{ $isActive ? 'bg-primary' : 'bg-secondary' }} p-2 fs-6 text-decoration-none">
                             {{ $kilnDisplay }}: {{ $count }} پخت
                         </a>
@@ -51,17 +103,12 @@
             </div>
         @endif
 
-        {{-- نمایش تعداد کل رکوردهای فیلترشده --}}
         @if($paginated->count())
             <div class="mb-2 text-muted small">
                 نمایش {{ $paginated->firstItem() }} تا {{ $paginated->lastItem() }} از {{ $paginated->total() }} پخت
-                @if($filterKiln && $filterKiln !== 'all')
-                    (فیلتر شده بر اساس {{ $kilnDisplay ?? 'کوره انتخاب‌شده' }})
-                @endif
             </div>
         @endif
 
-        {{-- جدول --}}
         @if($paginated->count())
             <div class="table-responsive">
                 <table class="table table-bordered table-hover">
@@ -74,7 +121,8 @@
                             <th>نوع پخت</th>
                             <th>تعداد محصولات</th>
                             <th>مجموع تعداد</th>
-                            <th>وضعیت بسته‌بندی</th>
+                            <th>بسته‌بندی</th>
+                            <th>منبع</th>
                             <th>عملیات</th>
                         </tr>
                     </thead>
@@ -115,7 +163,17 @@
                                     @endif
                                 </td>
                                 <td>
-                                    {{-- دکمه مشاهده --}}
+                                    @if($firing->is_imported)
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-file-excel me-1"></i> اکسل
+                                        </span>
+                                    @else
+                                        <span class="badge bg-primary">
+                                            <i class="fas fa-hand-paper me-1"></i> دستی
+                                        </span>
+                                    @endif
+                                </td>
+                                <td>
                                     <a href="{{ route('shuttle.show', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
@@ -123,10 +181,9 @@
                                         'kiln_type' => $firing->kiln_type,
                                         'firingNumber' => $firing->firing_number
                                     ]) }}" class="btn btn-sm btn-info">
-                                        <i class="fas fa-eye"></i> مشاهده
+                                        <i class="fas fa-eye"></i>
                                     </a>
 
-                                    {{-- دکمه ویرایش --}}
                                     <a href="{{ route('shuttle.edit', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
@@ -134,10 +191,9 @@
                                         'kiln_type' => $firing->kiln_type,
                                         'firingNumber' => $firing->firing_number
                                     ]) }}" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-edit"></i> ویرایش
+                                        <i class="fas fa-edit"></i>
                                     </a>
 
-                                    {{-- فرم حذف --}}
                                     <form action="{{ route('shuttle.destroy', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
@@ -148,7 +204,7 @@
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('آیا از حذف این پخت مطمئن هستید؟')">
-                                            <i class="fas fa-trash"></i> حذف
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
                                 </td>
@@ -162,11 +218,7 @@
             </div>
         @else
             <div class="alert alert-info">
-                @if($filterKiln && $filterKiln !== 'all')
-                    هیچ پختی برای کوره انتخاب‌شده یافت نشد.
-                @else
-                    هیچ پخت شاتلی ثبت نشده است.
-                @endif
+                هیچ پخت شاتلی ثبت نشده است.
             </div>
         @endif
     </div>

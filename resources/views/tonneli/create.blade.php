@@ -11,6 +11,24 @@
     </nav>
 </div>
 
+@if($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show">
+        <ul class="mb-0">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show">
+        {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 <div class="card border-0 shadow-sm">
     <div class="card-body">
         <form action="{{ route('tonneli.store') }}" method="POST">
@@ -19,8 +37,9 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label class="form-label">تاریخ <span class="text-danger">*</span></label>
+                    {{-- ✅ $yesterday به جای $today --}}
                     <input type="text" name="date" class="form-control @error('date') is-invalid @enderror"
-                           value="{{ old('date', $today) }}" required>
+                           value="{{ old('date', $yesterday) }}" required>
                     @error('date')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
