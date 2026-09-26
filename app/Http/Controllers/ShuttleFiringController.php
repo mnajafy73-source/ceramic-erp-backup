@@ -210,9 +210,13 @@ class ShuttleFiringController extends Controller
         return view('shuttle.show', compact('firing'));
     }
 
-    public function edit($year, $month, $day, $kiln_type, $firingNumber)
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ویرایش یک ردیف خاص از پخت (با itemId)
+    // ═══════════════════════════════════════════════════════════
+    public function edit($year, $month, $day, $kiln_type, $firingNumber, $itemId)
     {
-        $firing = ShuttleFiring::where('year', $year)
+        $firing = ShuttleFiring::where('id', $itemId)
+            ->where('year', $year)
             ->where('month', $month)
             ->where('day', $day)
             ->where('kiln_type', $kiln_type)
@@ -230,9 +234,13 @@ class ShuttleFiringController extends Controller
         return view('shuttle.edit', compact('firing', 'products'));
     }
 
-    public function update(Request $request, $year, $month, $day, $kiln_type, $firingNumber)
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ ویرایش یک ردیف خاص — بعد از ویرایش، به دستی تبدیل می‌شه
+    // ═══════════════════════════════════════════════════════════
+    public function update(Request $request, $year, $month, $day, $kiln_type, $firingNumber, $itemId)
     {
-        $firing = ShuttleFiring::where('year', $year)
+        $firing = ShuttleFiring::where('id', $itemId)
+            ->where('year', $year)
             ->where('month', $month)
             ->where('day', $day)
             ->where('kiln_type', $kiln_type)
@@ -276,6 +284,7 @@ class ShuttleFiringController extends Controller
 
         DB::beginTransaction();
         try {
+            // برگرداندن اثر قبلی
             $this->applyInventoryForFiringWithLog(
                 $firing,
                 'return',
@@ -285,6 +294,7 @@ class ShuttleFiringController extends Controller
                 0
             );
 
+            // ✅ آپدیت + تبدیل به دستی
             $firing->update([
                 'date' => $gregorianDate,
                 'kiln_type' => $kilnType,
@@ -292,10 +302,12 @@ class ShuttleFiringController extends Controller
                 'product_id' => $validated['product_id'],
                 'output_quantity' => $validated['main_quantity'],
                 'is_packaged' => $packaged,
+                'is_imported' => false,   // ✅ تبدیل به دستی
             ]);
 
             $firing->refresh();
 
+            // اعمال اثر جدید
             $this->applyInventoryForFiringWithLog(
                 $firing,
                 'add',
@@ -307,32 +319,42 @@ class ShuttleFiringController extends Controller
 
             DB::commit();
             return redirect()->route('shuttle.index')
-                ->with('success', 'پخت شاتل با موفقیت ویرایش شد.');
+                ->with('success', 'پخت شاتل با موفقیت ویرایش شد و به عنوان رکورد دستی ثبت شد.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withErrors(['error' => 'خطا در ویرایش پخت: ' . $e->getMessage()]);
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حذف کل پخت (همه محصولات)
+    // ═══════════════════════════════════════════════════════════
     public function destroy($year, $month, $day, $kiln_type, $firingNumber)
     {
-        $firing = ShuttleFiring::where('year', $year)
+        $firings = ShuttleFiring::where('year', $year)
             ->where('month', $month)
             ->where('day', $day)
             ->where('kiln_type', $kiln_type)
             ->where('firing_number', $firingNumber)
-            ->firstOrFail();
+            ->get();
+
+        if ($firings->isEmpty()) {
+            return redirect()->route('shuttle.index')->with('error', 'پخت مورد نظر یافت نشد.');
+        }
 
         DB::beginTransaction();
         try {
-            $this->applyInventoryForFiringWithLog(
-                $firing,
-                'return',
-                $firing->jalali_date,
-                0,
-                $firing->output_quantity,
-                0
-            );
+            // برگرداندن اثر همه ردیف‌ها
+            foreach ($firings as $firing) {
+                $this->applyInventoryForFiringWithLog(
+                    $firing,
+                    'return',
+                    $firing->jalali_date,
+                    0,
+                    $firing->output_quantity,
+                    0
+                );
+            }
 
             ShuttleFiring::where('year', $year)
                 ->where('month', $month)

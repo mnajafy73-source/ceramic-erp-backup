@@ -206,24 +206,82 @@ class InventoryController extends Controller
         return $total;
     }
 
-    private function calculateUnpackagedStock(Product $product)
+    /**
+     * ✅ مجموع بسته‌بندی‌نشده‌ها از همه کوره‌ها
+     * استثنا: برای محصول «ترموکوپل»، ورودی تونلی هم اضافه می‌شه
+     */
+    private function getTotalUnpackaged(Product $product): float
     {
-        if ($product->unpackaged_manual_stock !== null) {
-            return (float) $product->unpackaged_manual_stock;
-        }
+        $productId = $product->id;
 
-        $unpackaged = ShuttleFiring::where('kiln_type', 'kiln_3')
-            ->where('firing_subtype', 'glaze')
-            ->where('is_packaged', 0)
-            ->where('product_id', $product->id)
-            ->sum('output_quantity')
-            -
-            ShuttleFiring::where('kiln_type', 'kiln_4')
-            ->where('is_packaged', 1)
-            ->where('product_id', $product->id)
+        $tonneliUnpackaged = (float) TonneliFiringItem::where('product_id', $productId)
+            ->where(function ($q) {
+                $q->where('is_packaged', 0)->orWhereNull('is_packaged');
+            })
             ->sum('output_quantity');
 
-        return max(0, (float) $unpackaged);
+        if (str_contains($product->name, 'ترموکوپل')) {
+            $tonneliUnpackaged += (float) TonneliFiringItem::where('product_id', $productId)
+                ->sum('input_quantity');
+        }
+
+        $shuttleUnpackaged = (float) ShuttleFiring::where('product_id', $productId)
+            ->whereIn('kiln_type', ['kiln_1', 'kiln_2', 'kiln_3', 'kiln_4'])
+            ->where(function ($q) {
+                $q->where('is_packaged', 0)->orWhereNull('is_packaged');
+            })
+            ->sum('output_quantity');
+
+        return $tonneliUnpackaged + $shuttleUnpackaged;
+    }
+
+    /**
+     * ✅ مجموع بسته‌بندی‌شده‌ها از همه کوره‌ها
+     */
+    private function getTotalPackaged(Product $product): float
+    {
+        $productId = $product->id;
+
+        return (float) TonneliFiringItem::where('product_id', $productId)
+            ->where('is_packaged', 1)
+            ->sum('output_quantity')
+            + (float) ShuttleFiring::where('product_id', $productId)
+            ->whereIn('kiln_type', ['kiln_1', 'kiln_2', 'kiln_3', 'kiln_4'])
+            ->where('is_packaged', 1)
+            ->sum('output_quantity');
+    }
+
+    /**
+     * ✅ محاسبه موجودی بسته‌بندی نشده
+     *
+     * حالت خودکار:
+     *   = (بسته‌نشده از همه کوره‌ها) − (بسته‌شده از همه کوره‌ها)
+     *
+     * حالت دستی:
+     *   = manual_value
+     *   + (بسته‌نشده‌های الان − بسته‌نشده‌های لحظه‌ی تنظیم)
+     *   − (بسته‌شده‌های الان − بسته‌شده‌های لحظه‌ی تنظیم)
+     *
+     * در هر دو حالت، نتیجه حداقل 0
+     */
+    private function calculateUnpackagedStock(Product $product)
+    {
+        $totalUnpackaged = $this->getTotalUnpackaged($product);
+        $totalPackaged = $this->getTotalPackaged($product);
+
+        // حالت دستی
+        if ($product->unpackaged_manual_stock !== null) {
+            $baselinePackaged = (float) ($product->unpackaged_baseline_packaged ?? 0);
+            $baselineUnpackaged = (float) ($product->unpackaged_baseline_unpackaged ?? 0);
+
+            $deltaPackaged = $totalPackaged - $baselinePackaged;
+            $deltaUnpackaged = $totalUnpackaged - $baselineUnpackaged;
+
+            return max(0, (float) $product->unpackaged_manual_stock + $deltaUnpackaged - $deltaPackaged);
+        }
+
+        // حالت خودکار
+        return max(0, $totalUnpackaged - $totalPackaged);
     }
 
     private function calculatePackagingConsumed(Packaging $packaging)
@@ -464,7 +522,6 @@ class InventoryController extends Controller
         $inv->save();
         $newStock = (float) $inv->stock;
 
-        // ✅ لاگ با source
         if ($oldStock != $newStock) {
             $sourceLabel = ($mode === 'adjust') ? 'manual_warehouse_adjust' : 'manual_warehouse_set';
             $modeLabel = ($mode === 'adjust') ? 'کسر/اضافه' : 'تنظیم';
@@ -551,7 +608,6 @@ class InventoryController extends Controller
         $material->stock = $newStock;
         $material->save();
 
-        // ✅ لاگ با source
         if ($oldStock != $newStock) {
             $sourceLabel = ($mode === 'adjust') ? 'manual_raw_material_adjust' : 'manual_raw_material_set';
             $modeLabel = ($mode === 'adjust') ? 'کسر/اضافه' : 'تنظیم';
@@ -619,7 +675,6 @@ class InventoryController extends Controller
         $packaging->save();
         $newStock = (int) $packaging->stock;
 
-        // ✅ لاگ با source
         if ($oldStock != $newStock) {
             $sourceLabel = ($mode === 'adjust') ? 'manual_packaging_adjust' : 'manual_packaging_set';
             $modeLabel = ($mode === 'adjust') ? 'کسر/اضافه' : 'تنظیم';
@@ -666,9 +721,12 @@ class InventoryController extends Controller
 
         $cleanQty = preg_replace('/[^0-9.\-]/', '', $rawInput);
 
+        // ✅ برگشت به حالت خودکار برای unpackaged
         if ($field === 'unpackaged' && ($cleanQty === '' || $rawInput === 'auto')) {
             $oldStock = (float) $this->calculateUnpackagedStock($product);
             $product->unpackaged_manual_stock = null;
+            $product->unpackaged_baseline_packaged = 0;
+            $product->unpackaged_baseline_unpackaged = 0;   // ✅ ریست baseline جدید
             $product->save();
 
             if ($oldStock != 0) {
@@ -793,19 +851,29 @@ class InventoryController extends Controller
                     break;
 
                 case 'unpackaged':
+                    // ✅ مقدار فعلی نمایشی
                     $oldStock = (float) $this->calculateUnpackagedStock($product);
+
+                    // ✅ مقادیر فعلی برای ذخیره به عنوان baseline
+                    $totalPackagedNow = $this->getTotalPackaged($product);
+                    $totalUnpackagedNow = $this->getTotalUnpackaged($product);
+
                     if ($mode === 'adjust') {
-                        $product->unpackaged_manual_stock = max(0, $oldStock + $quantity);
+                        $newManualValue = max(0, $oldStock + $quantity);
                     } else {
-                        $product->unpackaged_manual_stock = $quantity;
+                        $newManualValue = $quantity;
                     }
+
+                    $product->unpackaged_manual_stock = $newManualValue;
+                    $product->unpackaged_baseline_packaged = $totalPackagedNow;
+                    $product->unpackaged_baseline_unpackaged = $totalUnpackagedNow;   // ✅ جدید
                     $product->save();
-                    $newStock = (float) $product->unpackaged_manual_stock;
+
+                    $newStock = (float) $this->calculateUnpackagedStock($product);
                     $loggable = $product;
                     break;
             }
 
-            // ✅ لاگ با source مناسب
             if ($loggable && $oldStock != $newStock) {
                 $sourceLabels = [
                     'raw'        => 'manual_raw',

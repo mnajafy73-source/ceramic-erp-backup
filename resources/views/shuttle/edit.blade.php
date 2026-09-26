@@ -11,9 +11,23 @@
     </nav>
 </div>
 
+@if($firing->is_imported)
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-1"></i>
+        این رکورد از <strong>اکسل</strong> ایمپورت شده. با ذخیره تغییرات، به‌عنوان <strong>دستی</strong> ثبت می‌شه.
+    </div>
+@endif
+
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <form action="{{ route('shuttle.update', $firing->firing_number) }}" method="POST">
+        <form action="{{ route('shuttle.update', [
+            'year' => $firing->year,
+            'month' => $firing->month,
+            'day' => $firing->day,
+            'kiln_type' => $firing->kiln_type,
+            'firingNumber' => $firing->firing_number,
+            'itemId' => $firing->id,
+        ]) }}" method="POST">
             @csrf
             @method('PUT')
 
@@ -117,7 +131,13 @@
 
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">به‌روزرسانی</button>
-                <a href="{{ route('shuttle.index') }}" class="btn btn-secondary">انصراف</a>
+                <a href="{{ route('shuttle.show', [
+                    'year' => $firing->year,
+                    'month' => $firing->month,
+                    'day' => $firing->day,
+                    'kiln_type' => $firing->kiln_type,
+                    'firingNumber' => $firing->firing_number,
+                ]) }}" class="btn btn-secondary">انصراف</a>
             </div>
         </form>
     </div>

@@ -59,7 +59,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('tonneli', TonneliFiringController::class);
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ کوره شاتل
+    //  ✅ کوره شاتل — itemId اضافه شد
     // ═══════════════════════════════════════════════════════════
     Route::delete('/shuttle/clear-imported', [ShuttleFiringController::class, 'clearImported'])->name('shuttle.clear-imported');
     Route::delete('/shuttle/clear-manual', [ShuttleFiringController::class, 'clearManual'])->name('shuttle.clear-manual');
@@ -67,8 +67,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/shuttle/create', [ShuttleFiringController::class, 'create'])->name('shuttle.create');
     Route::post('/shuttle', [ShuttleFiringController::class, 'store'])->name('shuttle.store');
     Route::get('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'show'])->name('shuttle.show');
-    Route::get('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}/edit', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit');
-    Route::put('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'update'])->name('shuttle.update');
+    Route::get('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}/edit/{itemId}', [ShuttleFiringController::class, 'edit'])->name('shuttle.edit');
+    Route::put('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}/{itemId}', [ShuttleFiringController::class, 'update'])->name('shuttle.update');
     Route::delete('/shuttle/{year}/{month}/{day}/{kiln_type}/{firingNumber}', [ShuttleFiringController::class, 'destroy'])->name('shuttle.destroy');
 
     // ═══════════════════════════════════════════════════════════

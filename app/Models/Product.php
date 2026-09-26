@@ -32,15 +32,16 @@ class Product extends Model
         'warehouse_sort_order',
         'all_stocks_sort_order',
         'unpackaged_manual_stock',
+        'unpackaged_baseline_packaged',
+        'unpackaged_baseline_unpackaged',   // ✅ اضافه شد
     ];
 
     protected $casts = [
         'unpackaged_manual_stock' => 'decimal:2',
+        'unpackaged_baseline_packaged' => 'decimal:4',
+        'unpackaged_baseline_unpackaged' => 'decimal:4',   // ✅ اضافه شد
     ];
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ دسته‌بندی محصولات (۴ گزینه)
-    // ═══════════════════════════════════════════════════════════
     public const TYPES = [
         'normal'    => 'معمولی',
         'rod'       => 'میله‌ها',
@@ -97,9 +98,6 @@ class Product extends Model
         return $query->where('product_type', $type);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  روابط
-    // ═══════════════════════════════════════════════════════════
     public function logs()
     {
         return $this->hasMany(ProductLog::class);

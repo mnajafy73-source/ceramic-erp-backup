@@ -1,90 +1,91 @@
-@extends('layouts.app')
-
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="mb-4">
     <h4 class="fw-bold mb-1">لیست پخت‌های کوره شاتل</h4>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">داشبورد</a></li>
+            <li class="breadcrumb-item"><a href="<?php echo e(route('dashboard')); ?>">داشبورد</a></li>
             <li class="breadcrumb-item active">کوره شاتل</li>
         </ol>
     </nav>
 </div>
 
-@if(session('success'))
+<?php if(session('success')): ?>
     <div class="alert alert-success alert-dismissible fade show">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
+        <?php echo e(session('success')); ?>
 
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show">
-        {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
-@endif
+<?php endif; ?>
+
+<?php if(session('error')): ?>
+    <div class="alert alert-danger alert-dismissible fade show">
+        <?php echo e(session('error')); ?>
+
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        {{-- دکمه ثبت پخت جدید --}}
+        
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <a href="{{ route('shuttle.create') }}" class="btn btn-primary">
+            <a href="<?php echo e(route('shuttle.create')); ?>" class="btn btn-primary">
                 <i class="fas fa-plus-circle me-1"></i> ثبت پخت جدید
             </a>
 
             <div class="d-flex gap-2">
-                @if(request('source') === 'imported')
-                    <form action="{{ route('shuttle.clear-imported') }}" method="POST" onsubmit="return confirm('همه رکوردهای ایمپورتی پاک بشن؟')">
-                        @csrf @method('DELETE')
+                <?php if(request('source') === 'imported'): ?>
+                    <form action="<?php echo e(route('shuttle.clear-imported')); ?>" method="POST" onsubmit="return confirm('همه رکوردهای ایمپورتی پاک بشن؟')">
+                        <?php echo csrf_field(); ?> <?php echo method_field('DELETE'); ?>
                         <button class="btn btn-sm btn-outline-danger">
                             <i class="fas fa-trash me-1"></i> پاک کردن ایمپورتی‌ها
                         </button>
                     </form>
-                @endif
-                @if(request('source') === 'manual')
-                    <form action="{{ route('shuttle.clear-manual') }}" method="POST" onsubmit="return confirm('همه رکوردهای دستی پاک بشن؟ (موجودی برگردانده می‌شود)')">
-                        @csrf @method('DELETE')
+                <?php endif; ?>
+                <?php if(request('source') === 'manual'): ?>
+                    <form action="<?php echo e(route('shuttle.clear-manual')); ?>" method="POST" onsubmit="return confirm('همه رکوردهای دستی پاک بشن؟ (موجودی برگردانده می‌شود)')">
+                        <?php echo csrf_field(); ?> <?php echo method_field('DELETE'); ?>
                         <button class="btn btn-sm btn-outline-danger">
                             <i class="fas fa-trash me-1"></i> پاک کردن دستی‌ها
                         </button>
                     </form>
-                @endif
+                <?php endif; ?>
             </div>
         </div>
 
-        {{-- ✅ فیلتر منبع --}}
+        
         <div class="mb-3 d-flex gap-2 flex-wrap align-items-center">
             <span class="fw-bold small text-muted me-2">
                 <i class="fas fa-filter me-1"></i> منبع:
             </span>
-            @php
+            <?php
                 $currentSource = request('source', 'all');
                 $sourceButtons = [
                     'all'      => ['label' => 'همه',           'color' => 'dark'],
                     'manual'   => ['label' => 'دستی',          'color' => 'primary'],
                     'imported' => ['label' => 'ایمپورت اکسل',  'color' => 'info'],
                 ];
-            @endphp
-            @foreach($sourceButtons as $key => $cfg)
-                <a href="{{ route('shuttle.index', array_merge(request()->except('source', 'page'), ['source' => $key])) }}"
-                   class="btn btn-sm {{ $currentSource === $key ? 'btn-' . $cfg['color'] : 'btn-outline-' . $cfg['color'] }}">
-                    {{ $cfg['label'] }}
+            ?>
+            <?php $__currentLoopData = $sourceButtons; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $cfg): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <a href="<?php echo e(route('shuttle.index', array_merge(request()->except('source', 'page'), ['source' => $key]))); ?>"
+                   class="btn btn-sm <?php echo e($currentSource === $key ? 'btn-' . $cfg['color'] : 'btn-outline-' . $cfg['color']); ?>">
+                    <?php echo e($cfg['label']); ?>
+
                 </a>
-            @endforeach
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         </div>
 
-        {{-- دکمه‌های فیلتر کوره --}}
-        @if($allKilnCounts->count())
+        
+        <?php if($allKilnCounts->count()): ?>
             <div class="row g-2 mb-3">
                 <div class="col-auto">
-                    <a href="{{ route('shuttle.index', array_merge(request()->except('kiln'), ['kiln' => 'all'])) }}"
-                       class="badge {{ is_null($filterKiln) || $filterKiln === 'all' ? 'bg-dark' : 'bg-secondary' }} p-2 fs-6 text-decoration-none">
-                        همه ({{ $allKilnCounts->sum() }})
+                    <a href="<?php echo e(route('shuttle.index', array_merge(request()->except('kiln'), ['kiln' => 'all']))); ?>"
+                       class="badge <?php echo e(is_null($filterKiln) || $filterKiln === 'all' ? 'bg-dark' : 'bg-secondary'); ?> p-2 fs-6 text-decoration-none">
+                        همه (<?php echo e($allKilnCounts->sum()); ?>)
                     </a>
                 </div>
-                @foreach($allKilnCounts as $kilnType => $count)
-                    @php
+                <?php $__currentLoopData = $allKilnCounts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $kilnType => $count): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php
                         $kilnDisplay = 'نامشخص';
                         if ($kilnType === 'packaging') {
                             $kilnDisplay = 'بسته‌بندی';
@@ -92,24 +93,24 @@
                             $kilnDisplay = 'کوره ' . substr($kilnType, 5);
                         }
                         $isActive = ($filterKiln == $kilnType);
-                    @endphp
+                    ?>
                     <div class="col-auto">
-                        <a href="{{ route('shuttle.index', array_merge(request()->except('kiln'), ['kiln' => $kilnType])) }}"
-                           class="badge {{ $isActive ? 'bg-primary' : 'bg-secondary' }} p-2 fs-6 text-decoration-none">
-                            {{ $kilnDisplay }}: {{ $count }} پخت
+                        <a href="<?php echo e(route('shuttle.index', array_merge(request()->except('kiln'), ['kiln' => $kilnType]))); ?>"
+                           class="badge <?php echo e($isActive ? 'bg-primary' : 'bg-secondary'); ?> p-2 fs-6 text-decoration-none">
+                            <?php echo e($kilnDisplay); ?>: <?php echo e($count); ?> پخت
                         </a>
                     </div>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </div>
-        @endif
+        <?php endif; ?>
 
-        @if($paginated->count())
+        <?php if($paginated->count()): ?>
             <div class="mb-2 text-muted small">
-                نمایش {{ $paginated->firstItem() }} تا {{ $paginated->lastItem() }} از {{ $paginated->total() }} پخت
+                نمایش <?php echo e($paginated->firstItem()); ?> تا <?php echo e($paginated->lastItem()); ?> از <?php echo e($paginated->total()); ?> پخت
             </div>
-        @endif
+        <?php endif; ?>
 
-        @if($paginated->count())
+        <?php if($paginated->count()): ?>
             <div class="table-responsive">
                 <table class="table table-bordered table-hover">
                     <thead class="table-light">
@@ -127,8 +128,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($paginated as $index => $firing)
-                            @php
+                        <?php $__currentLoopData = $paginated; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $firing): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php
                                 $kilnDisplay = 'نامشخص';
                                 if ($firing->kiln_type === 'packaging') {
                                     $kilnDisplay = 'بسته‌بندی';
@@ -146,72 +147,74 @@
                                         $firingTypeDisplay = 'موم';
                                     }
                                 }
-                            @endphp
+                            ?>
                             <tr>
-                                <td>{{ $paginated->firstItem() + $index }}</td>
-                                <td>{{ $firing->firing_number }}</td>
-                                <td>{{ $firing->date }}</td>
-                                <td><span class="badge bg-primary">{{ $kilnDisplay }}</span></td>
-                                <td><span class="badge bg-info">{{ $firingTypeDisplay }}</span></td>
-                                <td>{{ $firing->products_count }}</td>
-                                <td>{{ number_format($firing->total_quantity) }}</td>
+                                <td><?php echo e($paginated->firstItem() + $index); ?></td>
+                                <td><?php echo e($firing->firing_number); ?></td>
+                                <td><?php echo e($firing->date); ?></td>
+                                <td><span class="badge bg-primary"><?php echo e($kilnDisplay); ?></span></td>
+                                <td><span class="badge bg-info"><?php echo e($firingTypeDisplay); ?></span></td>
+                                <td><?php echo e($firing->products_count); ?></td>
+                                <td><?php echo e(number_format($firing->total_quantity)); ?></td>
                                 <td>
-                                    @if($firing->is_packaged)
+                                    <?php if($firing->is_packaged): ?>
                                         <span class="badge bg-success">بله</span>
-                                    @else
+                                    <?php else: ?>
                                         <span class="badge bg-secondary">خیر</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
                                 <td>
-                                    @if($firing->is_imported)
+                                    <?php if($firing->is_imported): ?>
                                         <span class="badge bg-info">
                                             <i class="fas fa-file-excel me-1"></i> اکسل
                                         </span>
-                                    @else
+                                    <?php else: ?>
                                         <span class="badge bg-primary">
                                             <i class="fas fa-hand-paper me-1"></i> دستی
                                         </span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
                                 <td>
-                                    {{-- ✅ فقط دکمه مشاهده — ویرایش از داخل صفحه show انجام می‌شه --}}
-                                    <a href="{{ route('shuttle.show', [
+                                    
+                                    <a href="<?php echo e(route('shuttle.show', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
                                         'day' => $firing->day,
                                         'kiln_type' => $firing->kiln_type,
                                         'firingNumber' => $firing->firing_number
-                                    ]) }}" class="btn btn-sm btn-info" title="مشاهده و ویرایش">
+                                    ])); ?>" class="btn btn-sm btn-info" title="مشاهده و ویرایش">
                                         <i class="fas fa-eye"></i> مشاهده
                                     </a>
 
-                                    <form action="{{ route('shuttle.destroy', [
+                                    <form action="<?php echo e(route('shuttle.destroy', [
                                         'year' => $firing->year,
                                         'month' => $firing->month,
                                         'day' => $firing->day,
                                         'kiln_type' => $firing->kiln_type,
                                         'firingNumber' => $firing->firing_number
-                                    ]) }}" method="POST" class="d-inline">
-                                        @csrf
-                                        @method('DELETE')
+                                    ])); ?>" method="POST" class="d-inline">
+                                        <?php echo csrf_field(); ?>
+                                        <?php echo method_field('DELETE'); ?>
                                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('آیا از حذف کل این پخت مطمئن هستید؟')">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
                                 </td>
                             </tr>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tbody>
                 </table>
             </div>
             <div class="mt-3">
-                {{ $paginated->links() }}
+                <?php echo e($paginated->links()); ?>
+
             </div>
-        @else
+        <?php else: ?>
             <div class="alert alert-info">
                 هیچ پخت شاتلی ثبت نشده است.
             </div>
-        @endif
+        <?php endif; ?>
     </div>
 </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH F:\ceramic-erp-backup\resources\views/shuttle/index.blade.php ENDPATH**/ ?>
